@@ -14,8 +14,10 @@ import {
 } from "@/components/ui/select";
 import { CATEGORIES, PLATFORMS, STATUSES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
 import { createProduct, updateProduct } from "@/lib/actions/product-actions";
-import { Loader2, ImageIcon, X } from "lucide-react";
+import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
+import { Loader2, ImageIcon, X, Upload, AlertTriangle } from "lucide-react";
 import { ImageUpload } from "./image-upload";
+import { toast } from "sonner";
 
 interface ProductFormProps {
   product?: {
@@ -38,6 +40,8 @@ interface ProductFormProps {
   };
 }
 
+type SkuLookupStatus = "idle" | "loading" | "found" | "not_found" | "user_image" | "error";
+
 export function ProductForm({ product }: ProductFormProps) {
   const isEdit = !!product;
 
@@ -45,40 +49,102 @@ export function ProductForm({ product }: ProductFormProps) {
   const [skuImageUrl, setSkuImageUrl] = useState<string | null>(
     product?.imageUrl ?? null
   );
-  const [skuLookupLoading, setSkuLookupLoading] = useState(false);
+  const [skuLookupStatus, setSkuLookupStatus] = useState<SkuLookupStatus>(
+    product?.imageUrl ? "found" : "idle"
+  );
+  const [uploading, setUploading] = useState(false);
   const skuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const currentSkuRef = useRef<string>("");
 
   const handleSkuChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const sku = e.target.value.trim();
+      currentSkuRef.current = sku;
 
       if (skuTimeoutRef.current) clearTimeout(skuTimeoutRef.current);
 
       if (sku.length < 3) {
-        if (!isEdit) setSkuImageUrl(null);
+        if (!isEdit) {
+          setSkuImageUrl(null);
+          setSkuLookupStatus("idle");
+        }
         return;
       }
 
       skuTimeoutRef.current = setTimeout(async () => {
-        setSkuLookupLoading(true);
+        setSkuLookupStatus("loading");
         try {
           const res = await fetch(
             `/api/sku-lookup?sku=${encodeURIComponent(sku)}`
           );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.imageUrl) {
-              setSkuImageUrl(data.imageUrl);
-            }
+          const data = await res.json();
+
+          if (data.status === "found") {
+            setSkuImageUrl(data.imageUrl);
+            setSkuLookupStatus("found");
+          } else if (data.status === "not_found_global" && data.imageUrl) {
+            setSkuImageUrl(data.imageUrl);
+            setSkuLookupStatus("user_image");
+          } else if (data.status === "not_found") {
+            setSkuImageUrl(null);
+            setSkuLookupStatus("not_found");
+          } else {
+            setSkuImageUrl(null);
+            setSkuLookupStatus("error");
           }
         } catch {
-          // Silently fail
-        } finally {
-          setSkuLookupLoading(false);
+          setSkuImageUrl(null);
+          setSkuLookupStatus("error");
         }
       }, 800);
     },
     [isEdit]
+  );
+
+  // Handle user uploading a private fallback image
+  const handleFallbackUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const sku = currentSkuRef.current;
+      if (!sku || sku.length < 3) return;
+
+      setUploading(true);
+      try {
+        // Compress image
+        const { default: imageCompression } = await import("browser-image-compression");
+        const compressed = await imageCompression(file, {
+          maxWidthOrHeight: 800,
+          maxSizeMB: 0.2,
+          useWebWorker: true,
+        });
+
+        // Get presigned URL & upload to R2
+        const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
+        await fetch(uploadUrl, {
+          method: "PUT",
+          body: compressed,
+          headers: { "Content-Type": compressed.type },
+        });
+
+        // Save user's private SKU image
+        await fetch("/api/sku-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sku, imageUrl: publicUrl }),
+        });
+
+        setSkuImageUrl(publicUrl);
+        setSkuLookupStatus("user_image");
+        toast.success("Image ajoutee");
+      } catch {
+        toast.error("Erreur lors de l'upload");
+      } finally {
+        setUploading(false);
+      }
+    },
+    []
   );
 
   // Cleanup timeout on unmount
@@ -117,40 +183,121 @@ export function ProductForm({ product }: ProductFormProps) {
           currentImage={product.imageUrl ?? skuImageUrl}
         />
       ) : (
-        (skuLookupLoading || skuImageUrl) && (
-          <div className="relative rounded-xl overflow-hidden bg-secondary">
-            {skuLookupLoading ? (
+        <div>
+          {/* Loading state */}
+          {skuLookupStatus === "loading" && (
+            <div className="rounded-xl overflow-hidden bg-secondary">
               <div className="flex items-center justify-center h-40 gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">
-                  Recherche image...
+                  Recherche image StockX...
                 </span>
               </div>
-            ) : skuImageUrl ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={skuImageUrl}
-                  alt="SKU Preview"
-                  className="w-full h-40 object-contain bg-white/5"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSkuImageUrl(null)}
-                  className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-                <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
-                  <ImageIcon className="h-3 w-3 text-success" />
-                  <span className="text-[10px] text-success font-medium">
-                    Image auto via SKU
-                  </span>
-                </div>
+            </div>
+          )}
+
+          {/* Found — auto image from StockX */}
+          {skuLookupStatus === "found" && skuImageUrl && (
+            <div className="relative rounded-xl overflow-hidden bg-secondary">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={skuImageUrl}
+                alt="SKU Preview"
+                className="w-full h-40 object-contain bg-white/5"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSkuImageUrl(null);
+                  setSkuLookupStatus("idle");
+                }}
+                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
+                <ImageIcon className="h-3 w-3 text-success" />
+                <span className="text-[10px] text-success font-medium">
+                  Image auto via SKU
+                </span>
               </div>
-            ) : null}
-          </div>
-        )
+            </div>
+          )}
+
+          {/* User image — personal fallback */}
+          {skuLookupStatus === "user_image" && skuImageUrl && (
+            <div className="relative rounded-xl overflow-hidden bg-secondary">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={skuImageUrl}
+                alt="SKU Preview"
+                className="w-full h-40 object-contain bg-white/5"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSkuImageUrl(null);
+                  setSkuLookupStatus("not_found");
+                }}
+                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
+                <ImageIcon className="h-3 w-3 text-warning" />
+                <span className="text-[10px] text-warning font-medium">
+                  Votre image personnelle
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Not found — prompt user to upload */}
+          {skuLookupStatus === "not_found" && (
+            <div className="rounded-xl bg-secondary p-4">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="h-10 w-10 rounded-full bg-warning/10 flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Image introuvable</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Un staff l&apos;ajoutera bientot. Vous pouvez ajouter votre propre image en attendant.
+                  </p>
+                </div>
+                <label className="cursor-pointer">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">
+                    {uploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {uploading ? "Upload..." : "Ajouter votre image"}
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleFallbackUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {skuLookupStatus === "error" && (
+            <div className="rounded-xl bg-secondary p-3">
+              <p className="text-xs text-muted-foreground text-center">
+                Service de recherche temporairement indisponible
+              </p>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Name */}
@@ -176,7 +323,7 @@ export function ProductForm({ product }: ProductFormProps) {
           onChange={handleSkuChange}
         />
         <p className="text-[11px] text-muted-foreground">
-          L&apos;image se remplit automatiquement pour les sneakers
+          L&apos;image se remplit automatiquement via StockX
         </p>
       </div>
 

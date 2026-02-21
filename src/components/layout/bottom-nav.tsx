@@ -2,18 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Package, Receipt, TrendingUp } from "lucide-react";
+import { BarChart3, Package, Receipt, TrendingUp, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/stock", label: "Stock", icon: Package },
   { href: "/ventes", label: "Ventes", icon: Receipt },
   { href: "/stats", label: "Stats", icon: TrendingUp },
 ];
 
-export function BottomNav() {
+const adminNavItem = { href: "/admin", label: "Admin", icon: Shield };
+
+interface BottomNavProps {
+  userRole?: string;
+}
+
+export function BottomNav({ userRole }: BottomNavProps) {
   const pathname = usePathname();
+  const navItems = userRole === "staff"
+    ? [...baseNavItems, adminNavItem]
+    : baseNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border">

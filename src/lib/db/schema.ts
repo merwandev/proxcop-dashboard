@@ -7,6 +7,7 @@ import {
   date,
   boolean,
   pgEnum,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -24,6 +25,9 @@ export const cashbackStatusEnum = pgEnum("cashback_status", [
 ]);
 export const expenseCategoryEnum = pgEnum("expense_category", [
   "bot", "proxy", "shipping_materials", "subscription", "other",
+]);
+export const skuImageStatusEnum = pgEnum("sku_image_status", [
+  "found", "not_found", "manual",
 ]);
 
 // Users
@@ -118,11 +122,25 @@ export const stockxTokens = pgTable("stockx_tokens", {
 export const skuImages = pgTable("sku_images", {
   id: uuid("id").defaultRandom().primaryKey(),
   sku: text("sku").notNull().unique(),
-  imageUrl: text("image_url").notNull(),
+  imageUrl: text("image_url"),
   source: text("source").notNull().default("stockx"),
+  status: skuImageStatusEnum("status").notNull().default("found"),
+  stockxProductId: text("stockx_product_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// User SKU Images (private per-user fallback images)
+export const userSkuImages = pgTable("user_sku_images", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sku: text("sku").notNull(),
+  imageUrl: text("image_url").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  unique("user_sku_unique").on(table.userId, table.sku),
+]);
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
@@ -130,6 +148,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sales: many(sales),
   cashbacks: many(cashbacks),
   expenses: many(expenses),
+  userSkuImages: many(userSkuImages),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -150,4 +169,8 @@ export const cashbacksRelations = relations(cashbacks, ({ one }) => ({
 
 export const expensesRelations = relations(expenses, ({ one }) => ({
   user: one(users, { fields: [expenses.userId], references: [users.id] }),
+}));
+
+export const userSkuImagesRelations = relations(userSkuImages, ({ one }) => ({
+  user: one(users, { fields: [userSkuImages.userId], references: [users.id] }),
 }));

@@ -1,0 +1,133 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-gold: var(--gold);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* Proxcop Dark Theme — always dark */
+:root {
+  --radius: 0.75rem;
+  /* Background & surfaces */
+  --background: #18191E;
+  --foreground: #FFFFFF;
+  --card: #24262D;
+  --card-foreground: #FFFFFF;
+  --popover: #24262D;
+  --popover-foreground: #FFFFFF;
+  /* Primary = Proxcop lavender accent */
+  --primary: #C9CEEE;
+  --primary-foreground: #18191E;
+  /* Secondary = subtle surface */
+  --secondary: #2E303A;
+  --secondary-foreground: #FFFFFF;
+  /* Muted */
+  --muted: #2E303A;
+  --muted-foreground: #919191;
+  /* Accent */
+  --accent: #C9CEEE;
+  --accent-foreground: #18191E;
+  /* Destructive */
+  --destructive: #F87171;
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #C9CEEE;
+  /* Status colors */
+  --success: #4ADE80;
+  --warning: #FB923C;
+  --danger: #F87171;
+  --gold: #FFD700;
+  /* Charts — Proxcop palette */
+  --chart-1: #C9CEEE;
+  --chart-2: #8B92C8;
+  --chart-3: #4ADE80;
+  --chart-4: #FB923C;
+  --chart-5: #F87171;
+  /* Sidebar (unused but keep for shadcn compat) */
+  --sidebar: #1E1F26;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #C9CEEE;
+  --sidebar-primary-foreground: #18191E;
+  --sidebar-accent: #2E303A;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #C9CEEE;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Safe area padding for mobile */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(36, 38, 45, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

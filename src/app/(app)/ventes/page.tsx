@@ -20,7 +20,7 @@ export default async function VentesPage() {
   const totalProfit = salesData.reduce((sum, s) => {
     const profit =
       Number(s.sale.salePrice) -
-      Number(s.product.purchasePrice) -
+      Number(s.variant.purchasePrice) -
       Number(s.sale.platformFee ?? 0) -
       Number(s.sale.shippingCost ?? 0) -
       Number(s.sale.otherFees ?? 0);
@@ -59,10 +59,10 @@ export default async function VentesPage() {
             Aucune vente enregistree
           </p>
         ) : (
-          salesData.map(({ sale, product }) => {
+          salesData.map(({ sale, variant, product }) => {
             const profit =
               Number(sale.salePrice) -
-              Number(product.purchasePrice) -
+              Number(variant.purchasePrice) -
               Number(sale.platformFee ?? 0) -
               Number(sale.shippingCost ?? 0) -
               Number(sale.otherFees ?? 0);
@@ -77,6 +77,9 @@ export default async function VentesPage() {
                   <div className="min-w-0 flex-1">
                     <h3 className="font-medium text-sm truncate">
                       {product.name}
+                      {variant.sizeVariant && (
+                        <span className="text-muted-foreground font-normal"> — {variant.sizeVariant}</span>
+                      )}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-muted-foreground">
@@ -92,7 +95,7 @@ export default async function VentesPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span>Achat: {formatCurrency(Number(product.purchasePrice))}</span>
+                      <span>Achat: {formatCurrency(Number(variant.purchasePrice))}</span>
                       <span>Vente: {formatCurrency(Number(sale.salePrice))}</span>
                     </div>
                   </div>

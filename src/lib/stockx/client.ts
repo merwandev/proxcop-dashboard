@@ -81,7 +81,7 @@ function stockxHeaders(accessToken: string) {
   };
 }
 
-// ─── Product Search (3-step flow) ───────────────────────────────────
+// ─── Image-only Search (used by admin panel / SKU image lookup) ─────
 
 export interface StockXImageResult {
   imageUrl: string | null;
@@ -92,10 +92,8 @@ export interface StockXImageResult {
 }
 
 /**
- * Search StockX catalog by SKU using the 3-step flow:
- * 1. Search catalog -> get productId
- * 2. Get variants -> get variantName
- * 3. Construct & test image URL from variantName
+ * Search StockX catalog by SKU — returns image only (3-step flow).
+ * Used by the admin panel and SKU image cache system.
  */
 export async function searchBySkuStockX(
   sku: string
@@ -115,7 +113,6 @@ export async function searchBySkuStockX(
       signal: AbortSignal.timeout(10000),
     });
 
-    // Rate limit — don't cache as not_found (retry later)
     if (searchRes.status === 429) return null;
     if (!searchRes.ok) return null;
 
@@ -159,28 +156,156 @@ export async function searchBySkuStockX(
     }
 
     // ── Step 3: Construct & test image URLs ──
-    const imagePatterns = [
-      `https://images.stockx.com/images/${variantSlug}.jpg`,
-      `https://images.stockx.com/images/${variantSlug}-Product.jpg`,
-    ];
-
-    for (const imageUrl of imagePatterns) {
-      try {
-        const headRes = await fetch(imageUrl, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(5000),
-        });
-        if (headRes.ok) {
-          return { imageUrl, title, styleId, productId, status: "found" };
-        }
-      } catch {
-        // Try next pattern
-      }
-    }
-
-    // Both patterns returned 404
-    return { imageUrl: null, title, styleId, productId, status: "not_found" };
+    const imageUrl = await testImageUrls(variantSlug);
+    return {
+      imageUrl,
+      title,
+      styleId,
+      productId,
+      status: imageUrl ? "found" : "not_found",
+    };
   } catch {
     return null;
   }
+}
+
+// ─── Full Product Search (returns ALL variants with sizes) ──────────
+
+export interface StockXVariant {
+  variantId: string;
+  sizeUS: string;
+  sizeEU: string | null;
+}
+
+/** Shape stored in stockx_products_cache.variants jsonb column */
+export type StockXCachedVariant = StockXVariant;
+
+export interface StockXProductResult {
+  productId: string;
+  title: string;
+  styleId: string;
+  imageUrl: string | null;
+  variants: StockXVariant[];
+  status: "found" | "not_found";
+}
+
+/**
+ * Search StockX catalog by SKU — returns product info + ALL available sizes.
+ * Used by the product creation wizard.
+ */
+export async function searchProductBySkuStockX(
+  sku: string
+): Promise<StockXProductResult | null> {
+  const accessToken = await getStockXAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    // ── Step 1: Search catalog ──
+    const searchUrl = new URL("https://api.stockx.com/v2/catalog/search");
+    searchUrl.searchParams.set("query", sku);
+    searchUrl.searchParams.set("pageSize", "1");
+    searchUrl.searchParams.set("pageNumber", "1");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: stockxHeaders(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (searchRes.status === 429) return null;
+    if (!searchRes.ok) return null;
+
+    const searchData = await searchRes.json();
+    const product = searchData?.products?.[0];
+
+    if (!product?.productId) return null;
+
+    const productId = product.productId as string;
+    const title = (product.title ?? "") as string;
+    const styleId = (product.styleId ?? sku) as string;
+
+    // ── Step 2: Get ALL variants ──
+    const variantsUrl = `https://api.stockx.com/v2/catalog/products/${productId}/variants`;
+
+    const variantsRes = await fetch(variantsUrl, {
+      headers: stockxHeaders(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (variantsRes.status === 429) return null;
+    if (!variantsRes.ok) {
+      return { productId, title, styleId, imageUrl: null, variants: [], status: "not_found" };
+    }
+
+    const variantsData = await variantsRes.json();
+    const variantArray = Array.isArray(variantsData)
+      ? variantsData
+      : variantsData?.variants ?? [];
+
+    if (variantArray.length === 0) {
+      return { productId, title, styleId, imageUrl: null, variants: [], status: "not_found" };
+    }
+
+    // Parse all variants — use variantValue for the real size
+    const variants: StockXVariant[] = variantArray
+      .map((v: Record<string, unknown>) => {
+        const variantId = (v.variantId ?? v.id ?? "") as string;
+        const sizeUS = (v.variantValue ?? "") as string;
+
+        // Extract EU size from sizeChart.availableConversions
+        let sizeEU: string | null = null;
+        const sizeChart = v.sizeChart as { availableConversions?: { size: string; type: string }[] } | undefined;
+        if (sizeChart?.availableConversions) {
+          const euConv = sizeChart.availableConversions.find((c) => c.type === "eu");
+          if (euConv) {
+            // "EU 36.5" → "36.5"
+            sizeEU = euConv.size.replace(/^EU\s*/i, "");
+          }
+        }
+
+        return { variantId, sizeUS, sizeEU };
+      })
+      .filter((v: StockXVariant) => v.sizeUS !== "");
+
+    // ── Step 3: Image from first variant slug ──
+    const firstVariantName = (variantArray[0].variantName ?? "") as string;
+    const variantSlug = firstVariantName.includes(":")
+      ? firstVariantName.split(":")[0]
+      : firstVariantName;
+
+    const imageUrl = variantSlug ? await testImageUrls(variantSlug) : null;
+
+    return {
+      productId,
+      title,
+      styleId,
+      imageUrl,
+      variants,
+      status: "found",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Shared helpers ─────────────────────────────────────────────────
+
+async function testImageUrls(variantSlug: string): Promise<string | null> {
+  const imagePatterns = [
+    `https://images.stockx.com/images/${variantSlug}.jpg`,
+    `https://images.stockx.com/images/${variantSlug}-Product.jpg`,
+  ];
+
+  for (const imageUrl of imagePatterns) {
+    try {
+      const headRes = await fetch(imageUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (headRes.ok) return imageUrl;
+    } catch {
+      // Try next pattern
+    }
+  }
+
+  return null;
 }

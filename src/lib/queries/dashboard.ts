@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sales, products } from "@/lib/db/schema";
+import { sales, productVariants, products } from "@/lib/db/schema";
 import { eq, and, gte, desc, sql, ne } from "drizzle-orm";
 
 function daysAgoDate(days: number): string {
@@ -35,39 +35,39 @@ export async function getDashboardKPIs(userId: string) {
       .where(and(eq(sales.userId, userId), gte(sales.saleDate, ytd))),
   ]);
 
-  // Stock count + value
+  // Stock count + value (from productVariants)
   const stockStats = await db
     .select({
       count: sql<number>`count(*)`,
-      purchaseValue: sql<number>`coalesce(sum(cast(${products.purchasePrice} as decimal)), 0)`,
-      targetValue: sql<number>`coalesce(sum(cast(${products.targetPrice} as decimal)), 0)`,
+      purchaseValue: sql<number>`coalesce(sum(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+      targetValue: sql<number>`coalesce(sum(cast(${productVariants.targetPrice} as decimal)), 0)`,
     })
-    .from(products)
-    .where(and(eq(products.userId, userId), ne(products.status, "vendu")));
+    .from(productVariants)
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
 
   // Average rotation (days between purchase and sale)
   const rotation = await db
     .select({
-      avgDays: sql<number>`coalesce(avg(${sales.saleDate}::date - ${products.purchaseDate}::date), 0)`,
+      avgDays: sql<number>`coalesce(avg(${sales.saleDate}::date - ${productVariants.purchaseDate}::date), 0)`,
     })
     .from(sales)
-    .innerJoin(products, eq(sales.productId, products.id))
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .where(eq(sales.userId, userId));
 
-  // Net profit (simplified: sum(salePrice - purchasePrice - fees))
+  // Net profit (sum(salePrice - purchasePrice - fees))
   const profitQuery = async (since: string) => {
     const result = await db
       .select({
         total: sql<number>`coalesce(sum(
           cast(${sales.salePrice} as decimal)
-          - cast(${products.purchasePrice} as decimal)
+          - cast(${productVariants.purchasePrice} as decimal)
           - coalesce(cast(${sales.platformFee} as decimal), 0)
           - coalesce(cast(${sales.shippingCost} as decimal), 0)
           - coalesce(cast(${sales.otherFees} as decimal), 0)
         ), 0)`,
       })
       .from(sales)
-      .innerJoin(products, eq(sales.productId, products.id))
+      .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
       .where(and(eq(sales.userId, userId), gte(sales.saleDate, since)));
     return Number(result[0]?.total ?? 0);
   };
@@ -83,36 +83,48 @@ export async function getDashboardKPIs(userId: string) {
     .select({
       productName: products.name,
       productImage: products.imageUrl,
+      sizeVariant: productVariants.sizeVariant,
       profit: sql<number>`
         cast(${sales.salePrice} as decimal)
-        - cast(${products.purchasePrice} as decimal)
+        - cast(${productVariants.purchasePrice} as decimal)
         - coalesce(cast(${sales.platformFee} as decimal), 0)
         - coalesce(cast(${sales.shippingCost} as decimal), 0)
         - coalesce(cast(${sales.otherFees} as decimal), 0)
       `,
     })
     .from(sales)
-    .innerJoin(products, eq(sales.productId, products.id))
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
     .where(eq(sales.userId, userId))
     .orderBy(
       desc(
-        sql`cast(${sales.salePrice} as decimal) - cast(${products.purchasePrice} as decimal) - coalesce(cast(${sales.platformFee} as decimal), 0) - coalesce(cast(${sales.shippingCost} as decimal), 0) - coalesce(cast(${sales.otherFees} as decimal), 0)`
+        sql`cast(${sales.salePrice} as decimal) - cast(${productVariants.purchasePrice} as decimal) - coalesce(cast(${sales.platformFee} as decimal), 0) - coalesce(cast(${sales.shippingCost} as decimal), 0) - coalesce(cast(${sales.otherFees} as decimal), 0)`
       )
     )
     .limit(5);
 
   // Sleeping products (60+ days in stock, not sold)
   const sleeping = await db
-    .select()
-    .from(products)
+    .select({
+      variantId: productVariants.id,
+      productId: products.id,
+      productName: products.name,
+      productImage: products.imageUrl,
+      sizeVariant: productVariants.sizeVariant,
+      purchasePrice: productVariants.purchasePrice,
+      purchaseDate: productVariants.purchaseDate,
+      status: productVariants.status,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
     .where(
       and(
-        eq(products.userId, userId),
-        ne(products.status, "vendu"),
-        sql`${products.purchaseDate}::date <= current_date - interval '60 days'`
+        eq(productVariants.userId, userId),
+        ne(productVariants.status, "vendu"),
+        sql`${productVariants.purchaseDate}::date <= current_date - interval '60 days'`
       )
     )
-    .orderBy(products.purchaseDate)
+    .orderBy(productVariants.purchaseDate)
     .limit(5);
 
   return {
@@ -136,6 +148,7 @@ export async function getDashboardKPIs(userId: string) {
     top5: top5.map((t) => ({
       name: t.productName,
       image: t.productImage,
+      size: t.sizeVariant,
       profit: Number(t.profit),
     })),
     sleeping,
@@ -148,7 +161,7 @@ export async function getProfitChartData(userId: string) {
       month: sql<string>`to_char(${sales.saleDate}::date, 'YYYY-MM')`,
       profit: sql<number>`coalesce(sum(
         cast(${sales.salePrice} as decimal)
-        - cast(${products.purchasePrice} as decimal)
+        - cast(${productVariants.purchasePrice} as decimal)
         - coalesce(cast(${sales.platformFee} as decimal), 0)
         - coalesce(cast(${sales.shippingCost} as decimal), 0)
         - coalesce(cast(${sales.otherFees} as decimal), 0)
@@ -156,7 +169,7 @@ export async function getProfitChartData(userId: string) {
       revenue: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)`,
     })
     .from(sales)
-    .innerJoin(products, eq(sales.productId, products.id))
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .where(eq(sales.userId, userId))
     .groupBy(sql`to_char(${sales.saleDate}::date, 'YYYY-MM')`)
     .orderBy(sql`to_char(${sales.saleDate}::date, 'YYYY-MM')`);

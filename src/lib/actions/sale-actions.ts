@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sales, products } from "@/lib/db/schema";
+import { sales, productVariants } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { saleSchema } from "@/lib/validators/sale";
 import { eq, and } from "drizzle-orm";
@@ -16,7 +16,7 @@ export async function createSale(formData: FormData) {
 
   // Create sale record
   await db.insert(sales).values({
-    productId: parsed.productId,
+    variantId: parsed.variantId,
     userId: session.user.id,
     salePrice: parsed.salePrice.toString(),
     saleDate: parsed.saleDate,
@@ -27,11 +27,11 @@ export async function createSale(formData: FormData) {
     notes: parsed.notes,
   });
 
-  // Update product status to vendu
+  // Update variant status to vendu
   await db
-    .update(products)
+    .update(productVariants)
     .set({ status: "vendu", updatedAt: new Date() })
-    .where(and(eq(products.id, parsed.productId), eq(products.userId, session.user.id)));
+    .where(and(eq(productVariants.id, parsed.variantId), eq(productVariants.userId, session.user.id)));
 
   revalidatePath("/stock");
   revalidatePath("/ventes");
@@ -43,7 +43,7 @@ export async function deleteSale(saleId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");
 
-  // Get the sale to find the product
+  // Get the sale to find the variant
   const sale = await db
     .select()
     .from(sales)
@@ -57,11 +57,11 @@ export async function deleteSale(saleId: string) {
     .delete(sales)
     .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)));
 
-  // Revert product status to en_stock
+  // Revert variant status to en_stock
   await db
-    .update(products)
+    .update(productVariants)
     .set({ status: "en_stock", updatedAt: new Date() })
-    .where(eq(products.id, sale[0].productId));
+    .where(eq(productVariants.id, sale[0].variantId));
 
   revalidatePath("/stock");
   revalidatePath("/ventes");

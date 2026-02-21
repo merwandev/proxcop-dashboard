@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,17 +26,19 @@ import { createSale } from "@/lib/actions/sale-actions";
 import { BadgeCheck, Loader2 } from "lucide-react";
 
 interface SaleDialogProps {
-  productId: string;
+  variantId: string;
 }
 
-export function SaleDialog({ productId }: SaleDialogProps) {
+export function SaleDialog({ variantId }: SaleDialogProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   const action = async (_prev: unknown, formData: FormData) => {
-    formData.set("productId", productId);
+    formData.set("variantId", variantId);
     try {
       await createSale(formData);
       setOpen(false);
+      router.refresh();
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -47,9 +50,8 @@ export function SaleDialog({ productId }: SaleDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-success border-success/30">
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-success">
           <BadgeCheck className="h-3.5 w-3.5" />
-          Vendu
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -57,7 +59,7 @@ export function SaleDialog({ productId }: SaleDialogProps) {
           <DialogTitle>Enregistrer la vente</DialogTitle>
         </DialogHeader>
         <form action={formAction} className="space-y-4">
-          <input type="hidden" name="productId" value={productId} />
+          <input type="hidden" name="variantId" value={variantId} />
 
           <div className="space-y-1.5">
             <Label htmlFor="salePrice">Prix de vente (EUR) *</Label>

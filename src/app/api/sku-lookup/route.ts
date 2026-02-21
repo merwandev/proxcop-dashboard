@@ -4,16 +4,20 @@ import {
   upsertSkuImage,
   getUserSkuImage,
   upsertUserSkuImage,
+  getCachedStockXProduct,
+  upsertCachedStockXProduct,
 } from "@/lib/queries/sku-images";
-import { searchBySkuStockX } from "@/lib/stockx/client";
+import { searchBySkuStockX, searchProductBySkuStockX } from "@/lib/stockx/client";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/sku-lookup?sku=XX-XXX
- * Lookup SKU image with fallback chain:
- * 1. Global cache (found/manual) -> return image
- * 2. Global cache (not_found) -> check user's private image
- * 3. Not cached -> search StockX API (3-step flow)
+ * GET /api/sku-lookup?sku=XX-XXX&mode=full  (returns all variants/sizes)
+ *
+ * Default mode: image-only lookup with fallback chain (for admin panel compat)
+ * Full mode: returns product info + all available sizes (for product creation wizard)
+ *
+ * Full mode uses a DB cache (stockx_products_cache) to avoid re-calling StockX API.
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -26,22 +30,85 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "SKU invalide" }, { status: 400 });
   }
 
+  const mode = req.nextUrl.searchParams.get("mode");
   const userId = session.user.id;
 
-  // 1. Check global cache
-  const cached = await getSkuImage(sku);
-  if (cached) {
-    // Found or manually set by staff -> return the image
-    if ((cached.status === "found" || cached.status === "manual") && cached.imageUrl) {
+  // ── Full mode: return product + all sizes ──
+  if (mode === "full") {
+    // 1. Check cache first — avoid calling StockX if we already have this product
+    const cached = await getCachedStockXProduct(sku);
+    if (cached && cached.variants.length > 0) {
       return NextResponse.json({
+        status: "found",
+        title: cached.title,
+        styleId: cached.styleId,
         imageUrl: cached.imageUrl,
-        source: cached.source,
+        variants: cached.variants.map((v) => ({
+          variantId: v.variantId,
+          sizeUS: v.sizeUS,
+          sizeEU: v.sizeEU,
+        })),
+      });
+    }
+
+    // 2. Not in cache — search StockX API
+    const result = await searchProductBySkuStockX(sku);
+
+    if (!result) {
+      return NextResponse.json({
+        status: "error",
+        message: "Service StockX temporairement indisponible.",
+      });
+    }
+
+    if (result.status === "found" && result.variants.length > 0) {
+      // 3. Store in cache for future lookups
+      await upsertCachedStockXProduct(sku, {
+        stockxProductId: result.productId,
+        title: result.title,
+        styleId: result.styleId,
+        imageUrl: result.imageUrl,
+        variants: result.variants,
+      });
+
+      // Also cache the image in sku_images table
+      if (result.imageUrl) {
+        await upsertSkuImage(sku, result.imageUrl, "stockx", "found", result.productId);
+      }
+
+      return NextResponse.json({
+        status: "found",
+        title: result.title,
+        styleId: result.styleId,
+        imageUrl: result.imageUrl,
+        variants: result.variants.map((v) => ({
+          variantId: v.variantId,
+          sizeUS: v.sizeUS,
+          sizeEU: v.sizeEU,
+        })),
+      });
+    }
+
+    return NextResponse.json({
+      status: "not_found",
+      message: "Produit non trouve sur StockX.",
+    });
+  }
+
+  // ── Default mode: image-only lookup ──
+
+  // 1. Check global cache
+  const cachedImage = await getSkuImage(sku);
+  if (cachedImage) {
+    if ((cachedImage.status === "found" || cachedImage.status === "manual") && cachedImage.imageUrl) {
+      return NextResponse.json({
+        imageUrl: cachedImage.imageUrl,
+        source: cachedImage.source,
         status: "found",
       });
     }
 
-    // Not found globally -> check user's private image
-    if (cached.status === "not_found") {
+    if (cachedImage.status === "not_found") {
       const userImage = await getUserSkuImage(userId, sku);
       if (userImage) {
         return NextResponse.json({
@@ -61,7 +128,6 @@ export async function GET(req: NextRequest) {
   // 2. Not in cache -> search StockX API (3-step flow)
   const stockxResult = await searchBySkuStockX(sku);
 
-  // API unreachable or rate limited -> don't cache, return error
   if (!stockxResult) {
     return NextResponse.json({
       imageUrl: null,
@@ -71,14 +137,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (stockxResult.status === "found" && stockxResult.imageUrl) {
-    // Cache globally for all users
-    await upsertSkuImage(
-      sku,
-      stockxResult.imageUrl,
-      "stockx",
-      "found",
-      stockxResult.productId
-    );
+    await upsertSkuImage(sku, stockxResult.imageUrl, "stockx", "found", stockxResult.productId);
     return NextResponse.json({
       imageUrl: stockxResult.imageUrl,
       title: stockxResult.title,
@@ -87,14 +146,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Not found on StockX -> cache as not_found + check user's private image
-  await upsertSkuImage(
-    sku,
-    null,
-    "stockx",
-    "not_found",
-    stockxResult.productId
-  );
+  await upsertSkuImage(sku, null, "stockx", "not_found", stockxResult.productId);
 
   const userImage = await getUserSkuImage(userId, sku);
   if (userImage) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,507 +13,773 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIES, PLATFORMS, STATUSES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
-import { createProduct, updateProduct } from "@/lib/actions/product-actions";
+import { CATEGORIES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
+import { createProductWithVariants } from "@/lib/actions/product-actions";
 import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, ImageIcon, X, Upload, AlertTriangle } from "lucide-react";
-import { ImageUpload } from "./image-upload";
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-interface ProductFormProps {
-  product?: {
-    id: string;
-    name: string;
-    sku: string | null;
-    category: string;
-    sizeVariant: string | null;
-    imageUrl: string | null;
-    purchasePrice: string;
-    purchaseDate: string;
-    targetPrice: string | null;
-    shippingFee: string | null;
-    platformFee: string | null;
-    platform: string | null;
-    status: string;
-    storageLocation: string | null;
-    returnDeadline: string | null;
-    notes: string | null;
-  };
+// ─── Types ──────────────────────────────────────────────────────────
+
+interface StockXVariant {
+  variantId: string;
+  sizeUS: string;
+  sizeEU: string | null;
 }
 
-type SkuLookupStatus = "idle" | "loading" | "found" | "not_found" | "user_image" | "error";
+interface SelectedVariant {
+  sizeUS: string;
+  purchasePrice: string;
+  quantity: number;
+  storageLocation: string;
+}
 
-export function ProductForm({ product }: ProductFormProps) {
-  const isEdit = !!product;
+type WizardStep = "search" | "sizes" | "manual";
 
-  // SKU image lookup state
-  const [skuImageUrl, setSkuImageUrl] = useState<string | null>(
-    product?.imageUrl ?? null
-  );
-  const [skuLookupStatus, setSkuLookupStatus] = useState<SkuLookupStatus>(
-    product?.imageUrl ? "found" : "idle"
-  );
-  const [uploading, setUploading] = useState(false);
-  const skuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentSkuRef = useRef<string>("");
+// ─── Component ──────────────────────────────────────────────────────
 
-  const handleSkuChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const sku = e.target.value.trim();
-      currentSkuRef.current = sku;
+export function ProductForm() {
+  const router = useRouter();
+  const [step, setStep] = useState<WizardStep>("search");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-      if (skuTimeoutRef.current) clearTimeout(skuTimeoutRef.current);
+  // Search state
+  const [skuInput, setSkuInput] = useState("");
+  const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
+  const [productTitle, setProductTitle] = useState("");
+  const [productSku, setProductSku] = useState("");
+  const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
+  const [availableSizes, setAvailableSizes] = useState<StockXVariant[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-      if (sku.length < 3) {
-        if (!isEdit) {
-          setSkuImageUrl(null);
-          setSkuLookupStatus("idle");
-        }
-        return;
-      }
+  // Size selection state
+  const [selectedSizes, setSelectedSizes] = useState<Map<string, SelectedVariant>>(new Map());
+  const [globalPurchaseDate, setGlobalPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [globalTargetPrice, setGlobalTargetPrice] = useState("");
+  const [globalReturnDeadline, setGlobalReturnDeadline] = useState("");
+  const [globalStorageLocation, setGlobalStorageLocation] = useState("");
+  const [notes, setNotes] = useState("");
 
-      skuTimeoutRef.current = setTimeout(async () => {
-        setSkuLookupStatus("loading");
-        try {
-          const res = await fetch(
-            `/api/sku-lookup?sku=${encodeURIComponent(sku)}`
-          );
-          const data = await res.json();
-
-          if (data.status === "found") {
-            setSkuImageUrl(data.imageUrl);
-            setSkuLookupStatus("found");
-          } else if (data.status === "not_found_global" && data.imageUrl) {
-            setSkuImageUrl(data.imageUrl);
-            setSkuLookupStatus("user_image");
-          } else if (data.status === "not_found") {
-            setSkuImageUrl(null);
-            setSkuLookupStatus("not_found");
-          } else {
-            setSkuImageUrl(null);
-            setSkuLookupStatus("error");
-          }
-        } catch {
-          setSkuImageUrl(null);
-          setSkuLookupStatus("error");
-        }
-      }, 800);
-    },
-    [isEdit]
-  );
-
-  // Handle user uploading a private fallback image
-  const handleFallbackUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      const sku = currentSkuRef.current;
-      if (!sku || sku.length < 3) return;
-
-      setUploading(true);
-      try {
-        // Compress image
-        const { default: imageCompression } = await import("browser-image-compression");
-        const compressed = await imageCompression(file, {
-          maxWidthOrHeight: 800,
-          maxSizeMB: 0.2,
-          useWebWorker: true,
-        });
-
-        // Get presigned URL & upload to R2
-        const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-        await fetch(uploadUrl, {
-          method: "PUT",
-          body: compressed,
-          headers: { "Content-Type": compressed.type },
-        });
-
-        // Save user's private SKU image
-        await fetch("/api/sku-lookup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sku, imageUrl: publicUrl }),
-        });
-
-        setSkuImageUrl(publicUrl);
-        setSkuLookupStatus("user_image");
-        toast.success("Image ajoutee");
-      } catch {
-        toast.error("Erreur lors de l'upload");
-      } finally {
-        setUploading(false);
-      }
-    },
-    []
-  );
+  // Manual mode state
+  const [manualName, setManualName] = useState("");
+  const [manualCategory, setManualCategory] = useState<string>("sneakers");
+  const [manualSize, setManualSize] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
+  const [manualQuantity, setManualQuantity] = useState(1);
+  const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
+  const [manualUploading, setManualUploading] = useState(false);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (skuTimeoutRef.current) clearTimeout(skuTimeoutRef.current);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
 
-  const action = async (_prev: unknown, formData: FormData) => {
-    try {
-      if (isEdit) {
-        await updateProduct(product.id, formData);
-      } else {
-        await createProduct(formData);
-      }
-      return { success: true };
-    } catch (e) {
-      return { error: (e as Error).message };
-    }
-  };
+  // ─── SKU Search ─────────────────────────────────────────────────
 
-  const [state, formAction, isPending] = useActionState(action, null);
+  const handleSkuSearch = useCallback(() => {
+    const sku = skuInput.trim();
+    if (sku.length < 3) return;
+
+    setSearchStatus("loading");
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/sku-lookup?sku=${encodeURIComponent(sku)}&mode=full`);
+        const data = await res.json();
+
+        if (data.status === "found" && data.variants?.length > 0) {
+          setProductTitle(data.title || "");
+          setProductSku(sku.toUpperCase());
+          setProductImageUrl(data.imageUrl || null);
+          setAvailableSizes(data.variants);
+          setSearchStatus("found");
+          setStep("sizes");
+        } else if (data.status === "not_found") {
+          setSearchStatus("not_found");
+        } else {
+          setSearchStatus("error");
+        }
+      } catch {
+        setSearchStatus("error");
+      }
+    }, 300);
+  }, [skuInput]);
+
+  // ─── Size Selection ─────────────────────────────────────────────
+
+  const toggleSize = useCallback((size: string) => {
+    setSelectedSizes((prev) => {
+      const next = new Map(prev);
+      if (next.has(size)) {
+        next.delete(size);
+      } else {
+        next.set(size, {
+          sizeUS: size,
+          purchasePrice: "",
+          quantity: 1,
+          storageLocation: "",
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  const updateSizeField = useCallback((size: string, field: keyof SelectedVariant, value: string | number) => {
+    setSelectedSizes((prev) => {
+      const next = new Map(prev);
+      const current = next.get(size);
+      if (current) {
+        next.set(size, { ...current, [field]: value });
+      }
+      return next;
+    });
+  }, []);
+
+  // ─── Manual Image Upload ────────────────────────────────────────
+
+  const handleManualImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setManualUploading(true);
+    try {
+      const { default: imageCompression } = await import("browser-image-compression");
+      const compressed = await imageCompression(file, {
+        maxWidthOrHeight: 800,
+        maxSizeMB: 0.2,
+        useWebWorker: true,
+      });
+
+      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: compressed,
+        headers: { "Content-Type": compressed.type },
+      });
+
+      setManualImageUrl(publicUrl);
+      toast.success("Image ajoutee");
+    } catch {
+      toast.error("Erreur lors de l'upload");
+    } finally {
+      setManualUploading(false);
+    }
+  }, []);
+
+  // ─── Submit ─────────────────────────────────────────────────────
+
+  const handleSubmitStockX = useCallback(async () => {
+    if (selectedSizes.size === 0) {
+      toast.error("Selectionnez au moins une taille");
+      return;
+    }
+
+    // Validate all prices are filled
+    for (const [size, data] of selectedSizes) {
+      if (!data.purchasePrice || Number(data.purchasePrice) <= 0) {
+        toast.error(`Prix d'achat requis pour la taille ${size}`);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createProductWithVariants({
+        name: productTitle,
+        sku: productSku,
+        imageUrl: productImageUrl || undefined,
+        category: "sneakers",
+        purchaseDate: globalPurchaseDate,
+        targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
+        returnDeadline: globalReturnDeadline || undefined,
+        notes: notes || undefined,
+        variants: Array.from(selectedSizes.values()).map((v) => ({
+          sizeVariant: v.sizeUS,
+          purchasePrice: Number(v.purchasePrice),
+          quantity: v.quantity,
+          storageLocation: v.storageLocation || globalStorageLocation || undefined,
+        })),
+      });
+
+      toast.success("Produit ajoute au stock !");
+      router.push("/stock");
+    } catch (e) {
+      toast.error((e as Error).message || "Erreur lors de l'ajout");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    selectedSizes, productTitle, productSku, productImageUrl,
+    globalPurchaseDate, globalTargetPrice, globalReturnDeadline,
+    globalStorageLocation, notes, router,
+  ]);
+
+  const handleSubmitManual = useCallback(async () => {
+    if (!manualName.trim()) {
+      toast.error("Le nom du produit est requis");
+      return;
+    }
+    if (!manualPrice || Number(manualPrice) <= 0) {
+      toast.error("Le prix d'achat est requis");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createProductWithVariants({
+        name: manualName.trim(),
+        imageUrl: manualImageUrl || undefined,
+        category: manualCategory as "sneakers" | "pokemon" | "lego" | "random",
+        purchaseDate: globalPurchaseDate,
+        targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
+        returnDeadline: globalReturnDeadline || undefined,
+        notes: notes || undefined,
+        variants: [{
+          sizeVariant: manualSize || undefined,
+          purchasePrice: Number(manualPrice),
+          quantity: manualQuantity,
+          storageLocation: globalStorageLocation || undefined,
+        }],
+      });
+
+      toast.success("Produit ajoute au stock !");
+      router.push("/stock");
+    } catch (e) {
+      toast.error((e as Error).message || "Erreur lors de l'ajout");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [
+    manualName, manualCategory, manualSize, manualPrice, manualQuantity,
+    manualImageUrl, globalPurchaseDate, globalTargetPrice,
+    globalReturnDeadline, globalStorageLocation, notes, router,
+  ]);
+
+  // ─── Render: Search Step ────────────────────────────────────────
+
+  if (step === "search") {
+    return (
+      <div className="space-y-6">
+        {/* SKU Search */}
+        <div className="space-y-3">
+          <Label htmlFor="sku-search" className="text-base font-semibold">
+            Rechercher par SKU
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="sku-search"
+              placeholder="DD1391-100"
+              value={skuInput}
+              onChange={(e) => {
+                setSkuInput(e.target.value);
+                setSearchStatus("idle");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSkuSearch();
+                }
+              }}
+              className="font-mono"
+            />
+            <Button
+              onClick={handleSkuSearch}
+              disabled={skuInput.trim().length < 3 || searchStatus === "loading"}
+              size="icon"
+              className="shrink-0"
+            >
+              {searchStatus === "loading" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Entrez le SKU pour trouver automatiquement le produit et ses tailles
+          </p>
+        </div>
+
+        {/* Search Status Messages */}
+        {searchStatus === "not_found" && (
+          <div className="rounded-xl bg-secondary p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Produit non trouve sur StockX pour le SKU &quot;{skuInput.toUpperCase()}&quot;
+            </p>
+          </div>
+        )}
+
+        {searchStatus === "error" && (
+          <div className="rounded-xl bg-secondary p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Service StockX temporairement indisponible. Reessayez ou ajoutez manuellement.
+            </p>
+          </div>
+        )}
+
+        {/* Manual Add Button */}
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-background px-3 text-muted-foreground">ou</span>
+          </div>
+        </div>
+
+        <Button
+          variant="outline"
+          className="w-full h-12"
+          onClick={() => setStep("manual")}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Ajouter manuellement
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── Render: Size Selection Step ────────────────────────────────
+
+  if (step === "sizes") {
+    return (
+      <div className="space-y-5">
+        {/* Back button + Product info */}
+        <button
+          type="button"
+          onClick={() => {
+            setStep("search");
+            setSearchStatus("idle");
+            setSelectedSizes(new Map());
+          }}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Retour
+        </button>
+
+        {/* Product preview card */}
+        <div className="rounded-xl bg-secondary p-4 flex gap-4">
+          {productImageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={productImageUrl}
+              alt={productTitle}
+              className="w-16 h-16 object-contain rounded-lg bg-white/5 shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+              <Package className="h-6 w-6 text-muted-foreground" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="font-medium text-sm truncate">{productTitle}</p>
+            <p className="text-xs text-muted-foreground font-mono">{productSku}</p>
+          </div>
+        </div>
+
+        {/* Size Grid */}
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">
+            Selectionnez les tailles ({selectedSizes.size} selectionnee{selectedSizes.size > 1 ? "s" : ""})
+          </Label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {availableSizes.map((v) => {
+              const isSelected = selectedSizes.has(v.sizeUS);
+              return (
+                <button
+                  key={v.variantId}
+                  type="button"
+                  onClick={() => toggleSize(v.sizeUS)}
+                  className={cn(
+                    "py-2 px-1 rounded-lg font-medium transition-all min-h-[44px] flex flex-col items-center justify-center gap-0.5",
+                    isSelected
+                      ? "bg-primary text-primary-foreground ring-2 ring-primary/50"
+                      : "bg-secondary hover:bg-secondary/80 text-muted-foreground"
+                  )}
+                >
+                  <span className="text-xs">US {v.sizeUS}</span>
+                  {v.sizeEU && (
+                    <span className={cn(
+                      "text-[9px]",
+                      isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"
+                    )}>
+                      EU {v.sizeEU}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selected sizes with price inputs */}
+        {selectedSizes.size > 0 && (
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Prix par taille</Label>
+            {Array.from(selectedSizes.entries()).map(([size, data]) => (
+              <div key={size} className="rounded-xl bg-secondary p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Taille {size}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSize(size)}
+                    className="text-xs text-muted-foreground hover:text-danger transition-colors"
+                  >
+                    Retirer
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Prix d&apos;achat *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="120.00"
+                      value={data.purchasePrice}
+                      onChange={(e) => updateSizeField(size, "purchasePrice", e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Quantite</Label>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => updateSizeField(size, "quantity", Math.max(1, data.quantity - 1))}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={data.quantity}
+                        onChange={(e) => updateSizeField(size, "quantity", Math.max(1, parseInt(e.target.value) || 1))}
+                        className="h-9 text-sm text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => updateSizeField(size, "quantity", data.quantity + 1)}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Global fields */}
+        <div className="space-y-3 pt-2 border-t border-border">
+          <Label className="text-sm font-semibold">Infos globales</Label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
+              <Input
+                type="date"
+                value={globalPurchaseDate}
+                onChange={(e) => setGlobalPurchaseDate(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="180.00"
+                value={globalTargetPrice}
+                onChange={(e) => setGlobalTargetPrice(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Stockage</Label>
+              <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Choisir..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {STORAGE_LOCATIONS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Date retour</Label>
+              <Input
+                type="date"
+                value={globalReturnDeadline}
+                onChange={(e) => setGlobalReturnDeadline(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Notes</Label>
+            <Textarea
+              placeholder="Notes supplementaires..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="text-sm"
+            />
+          </div>
+        </div>
+
+        {/* Submit */}
+        <Button
+          onClick={handleSubmitStockX}
+          className="w-full h-12"
+          disabled={isSubmitting || selectedSizes.size === 0}
+        >
+          {isSubmitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Plus className="h-4 w-4 mr-2" />
+              Ajouter au stock ({Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0)} article{Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0) > 1 ? "s" : ""})
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── Render: Manual Mode ────────────────────────────────────────
 
   return (
-    <form action={formAction} className="space-y-4">
-      {/* Hidden imageUrl from SKU lookup */}
-      {skuImageUrl && (
-        <input type="hidden" name="imageUrl" value={skuImageUrl} />
-      )}
+    <div className="space-y-4">
+      {/* Back button */}
+      <button
+        type="button"
+        onClick={() => setStep("search")}
+        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Retour
+      </button>
 
-      {/* Image upload (edit mode) or SKU preview (create mode) */}
-      {isEdit ? (
-        <ImageUpload
-          productId={product.id}
-          currentImage={product.imageUrl ?? skuImageUrl}
-        />
-      ) : (
-        <div>
-          {/* Loading state */}
-          {skuLookupStatus === "loading" && (
-            <div className="rounded-xl overflow-hidden bg-secondary">
-              <div className="flex items-center justify-center h-40 gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Recherche image StockX...
-                </span>
-              </div>
-            </div>
-          )}
+      <h2 className="text-base font-semibold">Ajout manuel</h2>
 
-          {/* Found — auto image from StockX */}
-          {skuLookupStatus === "found" && skuImageUrl && (
-            <div className="relative rounded-xl overflow-hidden bg-secondary">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={skuImageUrl}
-                alt="SKU Preview"
-                className="w-full h-40 object-contain bg-white/5"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setSkuImageUrl(null);
-                  setSkuLookupStatus("idle");
-                }}
-                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
-              >
-                <X className="h-3 w-3" />
-              </button>
-              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
-                <ImageIcon className="h-3 w-3 text-success" />
-                <span className="text-[10px] text-success font-medium">
-                  Image auto via SKU
-                </span>
-              </div>
+      {/* Image upload */}
+      <div className="space-y-1.5">
+        {manualImageUrl ? (
+          <div className="relative rounded-xl overflow-hidden bg-secondary">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={manualImageUrl}
+              alt="Produit"
+              className="w-full h-40 object-contain bg-white/5"
+            />
+          </div>
+        ) : (
+          <label className="cursor-pointer block">
+            <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-6 text-center">
+              {manualUploading ? (
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+              ) : (
+                <>
+                  <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Ajouter une photo</p>
+                </>
+              )}
             </div>
-          )}
-
-          {/* User image — personal fallback */}
-          {skuLookupStatus === "user_image" && skuImageUrl && (
-            <div className="relative rounded-xl overflow-hidden bg-secondary">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={skuImageUrl}
-                alt="SKU Preview"
-                className="w-full h-40 object-contain bg-white/5"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setSkuImageUrl(null);
-                  setSkuLookupStatus("not_found");
-                }}
-                className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
-              >
-                <X className="h-3 w-3" />
-              </button>
-              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
-                <ImageIcon className="h-3 w-3 text-warning" />
-                <span className="text-[10px] text-warning font-medium">
-                  Votre image personnelle
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Not found — prompt user to upload */}
-          {skuLookupStatus === "not_found" && (
-            <div className="rounded-xl bg-secondary p-4">
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="h-10 w-10 rounded-full bg-warning/10 flex items-center justify-center">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Image introuvable</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Un staff l&apos;ajoutera bientot. Vous pouvez ajouter votre propre image en attendant.
-                  </p>
-                </div>
-                <label className="cursor-pointer">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    <span className="text-sm font-medium">
-                      {uploading ? "Upload..." : "Ajouter votre image"}
-                    </span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={handleFallbackUpload}
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Error state */}
-          {skuLookupStatus === "error" && (
-            <div className="rounded-xl bg-secondary p-3">
-              <p className="text-xs text-muted-foreground text-center">
-                Service de recherche temporairement indisponible
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleManualImageUpload}
+              disabled={manualUploading}
+            />
+          </label>
+        )}
+      </div>
 
       {/* Name */}
       <div className="space-y-1.5">
-        <Label htmlFor="name">Nom du produit *</Label>
+        <Label htmlFor="manual-name">Nom du produit *</Label>
         <Input
-          id="name"
-          name="name"
-          placeholder="Nike Dunk Low..."
-          defaultValue={product?.name ?? ""}
-          required
+          id="manual-name"
+          placeholder="Pokemon Booster Box..."
+          value={manualName}
+          onChange={(e) => setManualName(e.target.value)}
         />
       </div>
 
-      {/* SKU */}
+      {/* Category */}
       <div className="space-y-1.5">
-        <Label htmlFor="sku">SKU</Label>
-        <Input
-          id="sku"
-          name="sku"
-          placeholder="DD1391-100"
-          defaultValue={product?.sku ?? ""}
-          onChange={handleSkuChange}
-        />
-        <p className="text-[11px] text-muted-foreground">
-          L&apos;image se remplit automatiquement via StockX
-        </p>
-      </div>
-
-      {/* Category + Size */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Categorie *</Label>
-          <Select name="category" defaultValue={product?.category ?? "sneakers"}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="sizeVariant">Taille / Variante</Label>
-          <Input
-            id="sizeVariant"
-            name="sizeVariant"
-            placeholder="42, XL..."
-            defaultValue={product?.sizeVariant ?? ""}
-          />
-        </div>
-      </div>
-
-      {/* Purchase price + date */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="purchasePrice">Prix d&apos;achat * (EUR)</Label>
-          <Input
-            id="purchasePrice"
-            name="purchasePrice"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="120.00"
-            defaultValue={product?.purchasePrice ?? ""}
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="purchaseDate">Date d&apos;achat *</Label>
-          <Input
-            id="purchaseDate"
-            name="purchaseDate"
-            type="date"
-            defaultValue={product?.purchaseDate ?? new Date().toISOString().split("T")[0]}
-            required
-          />
-        </div>
-      </div>
-
-      {/* Target price */}
-      <div className="space-y-1.5">
-        <Label htmlFor="targetPrice">Prix cible (EUR)</Label>
-        <Input
-          id="targetPrice"
-          name="targetPrice"
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="180.00"
-          defaultValue={product?.targetPrice ?? ""}
-        />
-      </div>
-
-      {/* Fees */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="shippingFee">Frais de port</Label>
-          <Input
-            id="shippingFee"
-            name="shippingFee"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="0"
-            defaultValue={product?.shippingFee ?? "0"}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="platformFee">Commission plateforme</Label>
-          <Input
-            id="platformFee"
-            name="platformFee"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="0"
-            defaultValue={product?.platformFee ?? "0"}
-          />
-        </div>
-      </div>
-
-      {/* Platform + Status */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Plateforme</Label>
-          <Select name="platform" defaultValue={product?.platform ?? undefined}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choisir..." />
-            </SelectTrigger>
-            <SelectContent>
-              {PLATFORMS.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Statut</Label>
-          <Select name="status" defaultValue={product?.status ?? "en_stock"}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Storage location */}
-      <div className="space-y-1.5">
-        <Label>Lieu de stockage</Label>
-        <Select name="storageLocation" defaultValue={product?.storageLocation ?? undefined}>
+        <Label>Categorie *</Label>
+        <Select value={manualCategory} onValueChange={setManualCategory}>
           <SelectTrigger>
-            <SelectValue placeholder="Choisir..." />
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STORAGE_LOCATIONS.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                {l.label}
+            {CATEGORIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Return deadline */}
+      {/* Size + Price */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="manual-size">Taille / Variante</Label>
+          <Input
+            id="manual-size"
+            placeholder="42, XL, OS..."
+            value={manualSize}
+            onChange={(e) => setManualSize(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="manual-price">Prix d&apos;achat * (EUR)</Label>
+          <Input
+            id="manual-price"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="120.00"
+            value={manualPrice}
+            onChange={(e) => setManualPrice(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Quantity */}
       <div className="space-y-1.5">
-        <Label htmlFor="returnDeadline">Date limite de retour</Label>
-        <Input
-          id="returnDeadline"
-          name="returnDeadline"
-          type="date"
-          defaultValue={product?.returnDeadline ?? ""}
-        />
+        <Label>Quantite</Label>
+        <div className="flex items-center gap-2 w-32">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => setManualQuantity(Math.max(1, manualQuantity - 1))}
+          >
+            <Minus className="h-3 w-3" />
+          </Button>
+          <Input
+            type="number"
+            min="1"
+            value={manualQuantity}
+            onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+            className="h-9 text-center"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => setManualQuantity(manualQuantity + 1)}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Global fields */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Date d&apos;achat *</Label>
+          <Input
+            type="date"
+            value={globalPurchaseDate}
+            onChange={(e) => setGlobalPurchaseDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Prix cible</Label>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="180.00"
+            value={globalTargetPrice}
+            onChange={(e) => setGlobalTargetPrice(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Stockage</Label>
+          <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choisir..." />
+            </SelectTrigger>
+            <SelectContent>
+              {STORAGE_LOCATIONS.map((l) => (
+                <SelectItem key={l.value} value={l.value}>
+                  {l.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Date retour</Label>
+          <Input
+            type="date"
+            value={globalReturnDeadline}
+            onChange={(e) => setGlobalReturnDeadline(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Notes */}
       <div className="space-y-1.5">
-        <Label htmlFor="notes">Notes</Label>
+        <Label>Notes</Label>
         <Textarea
-          id="notes"
-          name="notes"
           placeholder="Notes supplementaires..."
-          defaultValue={product?.notes ?? ""}
-          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
         />
       </div>
 
-      {/* Error */}
-      {state && "error" in state && (
-        <p className="text-sm text-danger">{state.error}</p>
-      )}
-
       {/* Submit */}
-      <Button type="submit" className="w-full h-12" disabled={isPending}>
-        {isPending ? (
+      <Button
+        onClick={handleSubmitManual}
+        className="w-full h-12"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
           <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isEdit ? (
-          "Modifier"
         ) : (
-          "Ajouter le produit"
+          <>
+            <Plus className="h-4 w-4 mr-2" />
+            Ajouter au stock{manualQuantity > 1 ? ` (${manualQuantity} articles)` : ""}
+          </>
         )}
       </Button>
-    </form>
+    </div>
   );
 }

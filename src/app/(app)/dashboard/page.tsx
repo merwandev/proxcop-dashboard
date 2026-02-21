@@ -111,6 +111,9 @@ export default async function DashboardPage() {
                   </span>
                   <span className="text-sm truncate max-w-[180px]">
                     {item.name}
+                    {item.size && (
+                      <span className="text-muted-foreground"> — {item.size}</span>
+                    )}
                   </span>
                 </div>
                 <span className="text-sm font-medium text-success">
@@ -133,8 +136,13 @@ export default async function DashboardPage() {
           </h3>
           <div className="space-y-2">
             {kpis.sleeping.map((item) => (
-              <div key={item.id} className="flex items-center justify-between">
-                <span className="text-sm truncate max-w-[200px]">{item.name}</span>
+              <div key={item.variantId} className="flex items-center justify-between">
+                <span className="text-sm truncate max-w-[200px]">
+                  {item.productName}
+                  {item.sizeVariant && (
+                    <span className="text-muted-foreground"> — {item.sizeVariant}</span>
+                  )}
+                </span>
                 <TimeBadge purchaseDate={item.purchaseDate} />
               </div>
             ))}

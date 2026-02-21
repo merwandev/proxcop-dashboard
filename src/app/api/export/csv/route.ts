@@ -26,10 +26,10 @@ export async function GET() {
     "Date Vente",
   ];
 
-  const rows = salesData.map(({ sale, product }) => {
+  const rows = salesData.map(({ sale, variant, product }) => {
     const profit =
       Number(sale.salePrice) -
-      Number(product.purchasePrice) -
+      Number(variant.purchasePrice) -
       Number(sale.platformFee ?? 0) -
       Number(sale.shippingCost ?? 0) -
       Number(sale.otherFees ?? 0);
@@ -41,8 +41,8 @@ export async function GET() {
     return [
       product.name,
       product.category,
-      product.sizeVariant ?? "",
-      product.purchasePrice,
+      variant.sizeVariant ?? "",
+      variant.purchasePrice,
       sale.salePrice,
       sale.platformFee ?? "0",
       sale.shippingCost ?? "0",
@@ -50,7 +50,7 @@ export async function GET() {
       profit.toFixed(2),
       margin,
       sale.platform ?? "",
-      product.purchaseDate,
+      variant.purchaseDate,
       sale.saleDate,
     ];
   });

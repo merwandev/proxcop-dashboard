@@ -1,9 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import { getProductWithSale } from "@/lib/queries/products";
-import { ProductForm } from "@/components/product/product-form";
-import { SaleDialog } from "@/components/sales/sale-dialog";
+import { getProductWithVariants } from "@/lib/queries/products";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
+import { ProductDetailClient } from "@/components/product/product-detail-client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -16,24 +15,24 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   if (!session?.user?.id) redirect("/login");
 
   const { id } = await params;
-  const product = await getProductWithSale(id, session.user.id);
+  const product = await getProductWithVariants(id, session.user.id);
   if (!product) notFound();
 
   return (
     <div className="py-4 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/stock" className="p-1">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-bold">Modifier</h1>
+          <h1 className="text-xl font-bold truncate">{product.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {product.status !== "vendu" && <SaleDialog productId={product.id} />}
-          <DeleteProductButton productId={product.id} />
-        </div>
+        <DeleteProductButton productId={product.id} />
       </div>
-      <ProductForm product={product} />
+
+      {/* Client component for interactive variant management */}
+      <ProductDetailClient product={product} />
     </div>
   );
 }

@@ -1,16 +1,15 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getProductsByUser, getStockProducts } from "@/lib/queries/products";
-import { ProductCard } from "@/components/product/product-card";
+import { getStockProductsGrouped } from "@/lib/queries/products";
+import { ProductGroupCard } from "@/components/product/product-card";
 import { ProductFilters } from "@/components/product/product-filters";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 
 interface StockPageProps {
-  searchParams: Promise<{ category?: string; platform?: string; status?: string }>;
+  searchParams: Promise<{ category?: string }>;
 }
 
 export default async function StockPage({ searchParams }: StockPageProps) {
@@ -19,23 +18,17 @@ export default async function StockPage({ searchParams }: StockPageProps) {
 
   const params = await searchParams;
 
-  // By default, exclude sold products from stock view.
-  // If user explicitly filters by a status (including "vendu"), show that status.
-  const allProducts = params.status
-    ? await getProductsByUser(session.user.id)
-    : await getStockProducts(session.user.id);
+  // Get stock products grouped by parent (excludes fully-sold products)
+  const allProducts = await getStockProductsGrouped(session.user.id);
 
-  // Apply filters
+  // Apply category filter
   let filtered = allProducts;
   if (params.category) {
     filtered = filtered.filter((p) => p.category === params.category);
   }
-  if (params.platform) {
-    filtered = filtered.filter((p) => p.platform === params.platform);
-  }
-  if (params.status) {
-    filtered = filtered.filter((p) => p.status === params.status);
-  }
+
+  // Count total variants in stock
+  const totalInStock = filtered.reduce((sum, p) => sum + Number(p.inStockCount), 0);
 
   return (
     <div className="py-4 space-y-4">
@@ -44,7 +37,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
         <div>
           <h1 className="text-xl font-bold">Stock</h1>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} produit{filtered.length !== 1 ? "s" : ""}
+            {filtered.length} produit{filtered.length !== 1 ? "s" : ""} &middot; {totalInStock} unit{totalInStock !== 1 ? "es" : "e"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -64,7 +57,7 @@ export default async function StockPage({ searchParams }: StockPageProps) {
       <div className="space-y-2">
         {filtered.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">Aucun produit</p>
+            <p className="text-sm">Aucun produit en stock</p>
             <Link href="/stock/add">
               <Button variant="outline" size="sm" className="mt-3">
                 Ajouter un produit
@@ -73,24 +66,10 @@ export default async function StockPage({ searchParams }: StockPageProps) {
           </div>
         ) : (
           filtered.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductGroupCard key={product.id} product={product} />
           ))
         )}
       </div>
-    </div>
-  );
-}
-
-export function StockPageSkeleton() {
-  return (
-    <div className="py-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-7 w-24" />
-        <Skeleton className="h-8 w-20" />
-      </div>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Skeleton key={i} className="h-20 w-full rounded-xl" />
-      ))}
     </div>
   );
 }

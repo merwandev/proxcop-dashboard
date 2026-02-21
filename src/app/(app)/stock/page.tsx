@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getProductsByUser } from "@/lib/queries/products";
+import { getProductsByUser, getStockProducts } from "@/lib/queries/products";
 import { ProductCard } from "@/components/product/product-card";
 import { ProductFilters } from "@/components/product/product-filters";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,12 @@ export default async function StockPage({ searchParams }: StockPageProps) {
   if (!session?.user?.id) redirect("/login");
 
   const params = await searchParams;
-  const allProducts = await getProductsByUser(session.user.id);
+
+  // By default, exclude sold products from stock view.
+  // If user explicitly filters by a status (including "vendu"), show that status.
+  const allProducts = params.status
+    ? await getProductsByUser(session.user.id)
+    : await getStockProducts(session.user.id);
 
   // Apply filters
   let filtered = allProducts;

@@ -104,6 +104,16 @@ export const expenses = pgTable("expenses", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// StockX OAuth Tokens (single row, used for API access)
+export const stockxTokens = pgTable("stockx_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // SKU Image Cache (global, shared across all users)
 export const skuImages = pgTable("sku_images", {
   id: uuid("id").defaultRandom().primaryKey(),

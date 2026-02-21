@@ -8,7 +8,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="space-y-4">
           <Image
-            src="/logo.svg"
+            src="/logo.png"
             alt="Proxcop"
             width={80}
             height={80}

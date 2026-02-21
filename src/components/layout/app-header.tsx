@@ -10,7 +10,7 @@ export async function AppHeader() {
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <div className="flex items-center gap-2">
           <Image
-            src="/logo.svg"
+            src="/logo.png"
             alt="Proxcop"
             width={32}
             height={32}

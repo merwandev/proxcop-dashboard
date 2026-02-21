@@ -34,10 +34,10 @@ export async function createProductWithVariants(data: {
     .values({
       userId: session.user.id,
       name: parsed.name,
-      sku: parsed.sku,
+      sku: parsed.sku ?? null,
       imageUrl: parsed.imageUrl || null,
       category: parsed.category,
-      notes: parsed.notes,
+      notes: parsed.notes ?? null,
     })
     .returning({ id: products.id });
 
@@ -47,11 +47,11 @@ export async function createProductWithVariants(data: {
     return Array.from({ length: qty }, () => ({
       productId: parent.id,
       userId: session.user.id,
-      sizeVariant: v.sizeVariant,
+      sizeVariant: v.sizeVariant ?? null,
       purchasePrice: v.purchasePrice.toString(),
       purchaseDate: parsed.purchaseDate,
-      targetPrice: parsed.targetPrice?.toString(),
-      storageLocation: v.storageLocation,
+      targetPrice: parsed.targetPrice?.toString() ?? null,
+      storageLocation: v.storageLocation ?? null,
       returnDeadline: parsed.returnDeadline || null,
     }));
   });
@@ -82,10 +82,10 @@ export async function updateProduct(productId: string, data: {
     .update(products)
     .set({
       name: parsed.name,
-      sku: parsed.sku,
+      sku: parsed.sku ?? null,
       ...(parsed.imageUrl ? { imageUrl: parsed.imageUrl } : {}),
       category: parsed.category,
-      notes: parsed.notes,
+      notes: parsed.notes ?? null,
       updatedAt: new Date(),
     })
     .where(and(eq(products.id, productId), eq(products.userId, session.user.id)));
@@ -112,12 +112,12 @@ export async function updateVariant(variantId: string, data: {
   await db
     .update(productVariants)
     .set({
-      sizeVariant: parsed.sizeVariant,
+      sizeVariant: parsed.sizeVariant ?? null,
       purchasePrice: parsed.purchasePrice.toString(),
       purchaseDate: parsed.purchaseDate,
-      targetPrice: parsed.targetPrice?.toString(),
+      targetPrice: parsed.targetPrice?.toString() ?? null,
       status: parsed.status as typeof productVariants.status.enumValues[number],
-      storageLocation: parsed.storageLocation,
+      storageLocation: parsed.storageLocation ?? null,
       returnDeadline: parsed.returnDeadline || null,
       updatedAt: new Date(),
     })
@@ -215,11 +215,11 @@ export async function addVariantToProduct(productId: string, data: {
   const variantRows = Array.from({ length: qty }, () => ({
     productId,
     userId: session.user.id,
-    sizeVariant: data.sizeVariant,
+    sizeVariant: data.sizeVariant ?? null,
     purchasePrice: data.purchasePrice.toString(),
     purchaseDate: data.purchaseDate,
-    targetPrice: data.targetPrice?.toString(),
-    storageLocation: data.storageLocation,
+    targetPrice: data.targetPrice?.toString() ?? null,
+    storageLocation: data.storageLocation ?? null,
     returnDeadline: data.returnDeadline || null,
   }));
 

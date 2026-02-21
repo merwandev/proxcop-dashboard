@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { signIn } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -7,7 +6,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-8 text-center">
         {/* Logo */}
         <div className="space-y-4">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src="/logo.png"
             alt="Proxcop"
             width={80}

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const productSchema = z.object({
   name: z.string().min(1, "Le nom est requis"),
   sku: z.string().optional(),
+  imageUrl: z.string().url().optional().or(z.literal("")),
   category: z.enum(["sneakers", "pokemon", "lego", "random"]),
   sizeVariant: z.string().optional(),
   purchasePrice: z.coerce.number().min(0, "Le prix doit etre positif"),

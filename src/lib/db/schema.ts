@@ -104,6 +104,16 @@ export const expenses = pgTable("expenses", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// SKU Image Cache (global, shared across all users)
+export const skuImages = pgTable("sku_images", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sku: text("sku").notNull().unique(),
+  imageUrl: text("image_url").notNull(),
+  source: text("source").notNull().default("stockx"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   products: many(products),

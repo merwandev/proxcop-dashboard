@@ -43,6 +43,14 @@ export async function getProductWithSale(productId: string, userId: string) {
   };
 }
 
+export async function getStockProducts(userId: string) {
+  return db
+    .select()
+    .from(products)
+    .where(and(eq(products.userId, userId), ne(products.status, "vendu")))
+    .orderBy(desc(products.createdAt));
+}
+
 export async function getStockCount(userId: string) {
   const result = await db
     .select({ count: sql<number>`count(*)` })

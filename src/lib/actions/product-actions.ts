@@ -18,6 +18,7 @@ export async function createProduct(formData: FormData) {
     userId: session.user.id,
     name: parsed.name,
     sku: parsed.sku,
+    imageUrl: parsed.imageUrl || null,
     category: parsed.category,
     sizeVariant: parsed.sizeVariant,
     purchasePrice: parsed.purchasePrice.toString(),
@@ -48,6 +49,7 @@ export async function updateProduct(productId: string, formData: FormData) {
     .set({
       name: parsed.name,
       sku: parsed.sku,
+      ...(parsed.imageUrl ? { imageUrl: parsed.imageUrl } : {}),
       category: parsed.category,
       sizeVariant: parsed.sizeVariant,
       purchasePrice: parsed.purchasePrice.toString(),

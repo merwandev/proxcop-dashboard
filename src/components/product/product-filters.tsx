@@ -117,7 +117,7 @@ export function ProductFilters() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="all">Tous (hors vendu)</SelectItem>
                 {STATUSES.map((s) => (
                   <SelectItem key={s.value} value={s.value}>
                     {s.label}

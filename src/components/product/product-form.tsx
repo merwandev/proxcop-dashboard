@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useRef, useCallback, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { CATEGORIES, PLATFORMS, STATUSES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
 import { createProduct, updateProduct } from "@/lib/actions/product-actions";
-import { Loader2 } from "lucide-react";
+import { Loader2, ImageIcon, X } from "lucide-react";
 import { ImageUpload } from "./image-upload";
 
 interface ProductFormProps {
@@ -41,6 +41,53 @@ interface ProductFormProps {
 export function ProductForm({ product }: ProductFormProps) {
   const isEdit = !!product;
 
+  // SKU image lookup state
+  const [skuImageUrl, setSkuImageUrl] = useState<string | null>(
+    product?.imageUrl ?? null
+  );
+  const [skuLookupLoading, setSkuLookupLoading] = useState(false);
+  const skuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSkuChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const sku = e.target.value.trim();
+
+      if (skuTimeoutRef.current) clearTimeout(skuTimeoutRef.current);
+
+      if (sku.length < 3) {
+        if (!isEdit) setSkuImageUrl(null);
+        return;
+      }
+
+      skuTimeoutRef.current = setTimeout(async () => {
+        setSkuLookupLoading(true);
+        try {
+          const res = await fetch(
+            `/api/sku-lookup?sku=${encodeURIComponent(sku)}`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.imageUrl) {
+              setSkuImageUrl(data.imageUrl);
+            }
+          }
+        } catch {
+          // Silently fail
+        } finally {
+          setSkuLookupLoading(false);
+        }
+      }, 800);
+    },
+    [isEdit]
+  );
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (skuTimeoutRef.current) clearTimeout(skuTimeoutRef.current);
+    };
+  }, []);
+
   const action = async (_prev: unknown, formData: FormData) => {
     try {
       if (isEdit) {
@@ -58,8 +105,53 @@ export function ProductForm({ product }: ProductFormProps) {
 
   return (
     <form action={formAction} className="space-y-4">
-      {/* Image upload */}
-      {isEdit && <ImageUpload productId={product.id} currentImage={product.imageUrl} />}
+      {/* Hidden imageUrl from SKU lookup */}
+      {skuImageUrl && (
+        <input type="hidden" name="imageUrl" value={skuImageUrl} />
+      )}
+
+      {/* Image upload (edit mode) or SKU preview (create mode) */}
+      {isEdit ? (
+        <ImageUpload
+          productId={product.id}
+          currentImage={product.imageUrl ?? skuImageUrl}
+        />
+      ) : (
+        (skuLookupLoading || skuImageUrl) && (
+          <div className="relative rounded-xl overflow-hidden bg-secondary">
+            {skuLookupLoading ? (
+              <div className="flex items-center justify-center h-40 gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
+                  Recherche image...
+                </span>
+              </div>
+            ) : skuImageUrl ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={skuImageUrl}
+                  alt="SKU Preview"
+                  className="w-full h-40 object-contain bg-white/5"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSkuImageUrl(null)}
+                  className="absolute top-2 right-2 h-6 w-6 rounded-full bg-background/80 flex items-center justify-center"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-background/80 rounded-md px-2 py-1">
+                  <ImageIcon className="h-3 w-3 text-success" />
+                  <span className="text-[10px] text-success font-medium">
+                    Image auto via SKU
+                  </span>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )
+      )}
 
       {/* Name */}
       <div className="space-y-1.5">
@@ -81,7 +173,11 @@ export function ProductForm({ product }: ProductFormProps) {
           name="sku"
           placeholder="DD1391-100"
           defaultValue={product?.sku ?? ""}
+          onChange={handleSkuChange}
         />
+        <p className="text-[11px] text-muted-foreground">
+          L&apos;image se remplit automatiquement pour les sneakers
+        </p>
       </div>
 
       {/* Category + Size */}

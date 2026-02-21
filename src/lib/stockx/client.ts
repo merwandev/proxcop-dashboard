@@ -56,6 +56,7 @@ async function refreshStockXToken(refreshToken: string) {
       grant_type: "refresh_token",
       client_id: process.env.STOCKX_CLIENT_ID!,
       client_secret: process.env.STOCKX_CLIENT_SECRET!,
+      audience: "gateway.stockx.com",
       refresh_token: refreshToken,
     }),
     signal: AbortSignal.timeout(10000),

@@ -1,0 +1,22 @@
+{
+  "name": "Proxcop Dashboard",
+  "short_name": "Proxcop",
+  "description": "Gere ton stock de resell, suis tes profits et optimise tes ventes.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#18191E",
+  "theme_color": "#18191E",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

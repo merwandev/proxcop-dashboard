@@ -1,14 +1,18 @@
+import { auth } from "@/lib/auth";
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+  const userRole = session?.user?.role;
+
   return (
     <div className="min-h-screen flex flex-col">
       <AppHeader />
       <main className="flex-1 pb-20 px-4 max-w-lg mx-auto w-full">
         {children}
       </main>
-      <BottomNav />
+      <BottomNav userRole={userRole} />
     </div>
   );
 }

@@ -1,70 +1,146 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { products, sales, cashbacks } from "@/lib/db/schema";
+import { products, productVariants, sales, cashbacks } from "@/lib/db/schema";
 import { eq, and, desc, sql, ne } from "drizzle-orm";
 
-export async function getProductsByUser(userId: string) {
-  return db
-    .select()
+/**
+ * Get all product parents grouped with variant counts for stock page.
+ * Only returns products that have at least 1 non-sold variant.
+ */
+export async function getStockProductsGrouped(userId: string) {
+  const result = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      category: products.category,
+      imageUrl: products.imageUrl,
+      notes: products.notes,
+      createdAt: products.createdAt,
+      inStockCount: sql<number>`count(case when ${productVariants.status} != 'vendu' then 1 end)`,
+      totalCount: sql<number>`count(*)`,
+      totalValue: sql<number>`coalesce(sum(case when ${productVariants.status} != 'vendu' then cast(${productVariants.purchasePrice} as decimal) end), 0)`,
+      oldestPurchaseDate: sql<string>`min(case when ${productVariants.status} != 'vendu' then ${productVariants.purchaseDate} end)`,
+    })
     .from(products)
+    .innerJoin(productVariants, eq(products.id, productVariants.productId))
     .where(eq(products.userId, userId))
+    .groupBy(products.id)
+    .having(sql`count(case when ${productVariants.status} != 'vendu' then 1 end) > 0`)
     .orderBy(desc(products.createdAt));
+
+  return result;
 }
 
-export async function getProductById(productId: string, userId: string) {
+/**
+ * Get all product parents (including fully-sold ones) for filter views.
+ */
+export async function getProductsByUser(userId: string) {
   const result = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      category: products.category,
+      imageUrl: products.imageUrl,
+      notes: products.notes,
+      createdAt: products.createdAt,
+      inStockCount: sql<number>`count(case when ${productVariants.status} != 'vendu' then 1 end)`,
+      totalCount: sql<number>`count(*)`,
+      totalValue: sql<number>`coalesce(sum(case when ${productVariants.status} != 'vendu' then cast(${productVariants.purchasePrice} as decimal) end), 0)`,
+      oldestPurchaseDate: sql<string>`min(case when ${productVariants.status} != 'vendu' then ${productVariants.purchaseDate} end)`,
+    })
+    .from(products)
+    .innerJoin(productVariants, eq(products.id, productVariants.productId))
+    .where(eq(products.userId, userId))
+    .groupBy(products.id)
+    .orderBy(desc(products.createdAt));
+
+  return result;
+}
+
+/**
+ * Get a single parent product with all its variants.
+ */
+export async function getProductWithVariants(productId: string, userId: string) {
+  const product = await db
     .select()
     .from(products)
     .where(and(eq(products.id, productId), eq(products.userId, userId)))
     .limit(1);
-  return result[0] ?? null;
-}
 
-export async function getProductWithSale(productId: string, userId: string) {
-  const product = await getProductById(productId, userId);
-  if (!product) return null;
+  if (!product[0]) return null;
 
-  const sale = await db
+  const variants = await db
     .select()
-    .from(sales)
-    .where(eq(sales.productId, productId))
-    .limit(1);
-
-  const productCashbacks = await db
-    .select()
-    .from(cashbacks)
-    .where(eq(cashbacks.productId, productId));
+    .from(productVariants)
+    .where(eq(productVariants.productId, productId))
+    .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
 
   return {
-    ...product,
-    sale: sale[0] ?? null,
-    cashbacks: productCashbacks,
+    ...product[0],
+    variants,
   };
 }
 
-export async function getStockProducts(userId: string) {
-  return db
+/**
+ * Get a single variant with its parent product info.
+ */
+export async function getVariantWithProduct(variantId: string, userId: string) {
+  const result = await db
+    .select({
+      variant: productVariants,
+      product: products,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(and(eq(productVariants.id, variantId), eq(productVariants.userId, userId)))
+    .limit(1);
+
+  if (!result[0]) return null;
+
+  // Get sale info for this variant
+  const saleResult = await db
     .select()
-    .from(products)
-    .where(and(eq(products.userId, userId), ne(products.status, "vendu")))
-    .orderBy(desc(products.createdAt));
+    .from(sales)
+    .where(eq(sales.variantId, variantId))
+    .limit(1);
+
+  // Get cashbacks for this variant
+  const variantCashbacks = await db
+    .select()
+    .from(cashbacks)
+    .where(eq(cashbacks.variantId, variantId));
+
+  return {
+    ...result[0].variant,
+    product: result[0].product,
+    sale: saleResult[0] ?? null,
+    cashbacks: variantCashbacks,
+  };
 }
 
+/**
+ * Count of variants in stock (status != vendu).
+ */
 export async function getStockCount(userId: string) {
   const result = await db
     .select({ count: sql<number>`count(*)` })
-    .from(products)
-    .where(and(eq(products.userId, userId), ne(products.status, "vendu")));
+    .from(productVariants)
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
   return result[0]?.count ?? 0;
 }
 
+/**
+ * Total purchase value of variants in stock.
+ */
 export async function getStockValue(userId: string) {
   const result = await db
     .select({
-      total: sql<number>`coalesce(sum(cast(${products.purchasePrice} as decimal)), 0)`,
+      total: sql<number>`coalesce(sum(cast(${productVariants.purchasePrice} as decimal)), 0)`,
     })
-    .from(products)
-    .where(and(eq(products.userId, userId), ne(products.status, "vendu")));
+    .from(productVariants)
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
   return Number(result[0]?.total ?? 0);
 }

@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { skuImages, userSkuImages } from "@/lib/db/schema";
+import { skuImages, userSkuImages, stockxProductsCache } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import type { StockXCachedVariant } from "@/lib/stockx/client";
 
 // ─── Global SKU Images (shared across all users) ────────────────────
 
@@ -72,4 +73,69 @@ export async function getNotFoundSkuImages(limit = 50, offset = 0) {
     .orderBy(desc(skuImages.updatedAt))
     .limit(limit)
     .offset(offset);
+}
+
+// ─── StockX Products Cache (full product + variants) ────────────────
+
+export interface CachedStockXProduct {
+  sku: string;
+  stockxProductId: string;
+  title: string;
+  styleId: string;
+  imageUrl: string | null;
+  variants: StockXCachedVariant[];
+}
+
+export async function getCachedStockXProduct(sku: string): Promise<CachedStockXProduct | null> {
+  const normalized = sku.trim().toUpperCase();
+  const result = await db
+    .select()
+    .from(stockxProductsCache)
+    .where(eq(stockxProductsCache.sku, normalized))
+    .limit(1);
+
+  if (!result[0]) return null;
+
+  return {
+    sku: result[0].sku,
+    stockxProductId: result[0].stockxProductId,
+    title: result[0].title,
+    styleId: result[0].styleId,
+    imageUrl: result[0].imageUrl,
+    variants: result[0].variants as StockXCachedVariant[],
+  };
+}
+
+export async function upsertCachedStockXProduct(
+  sku: string,
+  data: {
+    stockxProductId: string;
+    title: string;
+    styleId: string;
+    imageUrl: string | null;
+    variants: StockXCachedVariant[];
+  }
+) {
+  const normalized = sku.trim().toUpperCase();
+  await db
+    .insert(stockxProductsCache)
+    .values({
+      sku: normalized,
+      stockxProductId: data.stockxProductId,
+      title: data.title,
+      styleId: data.styleId,
+      imageUrl: data.imageUrl,
+      variants: data.variants,
+    })
+    .onConflictDoUpdate({
+      target: stockxProductsCache.sku,
+      set: {
+        stockxProductId: data.stockxProductId,
+        title: data.title,
+        styleId: data.styleId,
+        imageUrl: data.imageUrl,
+        variants: data.variants,
+        updatedAt: new Date(),
+      },
+    });
 }

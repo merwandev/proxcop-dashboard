@@ -8,6 +8,7 @@ import {
   boolean,
   pgEnum,
   unique,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -45,33 +46,39 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Products
+// Products (PARENT — shared product info)
 export const products = pgTable("products", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   sku: text("sku"),
   category: categoryEnum("category").notNull().default("sneakers"),
-  sizeVariant: text("size_variant"),
   imageUrl: text("image_url"),
-  purchasePrice: decimal("purchase_price", { precision: 10, scale: 2 }).notNull(),
-  purchaseDate: date("purchase_date").notNull(),
-  targetPrice: decimal("target_price", { precision: 10, scale: 2 }),
-  shippingFee: decimal("shipping_fee", { precision: 10, scale: 2 }).default("0"),
-  platformFee: decimal("platform_fee", { precision: 10, scale: 2 }).default("0"),
-  platform: platformEnum("platform"),
-  status: productStatusEnum("status").notNull().default("en_stock"),
-  storageLocation: text("storage_location"),
-  returnDeadline: date("return_deadline"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// Sales
+// Product Variants (CHILD — 1 row = 1 physical unit)
+export const productVariants = pgTable("product_variants", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sizeVariant: text("size_variant"),
+  purchasePrice: decimal("purchase_price", { precision: 10, scale: 2 }).notNull(),
+  purchaseDate: date("purchase_date").notNull(),
+  targetPrice: decimal("target_price", { precision: 10, scale: 2 }),
+  status: productStatusEnum("status").notNull().default("en_stock"),
+  storageLocation: text("storage_location"),
+  returnDeadline: date("return_deadline"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Sales (linked to a variant, not a product)
 export const sales = pgTable("sales", {
   id: uuid("id").defaultRandom().primaryKey(),
-  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }).unique(),
+  variantId: uuid("variant_id").notNull().references(() => productVariants.id, { onDelete: "cascade" }).unique(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   salePrice: decimal("sale_price", { precision: 10, scale: 2 }).notNull(),
   saleDate: date("sale_date").notNull(),
@@ -83,10 +90,10 @@ export const sales = pgTable("sales", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Cashbacks
+// Cashbacks (linked to a variant)
 export const cashbacks = pgTable("cashbacks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  variantId: uuid("variant_id").notNull().references(() => productVariants.id, { onDelete: "cascade" }),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   source: text("source").notNull(),
@@ -130,6 +137,19 @@ export const skuImages = pgTable("sku_images", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// StockX Products Cache (full product + variants, avoids re-calling API)
+export const stockxProductsCache = pgTable("stockx_products_cache", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sku: text("sku").notNull().unique(),
+  stockxProductId: text("stockx_product_id").notNull(),
+  title: text("title").notNull(),
+  styleId: text("style_id").notNull(),
+  imageUrl: text("image_url"),
+  variants: jsonb("variants").notNull(), // StockXCachedVariant[]
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // User SKU Images (private per-user fallback images)
 export const userSkuImages = pgTable("user_sku_images", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -142,9 +162,11 @@ export const userSkuImages = pgTable("user_sku_images", {
   unique("user_sku_unique").on(table.userId, table.sku),
 ]);
 
-// Relations
+// ─── Relations ──────────────────────────────────────────────────────
+
 export const usersRelations = relations(users, ({ many }) => ({
   products: many(products),
+  productVariants: many(productVariants),
   sales: many(sales),
   cashbacks: many(cashbacks),
   expenses: many(expenses),
@@ -153,17 +175,23 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const productsRelations = relations(products, ({ one, many }) => ({
   user: one(users, { fields: [products.userId], references: [users.id] }),
-  sale: one(sales, { fields: [products.id], references: [sales.productId] }),
+  variants: many(productVariants),
+}));
+
+export const productVariantsRelations = relations(productVariants, ({ one, many }) => ({
+  product: one(products, { fields: [productVariants.productId], references: [products.id] }),
+  user: one(users, { fields: [productVariants.userId], references: [users.id] }),
+  sale: one(sales, { fields: [productVariants.id], references: [sales.variantId] }),
   cashbacks: many(cashbacks),
 }));
 
 export const salesRelations = relations(sales, ({ one }) => ({
-  product: one(products, { fields: [sales.productId], references: [products.id] }),
+  variant: one(productVariants, { fields: [sales.variantId], references: [productVariants.id] }),
   user: one(users, { fields: [sales.userId], references: [users.id] }),
 }));
 
 export const cashbacksRelations = relations(cashbacks, ({ one }) => ({
-  product: one(products, { fields: [cashbacks.productId], references: [products.id] }),
+  variant: one(productVariants, { fields: [cashbacks.variantId], references: [productVariants.id] }),
   user: one(users, { fields: [cashbacks.userId], references: [users.id] }),
 }));
 

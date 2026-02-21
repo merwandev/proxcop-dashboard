@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIES, PLATFORMS, STATUSES } from "@/lib/utils/constants";
+import { CATEGORIES } from "@/lib/utils/constants";
 import { Filter, X } from "lucide-react";
 import { useState } from "react";
 
@@ -26,10 +26,8 @@ export function ProductFilters() {
   const [open, setOpen] = useState(false);
 
   const currentCategory = searchParams.get("category") ?? "";
-  const currentPlatform = searchParams.get("platform") ?? "";
-  const currentStatus = searchParams.get("status") ?? "";
 
-  const hasFilters = currentCategory || currentPlatform || currentStatus;
+  const hasFilters = !!currentCategory;
 
   const applyFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -79,48 +77,6 @@ export function ProductFilters() {
                 {CATEGORIES.map((c) => (
                   <SelectItem key={c.value} value={c.value}>
                     {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Platform */}
-          <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">Plateforme</label>
-            <Select
-              value={currentPlatform || "all"}
-              onValueChange={(v) => applyFilter("platform", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes</SelectItem>
-                {PLATFORMS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Status */}
-          <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">Statut</label>
-            <Select
-              value={currentStatus || "all"}
-              onValueChange={(v) => applyFilter("status", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous (hors vendu)</SelectItem>
-                {STATUSES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
                   </SelectItem>
                 ))}
               </SelectContent>

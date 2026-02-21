@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -8,9 +9,13 @@ export async function AppHeader() {
     <header className="sticky top-0 z-40 glass border-b border-border">
       <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-primary font-bold text-sm">P</span>
-          </div>
+          <Image
+            src="/logo.svg"
+            alt="Proxcop"
+            width={32}
+            height={32}
+            className="rounded-full"
+          />
           <span className="font-semibold text-sm">Proxcop</span>
         </div>
         {session?.user && (

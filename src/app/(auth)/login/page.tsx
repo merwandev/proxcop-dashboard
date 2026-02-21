@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { signIn } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -6,9 +7,13 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-8 text-center">
         {/* Logo */}
         <div className="space-y-4">
-          <div className="mx-auto h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-primary font-bold text-3xl">P</span>
-          </div>
+          <Image
+            src="/logo.svg"
+            alt="Proxcop"
+            width={80}
+            height={80}
+            className="mx-auto rounded-full"
+          />
           <div>
             <h1 className="text-2xl font-bold">Proxcop Dashboard</h1>
             <p className="text-muted-foreground text-sm mt-2">

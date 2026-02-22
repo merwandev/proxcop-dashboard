@@ -9,13 +9,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Proxcop Dashboard",
+  title: "ProxStock",
   description: "Gere ton stock de resell, suis tes profits et optimise tes ventes.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logo icon.png",
+    apple: "/logo icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Proxcop",
+    title: "ProxStock",
   },
 };
 

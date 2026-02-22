@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { sales, productVariants, products } from "@/lib/db/schema";
-import { eq, and, gte, desc, sql, ne } from "drizzle-orm";
+import { eq, and, gte, desc, sql, ne, lte } from "drizzle-orm";
 
 function daysAgoDate(days: number): string {
   const d = new Date();
@@ -14,28 +14,55 @@ function yearStart(): string {
   return `${new Date().getFullYear()}-01-01`;
 }
 
-export async function getDashboardKPIs(userId: string) {
-  const now30 = daysAgoDate(30);
-  const now90 = daysAgoDate(90);
-  const ytd = yearStart();
+/**
+ * Resolves a period key ("30j" | "ytd" | custom "YYYY-MM-DD_YYYY-MM-DD") into a date range.
+ */
+function resolvePeriodSync(period: string): { from: string; to: string; days: number } {
+  const today = new Date().toISOString().split("T")[0];
 
-  // Revenue 30d / 90d / YTD
-  const [rev30, rev90, revYtd] = await Promise.all([
-    db
-      .select({ total: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)` })
-      .from(sales)
-      .where(and(eq(sales.userId, userId), gte(sales.saleDate, now30))),
-    db
-      .select({ total: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)` })
-      .from(sales)
-      .where(and(eq(sales.userId, userId), gte(sales.saleDate, now90))),
-    db
-      .select({ total: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)` })
-      .from(sales)
-      .where(and(eq(sales.userId, userId), gte(sales.saleDate, ytd))),
-  ]);
+  if (period === "ytd") {
+    const from = yearStart();
+    const days = Math.floor((new Date(today).getTime() - new Date(from).getTime()) / 86400000) + 1;
+    return { from, to: today, days };
+  }
 
-  // Stock count + value (from productVariants)
+  // Custom range: "2025-01-01_2025-03-15"
+  if (period.includes("_")) {
+    const [from, to] = period.split("_");
+    const days = Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+    return { from, to, days };
+  }
+
+  // Default: "30j" — last 30 days including today
+  const days = 30;
+  return { from: daysAgoDate(days - 1), to: today, days };
+}
+
+export async function resolvePeriod(period: string) {
+  return resolvePeriodSync(period);
+}
+
+export async function getDashboardKPIs(userId: string, period = "30j") {
+  const { from, to, days } = resolvePeriodSync(period);
+
+  // Previous period (same length, ending right before current period starts)
+  const fromDate = new Date(from);
+  fromDate.setDate(fromDate.getDate() - days);
+  const prevFrom = fromDate.toISOString().split("T")[0];
+
+  // Revenue for selected period
+  const revResult = await db
+    .select({ total: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)` })
+    .from(sales)
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)));
+
+  // Revenue for previous period (for comparison)
+  const revPrevResult = await db
+    .select({ total: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)` })
+    .from(sales)
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, prevFrom), sql`${sales.saleDate} < ${from}`));
+
+  // Stock count + value (from productVariants) — independent of period
   const stockStats = await db
     .select({
       count: sql<number>`count(*)`,
@@ -45,44 +72,57 @@ export async function getDashboardKPIs(userId: string) {
     .from(productVariants)
     .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
 
-  // Average rotation (days between purchase and sale)
+  // Average rotation (days between purchase and sale) — for sales in period
   const rotation = await db
     .select({
       avgDays: sql<number>`coalesce(avg(${sales.saleDate}::date - ${productVariants.purchaseDate}::date), 0)`,
     })
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
-    .where(eq(sales.userId, userId));
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)));
 
-  // Net profit (sum(salePrice - purchasePrice - fees))
-  const profitQuery = async (since: string) => {
-    const result = await db
-      .select({
-        total: sql<number>`coalesce(sum(
-          cast(${sales.salePrice} as decimal)
-          - cast(${productVariants.purchasePrice} as decimal)
-          - coalesce(cast(${sales.platformFee} as decimal), 0)
-          - coalesce(cast(${sales.shippingCost} as decimal), 0)
-          - coalesce(cast(${sales.otherFees} as decimal), 0)
-        ), 0)`,
-      })
-      .from(sales)
-      .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
-      .where(and(eq(sales.userId, userId), gte(sales.saleDate, since)));
-    return Number(result[0]?.total ?? 0);
-  };
+  // Net profit for period
+  const profitResult = await db
+    .select({
+      total: sql<number>`coalesce(sum(
+        cast(${sales.salePrice} as decimal)
+        - cast(${productVariants.purchasePrice} as decimal)
+        - coalesce(cast(${sales.platformFee} as decimal), 0)
+        - coalesce(cast(${sales.shippingCost} as decimal), 0)
+        - coalesce(cast(${sales.otherFees} as decimal), 0)
+      ), 0)`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)));
 
-  const [profit30, profit90, profitYtd] = await Promise.all([
-    profitQuery(now30),
-    profitQuery(now90),
-    profitQuery(ytd),
-  ]);
+  // Net profit for previous period
+  const profitPrevResult = await db
+    .select({
+      total: sql<number>`coalesce(sum(
+        cast(${sales.salePrice} as decimal)
+        - cast(${productVariants.purchasePrice} as decimal)
+        - coalesce(cast(${sales.platformFee} as decimal), 0)
+        - coalesce(cast(${sales.shippingCost} as decimal), 0)
+        - coalesce(cast(${sales.otherFees} as decimal), 0)
+      ), 0)`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, prevFrom), sql`${sales.saleDate} < ${from}`));
 
-  // Top 5 most profitable products
+  // Sales count in period
+  const salesCountResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(sales)
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)));
+
+  // Top 5 most profitable products in period
   const top5 = await db
     .select({
       productName: products.name,
       productImage: products.imageUrl,
+      productSku: products.sku,
       sizeVariant: productVariants.sizeVariant,
       profit: sql<number>`
         cast(${sales.salePrice} as decimal)
@@ -95,7 +135,7 @@ export async function getDashboardKPIs(userId: string) {
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .innerJoin(products, eq(productVariants.productId, products.id))
-    .where(eq(sales.userId, userId))
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)))
     .orderBy(
       desc(
         sql`cast(${sales.salePrice} as decimal) - cast(${productVariants.purchasePrice} as decimal) - coalesce(cast(${sales.platformFee} as decimal), 0) - coalesce(cast(${sales.shippingCost} as decimal), 0) - coalesce(cast(${sales.otherFees} as decimal), 0)`
@@ -103,13 +143,14 @@ export async function getDashboardKPIs(userId: string) {
     )
     .limit(5);
 
-  // Sleeping products (60+ days in stock, not sold)
+  // Sleeping products (60+ days in stock, not sold) — independent of period
   const sleeping = await db
     .select({
       variantId: productVariants.id,
       productId: products.id,
       productName: products.name,
       productImage: products.imageUrl,
+      productSku: products.sku,
       sizeVariant: productVariants.sizeVariant,
       purchasePrice: productVariants.purchasePrice,
       purchaseDate: productVariants.purchaseDate,
@@ -127,27 +168,28 @@ export async function getDashboardKPIs(userId: string) {
     .orderBy(productVariants.purchaseDate)
     .limit(5);
 
+  const revenue = Number(revResult[0]?.total ?? 0);
+  const revenuePrev = Number(revPrevResult[0]?.total ?? 0);
+  const profit = Number(profitResult[0]?.total ?? 0);
+  const profitPrev = Number(profitPrevResult[0]?.total ?? 0);
+
   return {
-    revenue: {
-      days30: Number(rev30[0]?.total ?? 0),
-      days90: Number(rev90[0]?.total ?? 0),
-      ytd: Number(revYtd[0]?.total ?? 0),
-    },
+    revenue,
+    revenuePrev,
+    profit,
+    profitPrev,
+    salesCount: Number(salesCountResult[0]?.count ?? 0),
     stock: {
       count: Number(stockStats[0]?.count ?? 0),
       purchaseValue: Number(stockStats[0]?.purchaseValue ?? 0),
       targetValue: Number(stockStats[0]?.targetValue ?? 0),
     },
     rotation: Math.round(Number(rotation[0]?.avgDays ?? 0)),
-    profit: {
-      days30: profit30,
-      days90: profit90,
-      ytd: profitYtd,
-    },
     cashImmobilized: Number(stockStats[0]?.purchaseValue ?? 0),
     top5: top5.map((t) => ({
       name: t.productName,
       image: t.productImage,
+      sku: t.productSku,
       size: t.sizeVariant,
       profit: Number(t.profit),
     })),
@@ -155,10 +197,27 @@ export async function getDashboardKPIs(userId: string) {
   };
 }
 
-export async function getProfitChartData(userId: string) {
-  const result = await db
+/**
+ * Returns daily cumulative profit for a given period and its preceding period (for comparison).
+ * Also includes a projection line extending the current trend to end of period.
+ */
+export async function getProfitChartData(userId: string, period = "30j") {
+  const { from, to, days } = resolvePeriodSync(period);
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+
+  const periodStartDate = new Date(from);
+  const totalDays = days;
+
+  // Previous period of same length
+  const prevStartDate = new Date(periodStartDate);
+  prevStartDate.setDate(prevStartDate.getDate() - totalDays);
+  const prevPeriodStart = prevStartDate.toISOString().split("T")[0];
+
+  // Get daily profit for current period
+  const currentPeriod = await db
     .select({
-      month: sql<string>`to_char(${sales.saleDate}::date, 'YYYY-MM')`,
+      day: sql<string>`${sales.saleDate}`,
       profit: sql<number>`coalesce(sum(
         cast(${sales.salePrice} as decimal)
         - cast(${productVariants.purchasePrice} as decimal)
@@ -166,17 +225,106 @@ export async function getProfitChartData(userId: string) {
         - coalesce(cast(${sales.shippingCost} as decimal), 0)
         - coalesce(cast(${sales.otherFees} as decimal), 0)
       ), 0)`,
-      revenue: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)`,
     })
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
-    .where(eq(sales.userId, userId))
-    .groupBy(sql`to_char(${sales.saleDate}::date, 'YYYY-MM')`)
-    .orderBy(sql`to_char(${sales.saleDate}::date, 'YYYY-MM')`);
+    .where(and(eq(sales.userId, userId), gte(sales.saleDate, from), lte(sales.saleDate, to)))
+    .groupBy(sales.saleDate)
+    .orderBy(sales.saleDate);
 
-  return result.map((r) => ({
-    month: r.month,
-    profit: Number(r.profit),
-    revenue: Number(r.revenue),
-  }));
+  // Get daily profit for previous period
+  const previousPeriod = await db
+    .select({
+      day: sql<string>`${sales.saleDate}`,
+      profit: sql<number>`coalesce(sum(
+        cast(${sales.salePrice} as decimal)
+        - cast(${productVariants.purchasePrice} as decimal)
+        - coalesce(cast(${sales.platformFee} as decimal), 0)
+        - coalesce(cast(${sales.shippingCost} as decimal), 0)
+        - coalesce(cast(${sales.otherFees} as decimal), 0)
+      ), 0)`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .where(
+      and(
+        eq(sales.userId, userId),
+        gte(sales.saleDate, prevPeriodStart),
+        sql`${sales.saleDate} < ${from}`
+      )
+    )
+    .groupBy(sales.saleDate)
+    .orderBy(sales.saleDate);
+
+  // Build day-indexed maps
+  const currentMap = new Map<number, number>();
+  for (const row of currentPeriod) {
+    const d = new Date(row.day);
+    const dayNum = Math.floor((d.getTime() - periodStartDate.getTime()) / 86400000) + 1;
+    currentMap.set(dayNum, Number(row.profit));
+  }
+
+  const previousMap = new Map<number, number>();
+  for (const row of previousPeriod) {
+    const d = new Date(row.day);
+    const dayNum = Math.floor((d.getTime() - prevStartDate.getTime()) / 86400000) + 1;
+    previousMap.set(dayNum, Number(row.profit));
+  }
+
+  // Calculate how many days have elapsed in the current period
+  const todayDate = new Date(today);
+  const elapsedDays = Math.min(
+    totalDays,
+    Math.floor((todayDate.getTime() - periodStartDate.getTime()) / 86400000) + 1
+  );
+
+  // Build cumulative arrays
+  const chartData: {
+    day: number;
+    label: string;
+    current: number | null;
+    previous: number | null;
+    projection: number | null;
+  }[] = [];
+
+  let cumCurrent = 0;
+  let cumPrevious = 0;
+
+  // For long periods (> 60 days), sample every N days for labels
+  const labelInterval = totalDays > 90 ? 7 : totalDays > 60 ? 3 : 1;
+
+  for (let d = 1; d <= totalDays; d++) {
+    cumCurrent += currentMap.get(d) ?? 0;
+    cumPrevious += previousMap.get(d) ?? 0;
+
+    // Date label
+    const labelDate = new Date(periodStartDate);
+    labelDate.setDate(labelDate.getDate() + d - 1);
+    const label = d % labelInterval === 0 || d === 1 || d === totalDays
+      ? `${labelDate.getDate()}/${labelDate.getMonth() + 1}`
+      : "";
+
+    chartData.push({
+      day: d,
+      label,
+      current: d <= elapsedDays ? Math.round(cumCurrent * 100) / 100 : null,
+      previous: Math.round(cumPrevious * 100) / 100,
+      projection: null,
+    });
+  }
+
+  // Build projection: from last known day, extend trend linearly
+  if (elapsedDays >= 2 && elapsedDays < totalDays) {
+    const lastValue = chartData[elapsedDays - 1]?.current ?? 0;
+    const dailyRate = lastValue / elapsedDays;
+
+    // Set projection start at last known point
+    chartData[elapsedDays - 1]!.projection = lastValue;
+
+    for (let d = elapsedDays + 1; d <= totalDays; d++) {
+      chartData[d - 1]!.projection = Math.round(dailyRate * d * 100) / 100;
+    }
+  }
+
+  return chartData;
 }

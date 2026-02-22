@@ -1,0 +1,530 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { CopyableSku } from "@/components/ui/copyable-sku";
+import { PLATFORMS } from "@/lib/utils/constants";
+import { updateSale, deleteSale } from "@/lib/actions/sale-actions";
+import { Search, Package, X, Loader2, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+interface SaleItem {
+  sale: {
+    id: string;
+    salePrice: string;
+    saleDate: string;
+    platform: string | null;
+    platformFee: string | null;
+    shippingCost: string | null;
+    otherFees: string | null;
+  };
+  variant: {
+    purchasePrice: string;
+    sizeVariant: string | null;
+  };
+  product: {
+    name: string;
+    imageUrl: string | null;
+    sku: string | null;
+  };
+}
+
+interface VentesClientProps {
+  salesData: SaleItem[];
+}
+
+export function VentesClient({ salesData }: VentesClientProps) {
+  const [search, setSearch] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [editingSale, setEditingSale] = useState<SaleItem | null>(null);
+
+  // Get unique platforms from actual sales data
+  const usedPlatforms = useMemo(() => {
+    const platforms = new Set<string>();
+    salesData.forEach((s) => {
+      if (s.sale.platform) platforms.add(s.sale.platform);
+    });
+    return PLATFORMS.filter((p) => platforms.has(p.value));
+  }, [salesData]);
+
+  // Filter sales
+  const filtered = useMemo(() => {
+    return salesData.filter((s) => {
+      // Search filter
+      if (search) {
+        const q = search.toLowerCase();
+        const matchName = s.product.name.toLowerCase().includes(q);
+        const matchSku = s.product.sku?.toLowerCase().includes(q);
+        const matchSize = s.variant.sizeVariant?.toLowerCase().includes(q);
+        if (!matchName && !matchSku && !matchSize) return false;
+      }
+      // Platform filter
+      if (selectedPlatform && s.sale.platform !== selectedPlatform) return false;
+      return true;
+    });
+  }, [salesData, search, selectedPlatform]);
+
+  // Compute totals on filtered
+  const totalRevenue = filtered.reduce(
+    (sum, s) => sum + Number(s.sale.salePrice),
+    0
+  );
+  const totalProfit = filtered.reduce((sum, s) => {
+    const profit =
+      Number(s.sale.salePrice) -
+      Number(s.variant.purchasePrice) -
+      Number(s.sale.platformFee ?? 0) -
+      Number(s.sale.shippingCost ?? 0) -
+      Number(s.sale.otherFees ?? 0);
+    return sum + profit;
+  }, 0);
+
+  return (
+    <>
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-2">
+        <Card className="p-3 gap-0 bg-card border-border">
+          <p className="text-[10px] text-muted-foreground uppercase">
+            Total ventes
+          </p>
+          <p className="text-lg font-bold">{formatCurrency(totalRevenue)}</p>
+        </Card>
+        <Card className="p-3 gap-0 bg-card border-border">
+          <p className="text-[10px] text-muted-foreground uppercase">
+            Profit total
+          </p>
+          <p className={cn("text-lg font-bold", totalProfit >= 0 ? "text-success" : "text-danger")}>
+            {formatCurrency(totalProfit)}
+          </p>
+        </Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Rechercher un produit..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9 bg-card border-border h-9 text-sm"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Platform filters */}
+      {usedPlatforms.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setSelectedPlatform(null)}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-full border transition-colors",
+              !selectedPlatform
+                ? "bg-accent text-accent-foreground border-accent"
+                : "bg-card border-border text-muted-foreground hover:border-border-hover"
+            )}
+          >
+            Toutes
+          </button>
+          {usedPlatforms.map((p) => (
+            <button
+              key={p.value}
+              onClick={() =>
+                setSelectedPlatform(
+                  selectedPlatform === p.value ? null : p.value
+                )
+              }
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                selectedPlatform === p.value
+                  ? "bg-accent text-accent-foreground border-accent"
+                  : "bg-card border-border text-muted-foreground hover:border-border-hover"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Results count */}
+      {(search || selectedPlatform) && (
+        <p className="text-xs text-muted-foreground">
+          {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
+          {search && <span> pour &quot;{search}&quot;</span>}
+          {selectedPlatform && (
+            <span>
+              {" "}
+              sur{" "}
+              {PLATFORMS.find((p) => p.value === selectedPlatform)?.label}
+            </span>
+          )}
+        </p>
+      )}
+
+      {/* Sales list */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <p className="text-center py-12 text-sm text-muted-foreground">
+            {salesData.length === 0
+              ? "Aucune vente enregistrée"
+              : "Aucun résultat"}
+          </p>
+        ) : (
+          filtered.map((item) => (
+            <SaleCard
+              key={item.sale.id}
+              item={item}
+              onEdit={() => setEditingSale(item)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Edit/Delete dialog */}
+      {editingSale && (
+        <EditSaleDialog
+          item={editingSale}
+          open={!!editingSale}
+          onOpenChange={(open) => {
+            if (!open) setEditingSale(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// --- Sale Card ---
+
+function SaleCard({
+  item,
+  onEdit,
+}: {
+  item: SaleItem;
+  onEdit: () => void;
+}) {
+  const { sale, variant, product } = item;
+  const profit =
+    Number(sale.salePrice) -
+    Number(variant.purchasePrice) -
+    Number(sale.platformFee ?? 0) -
+    Number(sale.shippingCost ?? 0) -
+    Number(sale.otherFees ?? 0);
+  const margin =
+    Number(sale.salePrice) > 0
+      ? (profit / Number(sale.salePrice)) * 100
+      : 0;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onEdit}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } }}
+      className="w-full text-left"
+    >
+      <Card className="p-3 bg-card border-border hover:border-border-hover transition-colors cursor-pointer">
+        <div className="flex gap-3">
+          {/* Product image */}
+          <div className="relative h-14 w-14 rounded-lg overflow-hidden bg-white flex-shrink-0">
+            {product.imageUrl ? (
+              <Image
+                src={product.imageUrl}
+                alt={product.name}
+                fill
+                className="object-contain p-1"
+                sizes="56px"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <Package className="h-5 w-5 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-medium text-[13px] leading-tight line-clamp-2">
+                  {product.name}
+                  {variant.sizeVariant && (
+                    <span className="text-muted-foreground font-normal">
+                      {" "}
+                      — {variant.sizeVariant}
+                    </span>
+                  )}
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11px] text-muted-foreground">
+                    {formatDate(sale.saleDate)}
+                  </span>
+                  {product.sku && (
+                    <CopyableSku sku={product.sku} className="text-[10px]" />
+                  )}
+                  {sale.platform && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-border capitalize"
+                    >
+                      {sale.platform}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p
+                  className={cn(
+                    "text-sm font-bold",
+                    profit >= 0 ? "text-success" : "text-danger"
+                  )}
+                >
+                  {profit >= 0 ? "+" : ""}
+                  {formatCurrency(profit)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {margin.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+              <span>
+                Achat:{" "}
+                {formatCurrency(Number(variant.purchasePrice))}
+              </span>
+              <span>
+                Vente: {formatCurrency(Number(sale.salePrice))}
+              </span>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// --- Edit Sale Dialog ---
+
+function EditSaleDialog({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: SaleItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { sale, variant, product } = item;
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const form = new FormData(e.currentTarget);
+      await updateSale(sale.id, {
+        salePrice: Number(form.get("salePrice")),
+        saleDate: form.get("saleDate") as string,
+        platform: (form.get("platform") as string) || undefined,
+        platformFee: Number(form.get("platformFee") || 0),
+        shippingCost: Number(form.get("shippingCost") || 0),
+        otherFees: Number(form.get("otherFees") || 0),
+      });
+      toast.success("Vente modifiée");
+      onOpenChange(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la modification");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteSale(sale.id);
+      toast.success("Vente supprimée — produit remis en stock");
+      onOpenChange(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la suppression");
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-sm leading-tight">
+            {product.name}
+            {variant.sizeVariant && (
+              <span className="text-muted-foreground font-normal"> — {variant.sizeVariant}</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-salePrice">Prix de vente *</Label>
+              <Input
+                id="edit-salePrice"
+                name="salePrice"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={sale.salePrice}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-saleDate">Date de vente *</Label>
+              <Input
+                id="edit-saleDate"
+                name="saleDate"
+                type="date"
+                defaultValue={sale.saleDate}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Plateforme</Label>
+            <Select name="platform" defaultValue={sale.platform ?? ""}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PLATFORMS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-platformFee">Commission</Label>
+              <Input
+                id="edit-platformFee"
+                name="platformFee"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={sale.platformFee ?? "0"}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-shippingCost">Envoi</Label>
+              <Input
+                id="edit-shippingCost"
+                name="shippingCost"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={sale.shippingCost ?? "0"}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-otherFees">Autres</Label>
+              <Input
+                id="edit-otherFees"
+                name="otherFees"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={sale.otherFees ?? "0"}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1" disabled={saving || deleting}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
+            </Button>
+          </div>
+        </form>
+
+        {/* Delete section */}
+        <div className="border-t border-border pt-3 mt-1">
+          {!confirmDelete ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-danger hover:text-danger hover:bg-danger/10 gap-1.5"
+              onClick={() => setConfirmDelete(true)}
+              disabled={saving || deleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Supprimer la vente
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground text-center">
+                Le produit sera remis en stock. Confirmer ?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="flex-1"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmer"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

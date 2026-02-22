@@ -41,14 +41,16 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       ))}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/stock" className="p-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Link href="/stock" className="p-1 flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-bold truncate">{product.name}</h1>
+          <h1 className="text-base sm:text-xl font-bold truncate">{product.name}</h1>
         </div>
-        <DeleteProductButton productId={product.id} />
+        <div className="flex-shrink-0">
+          <DeleteProductButton productId={product.id} />
+        </div>
       </div>
 
       {/* Client component for interactive variant management */}

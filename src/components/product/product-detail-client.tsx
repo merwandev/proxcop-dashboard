@@ -25,6 +25,7 @@ import {
 import { StatusBadge } from "./status-badge";
 import { TimeBadge } from "./time-badge";
 import { SaleDialog } from "@/components/sales/sale-dialog";
+import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CATEGORIES, STATUSES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
 import {
@@ -96,13 +97,13 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
       <Card className="p-4 bg-card border-border">
         <div className="flex gap-4">
           {/* Image */}
-          <div className="relative h-20 w-20 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
+          <div className="relative h-20 w-20 rounded-lg overflow-hidden bg-white flex-shrink-0">
             {product.imageUrl ? (
               <Image
                 src={product.imageUrl}
                 alt={product.name}
                 fill
-                className="object-cover"
+                className="object-contain p-1"
                 sizes="80px"
               />
             ) : (
@@ -114,15 +115,13 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-base truncate">{product.name}</h2>
+            <h2 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2">{product.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                 {categoryLabel}
               </Badge>
               {product.sku && (
-                <span className="text-[10px] text-muted-foreground font-mono">
-                  {product.sku}
-                </span>
+                <CopyableSku sku={product.sku} className="text-[10px]" />
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
@@ -197,6 +196,19 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
 
 // --- Variant Card ---
 
+function getReturnDeadlineStatus(deadline: string | null) {
+  if (!deadline) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const deadlineDate = new Date(deadline);
+  deadlineDate.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysLeft < 0) return { label: `Retour dépassé (${Math.abs(daysLeft)}j)`, daysLeft, color: "muted-foreground" as const };
+  if (daysLeft <= 3) return { label: `Retour dans ${daysLeft}j`, daysLeft, color: "danger" as const };
+  if (daysLeft <= 7) return { label: `Retour dans ${daysLeft}j`, daysLeft, color: "warning" as const };
+  return { label: `Retour dans ${daysLeft}j`, daysLeft, color: "success" as const };
+}
+
 function VariantCard({
   variant,
   soldView = false,
@@ -206,11 +218,13 @@ function VariantCard({
   soldView?: boolean;
   medianPrice?: MedianPrice | null;
 }) {
+  const returnStatus = !soldView ? getReturnDeadlineStatus(variant.returnDeadline) : null;
+
   return (
     <Card className={`p-3 bg-card border-border ${soldView ? "opacity-60" : ""}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {variant.sizeVariant && (
               <span className="font-medium text-sm">{variant.sizeVariant}</span>
             )}
@@ -248,9 +262,18 @@ function VariantCard({
               <Calendar className="h-2.5 w-2.5" />
               {formatDate(variant.purchaseDate)}
             </span>
-            {variant.returnDeadline && (
-              <span className="text-warning">
-                Retour: {formatDate(variant.returnDeadline)}
+            {returnStatus && (
+              <span className={`flex items-center gap-0.5 ${
+                returnStatus.color === "danger"
+                  ? "text-danger"
+                  : returnStatus.color === "warning"
+                    ? "text-warning"
+                    : returnStatus.color === "success"
+                      ? "text-success"
+                      : "text-muted-foreground"
+              }`}>
+                <Calendar className="h-2.5 w-2.5" />
+                {formatDate(variant.returnDeadline!)}
               </span>
             )}
           </div>

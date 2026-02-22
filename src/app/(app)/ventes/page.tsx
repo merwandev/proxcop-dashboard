@@ -13,20 +13,27 @@ export default async function VentesPage() {
     getCommunitySales(50),
   ]);
 
-  // Compute totals
-  const totalRevenue = salesData.reduce(
-    (sum, s) => sum + Number(s.sale.salePrice),
-    0
-  );
-  const totalProfit = salesData.reduce((sum, s) => {
-    const profit =
-      Number(s.sale.salePrice) -
-      Number(s.variant.purchasePrice) -
-      Number(s.sale.platformFee ?? 0) -
-      Number(s.sale.shippingCost ?? 0) -
-      Number(s.sale.otherFees ?? 0);
-    return sum + profit;
-  }, 0);
+  // Serialize for client component (VentesClient format)
+  const serialized = salesData.map(({ sale, variant, product }) => ({
+    sale: {
+      id: sale.id,
+      salePrice: sale.salePrice,
+      saleDate: sale.saleDate,
+      platform: sale.platform,
+      platformFee: sale.platformFee,
+      shippingCost: sale.shippingCost,
+      otherFees: sale.otherFees,
+    },
+    variant: {
+      purchasePrice: variant.purchasePrice,
+      sizeVariant: variant.sizeVariant,
+    },
+    product: {
+      name: product.name,
+      imageUrl: product.imageUrl,
+      sku: product.sku,
+    },
+  }));
 
   // Serialize community sales for client component
   const communitySales = communitySalesRaw.map((s) => ({
@@ -55,10 +62,8 @@ export default async function VentesPage() {
       </div>
 
       <VentesTabs
-        userSales={salesData}
+        userSales={serialized}
         communitySales={communitySales}
-        totalRevenue={totalRevenue}
-        totalProfit={totalProfit}
       />
     </div>
   );

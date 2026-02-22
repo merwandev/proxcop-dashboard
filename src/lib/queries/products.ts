@@ -22,6 +22,7 @@ export async function getStockProductsGrouped(userId: string) {
       totalCount: sql<number>`count(*)`,
       totalValue: sql<number>`coalesce(sum(case when ${productVariants.status} != 'vendu' then cast(${productVariants.purchasePrice} as decimal) end), 0)`,
       oldestPurchaseDate: sql<string>`min(case when ${productVariants.status} != 'vendu' then ${productVariants.purchaseDate} end)`,
+      nearestReturnDeadline: sql<string | null>`min(case when ${productVariants.status} != 'vendu' and ${productVariants.returnDeadline} is not null then ${productVariants.returnDeadline} end)`,
     })
     .from(products)
     .innerJoin(productVariants, eq(products.id, productVariants.productId))

@@ -65,6 +65,48 @@ export async function createSale(formData: FormData) {
   }
 }
 
+export async function updateSale(
+  saleId: string,
+  data: {
+    salePrice: number;
+    saleDate: string;
+    platform?: string;
+    platformFee?: number;
+    shippingCost?: number;
+    otherFees?: number;
+    notes?: string;
+  }
+) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  const sale = await db
+    .select()
+    .from(sales)
+    .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)))
+    .limit(1);
+
+  if (!sale[0]) throw new Error("Vente introuvable");
+
+  await db
+    .update(sales)
+    .set({
+      salePrice: data.salePrice.toString(),
+      saleDate: data.saleDate,
+      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "other") || null,
+      platformFee: (data.platformFee ?? 0).toString(),
+      shippingCost: (data.shippingCost ?? 0).toString(),
+      otherFees: (data.otherFees ?? 0).toString(),
+      notes: data.notes || null,
+    })
+    .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)));
+
+  revalidatePath("/stock");
+  revalidatePath("/ventes");
+  revalidatePath("/dashboard");
+  revalidatePath("/stats");
+}
+
 export async function deleteSale(saleId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");

@@ -1,81 +1,83 @@
+import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getDashboardKPIs, getProfitChartData } from "@/lib/queries/dashboard";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ProfitChart } from "@/components/dashboard/profit-chart";
 import { ChartExport } from "@/components/dashboard/chart-export";
+import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { formatCurrency } from "@/lib/utils/format";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TimeBadge } from "@/components/product/time-badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CopyableSku } from "@/components/ui/copyable-sku";
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<{ period?: string }>;
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
+  const params = await searchParams;
+  const period = params.period ?? "30j";
+
   const [kpis, chartData] = await Promise.all([
-    getDashboardKPIs(session.user.id),
-    getProfitChartData(session.user.id),
+    getDashboardKPIs(session.user.id, period),
+    getProfitChartData(session.user.id, period),
   ]);
+
+  // Period label for display
+  const periodLabel = period === "ytd"
+    ? "YTD"
+    : period.includes("_")
+      ? (() => {
+          const [from, to] = period.split("_");
+          const d = Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1;
+          return `${d}j`;
+        })()
+      : "30j";
 
   return (
     <div className="py-4 space-y-4">
-      {/* Header with export */}
+      {/* Header with export + period selector */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Dashboard</h1>
-        <ChartExport />
+        <div>
+          <h1 className="text-xl font-bold">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Hey {session.user.name ?? ""}
+          </p>
+        </div>
+        <ChartExport
+            kpis={kpis}
+            chartData={chartData}
+            periodLabel={periodLabel}
+            userName={session.user.name ?? undefined}
+          />
       </div>
 
-      {/* Exportable section */}
-      <div id="dashboard-export" className="space-y-4">
-        {/* Profit KPIs */}
-        <Tabs defaultValue="30j">
-          <TabsList className="w-full">
-            <TabsTrigger value="30j" className="flex-1">30j</TabsTrigger>
-            <TabsTrigger value="90j" className="flex-1">90j</TabsTrigger>
-            <TabsTrigger value="ytd" className="flex-1">YTD</TabsTrigger>
-          </TabsList>
-          <TabsContent value="30j">
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <KpiCard
-                label="CA"
-                value={formatCurrency(kpis.revenue.days30)}
-              />
-              <KpiCard
-                label="Profit net"
-                value={formatCurrency(kpis.profit.days30)}
-                trend={kpis.profit.days30 >= 0 ? "up" : "down"}
-              />
-            </div>
-          </TabsContent>
-          <TabsContent value="90j">
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <KpiCard
-                label="CA"
-                value={formatCurrency(kpis.revenue.days90)}
-              />
-              <KpiCard
-                label="Profit net"
-                value={formatCurrency(kpis.profit.days90)}
-                trend={kpis.profit.days90 >= 0 ? "up" : "down"}
-              />
-            </div>
-          </TabsContent>
-          <TabsContent value="ytd">
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <KpiCard
-                label="CA"
-                value={formatCurrency(kpis.revenue.ytd)}
-              />
-              <KpiCard
-                label="Profit net"
-                value={formatCurrency(kpis.profit.ytd)}
-                trend={kpis.profit.ytd >= 0 ? "up" : "down"}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
+      {/* Period selector */}
+      <Suspense fallback={<div className="h-8" />}>
+        <PeriodSelector />
+      </Suspense>
+
+      {/* KPIs + Chart */}
+      <div className="space-y-4">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-2">
+          <KpiCard
+            label={`CA (${periodLabel})`}
+            value={formatCurrency(kpis.revenue)}
+            sub={kpis.revenuePrev > 0 ? `Préc: ${formatCurrency(kpis.revenuePrev)}` : undefined}
+          />
+          <KpiCard
+            label={`Profit net (${periodLabel})`}
+            value={formatCurrency(kpis.profit)}
+            trend={kpis.profit >= 0 ? "up" : "down"}
+            sub={kpis.profitPrev !== 0 ? `Préc: ${formatCurrency(kpis.profitPrev)}` : undefined}
+          />
+        </div>
 
         {/* Stock & rotation */}
         <div className="grid grid-cols-3 gap-2">
@@ -85,40 +87,46 @@ export default async function DashboardPage() {
             sub={formatCurrency(kpis.stock.purchaseValue)}
           />
           <KpiCard
-            label="Cash immobilise"
+            label="Cash immobilisé"
             value={formatCurrency(kpis.cashImmobilized)}
           />
           <KpiCard
             label="Rotation moy."
             value={`${kpis.rotation}j`}
+            sub={`${kpis.salesCount} ventes`}
           />
         </div>
 
         {/* Profit chart */}
-        <ProfitChart data={chartData} />
+        <ProfitChart data={chartData} periodLabel={periodLabel} />
       </div>
 
       {/* Top 5 */}
       {kpis.top5.length > 0 && (
         <Card className="p-4 bg-card border-border">
-          <h3 className="text-sm font-medium mb-3">Top 5 les plus rentables</h3>
+          <h3 className="text-sm font-medium mb-3">Top 5 les plus rentables ({periodLabel})</h3>
           <div className="space-y-2">
             {kpis.top5.map((item, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-4">
-                    {i + 1}.
-                  </span>
-                  <span className="text-sm truncate max-w-[180px]">
-                    {item.name}
-                    {item.size && (
-                      <span className="text-muted-foreground"> — {item.size}</span>
-                    )}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-success">
-                  +{formatCurrency(item.profit)}
+              <div key={i} className="flex items-start gap-2">
+                <span className="text-xs text-muted-foreground w-4 flex-shrink-0 mt-0.5">
+                  {i + 1}.
                 </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs leading-tight line-clamp-2 flex-1 min-w-0">
+                      {item.name}
+                      {item.size && (
+                        <span className="text-muted-foreground font-medium"> — {item.size}</span>
+                      )}
+                    </span>
+                    <span className={`text-xs font-bold flex-shrink-0 ${item.profit >= 0 ? "text-success" : "text-danger"}`}>
+                      {item.profit >= 0 ? "+" : ""}{formatCurrency(item.profit)}
+                    </span>
+                  </div>
+                  {item.sku && (
+                    <CopyableSku sku={item.sku} className="text-[10px]" />
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -136,13 +144,18 @@ export default async function DashboardPage() {
           </h3>
           <div className="space-y-2">
             {kpis.sleeping.map((item) => (
-              <div key={item.variantId} className="flex items-center justify-between">
-                <span className="text-sm truncate max-w-[200px]">
-                  {item.productName}
-                  {item.sizeVariant && (
-                    <span className="text-muted-foreground"> — {item.sizeVariant}</span>
+              <div key={item.variantId} className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm truncate block">
+                    {item.productName}
+                    {item.sizeVariant && (
+                      <span className="text-muted-foreground"> — {item.sizeVariant}</span>
+                    )}
+                  </span>
+                  {item.productSku && (
+                    <CopyableSku sku={item.productSku} className="text-[10px]" />
                   )}
-                </span>
+                </div>
                 <TimeBadge purchaseDate={item.purchaseDate} />
               </div>
             ))}

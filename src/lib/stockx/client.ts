@@ -287,6 +287,176 @@ export async function searchProductBySkuStockX(
   }
 }
 
+// ─── Catalog Search (multi-result, for text queries) ────────────────
+
+export interface StockXCatalogItem {
+  productId: string;
+  title: string;
+  styleId: string;
+  imageUrl: string | null;
+}
+
+/**
+ * Get image URL for a single product by fetching its first variant slug.
+ * Used to enrich search results with images.
+ */
+async function getImageForProduct(
+  productId: string,
+  accessToken: string
+): Promise<string | null> {
+  try {
+    const variantsUrl = `https://api.stockx.com/v2/catalog/products/${productId}/variants`;
+    const variantsRes = await fetch(variantsUrl, {
+      headers: stockxHeaders(accessToken),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!variantsRes.ok) return null;
+
+    const variantsData = await variantsRes.json();
+    const variantArray = Array.isArray(variantsData)
+      ? variantsData
+      : variantsData?.variants ?? [];
+
+    if (variantArray.length === 0) return null;
+
+    const firstVariantName = (variantArray[0].variantName ?? "") as string;
+    const variantSlug = firstVariantName.includes(":")
+      ? firstVariantName.split(":")[0]
+      : firstVariantName;
+
+    if (!variantSlug) return null;
+
+    return await testImageUrls(variantSlug);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Search StockX catalog with a free-text query (SKU or product name).
+ * Returns up to `limit` product results with images (fetched in parallel).
+ */
+export async function searchCatalogStockX(
+  query: string,
+  limit = 10
+): Promise<StockXCatalogItem[] | null> {
+  const accessToken = await getStockXAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    const searchUrl = new URL("https://api.stockx.com/v2/catalog/search");
+    searchUrl.searchParams.set("query", query);
+    searchUrl.searchParams.set("pageSize", String(limit));
+    searchUrl.searchParams.set("pageNumber", "1");
+
+    const searchRes = await fetch(searchUrl.toString(), {
+      headers: stockxHeaders(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (searchRes.status === 429) return null;
+    if (!searchRes.ok) return null;
+
+    const searchData = await searchRes.json();
+    const products = searchData?.products;
+
+    if (!Array.isArray(products) || products.length === 0) return [];
+
+    // Parse basic product info
+    const items = products.map((p: Record<string, unknown>) => ({
+      productId: (p.productId ?? "") as string,
+      title: (p.title ?? "") as string,
+      styleId: (p.styleId ?? "") as string,
+      imageUrl: null as string | null,
+    }));
+
+    // Fetch images for all products in parallel
+    const imagePromises = items.map((item) =>
+      getImageForProduct(item.productId, accessToken)
+    );
+    const images = await Promise.all(imagePromises);
+
+    // Merge images into results
+    return items.map((item, i) => ({
+      ...item,
+      imageUrl: images[i],
+    }));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get full product details (variants/sizes) for a known StockX productId.
+ * Used after user picks a product from search results.
+ */
+export async function getProductByIdStockX(
+  productId: string
+): Promise<StockXProductResult | null> {
+  const accessToken = await getStockXAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    // Get variants
+    const variantsUrl = `https://api.stockx.com/v2/catalog/products/${productId}/variants`;
+    const variantsRes = await fetch(variantsUrl, {
+      headers: stockxHeaders(accessToken),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (variantsRes.status === 429) return null;
+    if (!variantsRes.ok) return null;
+
+    const variantsData = await variantsRes.json();
+    const variantArray = Array.isArray(variantsData)
+      ? variantsData
+      : variantsData?.variants ?? [];
+
+    if (variantArray.length === 0) {
+      return { productId, title: "", styleId: "", imageUrl: null, variants: [], status: "not_found" };
+    }
+
+    // Parse variants
+    const variants: StockXVariant[] = variantArray
+      .map((v: Record<string, unknown>) => {
+        const variantId = (v.variantId ?? v.id ?? "") as string;
+        const sizeUS = (v.variantValue ?? "") as string;
+
+        let sizeEU: string | null = null;
+        const sizeChart = v.sizeChart as { availableConversions?: { size: string; type: string }[] } | undefined;
+        if (sizeChart?.availableConversions) {
+          const euConv = sizeChart.availableConversions.find((c) => c.type === "eu");
+          if (euConv) {
+            sizeEU = euConv.size.replace(/^EU\s*/i, "");
+          }
+        }
+
+        return { variantId, sizeUS, sizeEU };
+      })
+      .filter((v: StockXVariant) => v.sizeUS !== "");
+
+    // Image from first variant slug
+    const firstVariantName = (variantArray[0].variantName ?? "") as string;
+    const variantSlug = firstVariantName.includes(":")
+      ? firstVariantName.split(":")[0]
+      : firstVariantName;
+
+    const imageUrl = variantSlug ? await testImageUrls(variantSlug) : null;
+
+    return {
+      productId,
+      title: "",
+      styleId: "",
+      imageUrl,
+      variants,
+      status: "found",
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Shared helpers ─────────────────────────────────────────────────
 
 async function testImageUrls(variantSlug: string): Promise<string | null> {

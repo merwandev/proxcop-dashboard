@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { products, productVariants } from "@/lib/db/schema";
+import { products, productVariants, users } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { createProductSchema, updateProductSchema, updateVariantSchema } from "@/lib/validators/product";
@@ -26,6 +26,17 @@ export async function createProductWithVariants(data: {
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");
+
+  // Verify user exists in DB (JWT may reference a deleted user after DB rebuild)
+  const [userExists] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  if (!userExists) {
+    throw new Error("Session expirée. Déconnectez-vous et reconnectez-vous.");
+  }
 
   const parsed = createProductSchema.parse(data);
 
@@ -171,6 +182,25 @@ export async function deleteProduct(productId: string) {
   revalidatePath("/ventes");
 }
 
+export async function deleteProducts(productIds: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  if (productIds.length === 0) return;
+
+  // CASCADE will delete all variants + their sales + cashbacks
+  for (const productId of productIds) {
+    await db
+      .delete(products)
+      .where(and(eq(products.id, productId), eq(products.userId, session.user.id)));
+  }
+
+  revalidatePath("/stock");
+  revalidatePath("/dashboard");
+  revalidatePath("/ventes");
+  revalidatePath("/stats");
+}
+
 export async function deleteVariant(variantId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");
@@ -245,4 +275,47 @@ export async function addVariantToProduct(productId: string, data: {
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);
   revalidatePath("/dashboard");
+}
+
+export async function getProductsWithSizes(productIds: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  if (productIds.length === 0) return [];
+
+  const results = [];
+  for (const productId of productIds) {
+    const [product] = await db
+      .select({ name: products.name, sku: products.sku })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.userId, session.user.id)))
+      .limit(1);
+
+    if (!product) continue;
+
+    const variants = await db
+      .select({
+        sizeVariant: productVariants.sizeVariant,
+        purchasePrice: productVariants.purchasePrice,
+      })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.productId, productId),
+          sql`${productVariants.status} != 'vendu'`
+        )
+      )
+      .orderBy(productVariants.sizeVariant);
+
+    results.push({
+      name: product.name,
+      sku: product.sku,
+      sizes: variants.map((v) => ({
+        size: v.sizeVariant,
+        price: v.purchasePrice,
+      })),
+    });
+  }
+
+  return results;
 }

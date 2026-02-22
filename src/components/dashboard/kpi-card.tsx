@@ -10,7 +10,7 @@ interface KpiCardProps {
 
 export function KpiCard({ label, value, sub, trend }: KpiCardProps) {
   return (
-    <Card className="p-3 bg-card border-border">
+    <Card className="p-3 gap-0 bg-card border-border">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
         {label}
       </p>

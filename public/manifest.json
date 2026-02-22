@@ -1,6 +1,6 @@
 {
-  "name": "Proxcop Dashboard",
-  "short_name": "Proxcop",
+  "name": "ProxStock",
+  "short_name": "ProxStock",
   "description": "Gere ton stock de resell, suis tes profits et optimise tes ventes.",
   "start_url": "/dashboard",
   "display": "standalone",
@@ -9,13 +9,8 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
+      "src": "/logo icon.png",
+      "sizes": "any",
       "type": "image/png"
     }
   ]

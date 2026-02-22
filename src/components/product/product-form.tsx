@@ -2,10 +2,12 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -13,10 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CopyableSku } from "@/components/ui/copyable-sku";
 import { CATEGORIES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
 import { createProductWithVariants } from "@/lib/actions/product-actions";
 import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -30,12 +33,89 @@ interface StockXVariant {
 
 interface SelectedVariant {
   sizeUS: string;
+  sizeEU: string | null;
   purchasePrice: string;
   quantity: number;
   storageLocation: string;
 }
 
+interface SearchResult {
+  productId: string;
+  title: string;
+  styleId: string;
+  imageUrl: string | null;
+}
+
 type WizardStep = "search" | "sizes" | "manual";
+
+// ─── Return Deadline Picker ─────────────────────────────────────────
+
+function addDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+function ReturnDeadlinePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const is14 = value === addDays(14);
+  const is30 = value === addDays(30);
+  const isCustom = value && !is14 && !is30;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(addDays(14))}
+          className={cn(
+            "text-[11px] px-2.5 py-1 rounded-md border transition-colors",
+            is14
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-secondary border-border text-muted-foreground hover:border-border-hover"
+          )}
+        >
+          14j
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(addDays(30))}
+          className={cn(
+            "text-[11px] px-2.5 py-1 rounded-md border transition-colors",
+            is30
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-secondary border-border text-muted-foreground hover:border-border-hover"
+          )}
+        >
+          30j
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className={cn(
+            "text-[11px] px-2.5 py-1 rounded-md border transition-colors",
+            !value
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-secondary border-border text-muted-foreground hover:border-border-hover"
+          )}
+        >
+          Aucun
+        </button>
+      </div>
+      <Input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn("h-9 text-sm", isCustom && "border-primary")}
+      />
+    </div>
+  );
+}
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -45,8 +125,12 @@ export function ProductForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Search state
-  const [skuInput, setSkuInput] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+
+  // Product state (after selection)
   const [productTitle, setProductTitle] = useState("");
   const [productSku, setProductSku] = useState("");
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null);
@@ -57,7 +141,11 @@ export function ProductForm() {
   const [selectedSizes, setSelectedSizes] = useState<Map<string, SelectedVariant>>(new Map());
   const [globalPurchaseDate, setGlobalPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
   const [globalTargetPrice, setGlobalTargetPrice] = useState("");
-  const [globalReturnDeadline, setGlobalReturnDeadline] = useState("");
+  const [globalReturnDeadline, setGlobalReturnDeadline] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  });
   const [globalStorageLocation, setGlobalStorageLocation] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -70,60 +158,141 @@ export function ProductForm() {
   const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
   const [manualUploading, setManualUploading] = useState(false);
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
 
-  // ─── SKU Search ─────────────────────────────────────────────────
+  // ─── Detect if input looks like a SKU ─────────────────────────────
 
-  const handleSkuSearch = useCallback(() => {
-    const sku = skuInput.trim();
-    if (sku.length < 3) return;
+  const looksLikeSku = useCallback((input: string) => {
+    const trimmed = input.trim();
+    return /^[A-Za-z0-9]+-[A-Za-z0-9]+$/.test(trimmed);
+  }, []);
+
+  // ─── Auto-search on input change (1000ms debounce) ────────────────
+
+  const performSearch = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSearchStatus("idle");
+      setSearchResults([]);
+      return;
+    }
 
     setSearchStatus("loading");
+    setSearchResults([]);
 
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    const isSku = looksLikeSku(query);
 
-    searchTimeoutRef.current = setTimeout(async () => {
+    if (isSku) {
+      // Direct SKU lookup — single result, go straight to sizes
       try {
-        const res = await fetch(`/api/sku-lookup?sku=${encodeURIComponent(sku)}&mode=full`);
+        const res = await fetch(`/api/sku-lookup?sku=${encodeURIComponent(query)}&mode=full`);
         const data = await res.json();
 
         if (data.status === "found" && data.variants?.length > 0) {
           setProductTitle(data.title || "");
-          setProductSku(sku.toUpperCase());
+          setProductSku(query.toUpperCase());
           setProductImageUrl(data.imageUrl || null);
           setAvailableSizes(data.variants);
           setSearchStatus("found");
           setStep("sizes");
-        } else if (data.status === "not_found") {
-          setSearchStatus("not_found");
-        } else {
-          setSearchStatus("error");
+          return;
         }
       } catch {
-        setSearchStatus("error");
+        // Fall through to text search
       }
-    }, 300);
-  }, [skuInput]);
+    }
+
+    // Text search — returns multiple results (shown inline)
+    try {
+      const res = await fetch(`/api/stockx/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+
+      if (data.status === "error") {
+        setSearchStatus("error");
+        return;
+      }
+
+      if (data.products && data.products.length > 0) {
+        setSearchResults(data.products);
+        setSearchStatus("found");
+      } else {
+        setSearchStatus("not_found");
+      }
+    } catch {
+      setSearchStatus("error");
+    }
+  }, [looksLikeSku]);
+
+  // Debounced auto-search: triggers 1000ms after user stops typing
+  const handleSearchInputChange = useCallback((value: string) => {
+    setSearchInput(value);
+    setSearchStatus(value.trim().length >= 2 ? "idle" : "idle");
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (value.trim().length >= 2) {
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(value.trim());
+      }, 1000);
+    } else {
+      setSearchResults([]);
+    }
+  }, [performSearch]);
+
+  // Instant search on Enter key
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      performSearch(searchInput.trim());
+    }
+  }, [searchInput, performSearch]);
+
+  // ─── Select a product from search results ─────────────────────────
+
+  const handleSelectProduct = useCallback(async (product: SearchResult) => {
+    setLoadingProductId(product.productId);
+
+    try {
+      const params = new URLSearchParams({
+        productId: product.productId,
+        title: product.title,
+        styleId: product.styleId,
+      });
+      if (product.imageUrl) params.set("imageUrl", product.imageUrl);
+
+      const res = await fetch(`/api/stockx/search?${params.toString()}`);
+      const data = await res.json();
+
+      if (data.status === "found" && data.variants?.length > 0) {
+        setProductTitle(data.title || product.title);
+        setProductSku(data.styleId || product.styleId);
+        setProductImageUrl(data.imageUrl || product.imageUrl || null);
+        setAvailableSizes(data.variants);
+        setStep("sizes");
+      } else if (data.status === "error") {
+        toast.error("Service StockX indisponible");
+      } else {
+        toast.error("Aucune taille trouvée pour ce produit");
+      }
+    } catch {
+      toast.error("Erreur lors du chargement");
+    } finally {
+      setLoadingProductId(null);
+    }
+  }, []);
 
   // ─── Size Selection ─────────────────────────────────────────────
 
-  const toggleSize = useCallback((size: string) => {
+  const toggleSize = useCallback((sizeUS: string, sizeEU: string | null) => {
     setSelectedSizes((prev) => {
       const next = new Map(prev);
-      if (next.has(size)) {
-        next.delete(size);
+      if (next.has(sizeUS)) {
+        next.delete(sizeUS);
       } else {
-        next.set(size, {
-          sizeUS: size,
-          purchasePrice: "",
-          quantity: 1,
-          storageLocation: "",
-        });
+        next.set(sizeUS, { sizeUS, sizeEU, purchasePrice: "", quantity: 1, storageLocation: "" });
       }
       return next;
     });
@@ -133,9 +302,7 @@ export function ProductForm() {
     setSelectedSizes((prev) => {
       const next = new Map(prev);
       const current = next.get(size);
-      if (current) {
-        next.set(size, { ...current, [field]: value });
-      }
+      if (current) next.set(size, { ...current, [field]: value });
       return next;
     });
   }, []);
@@ -145,23 +312,12 @@ export function ProductForm() {
   const handleManualImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setManualUploading(true);
     try {
       const { default: imageCompression } = await import("browser-image-compression");
-      const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 800,
-        maxSizeMB: 0.2,
-        useWebWorker: true,
-      });
-
+      const compressed = await imageCompression(file, { maxWidthOrHeight: 800, maxSizeMB: 0.2, useWebWorker: true });
       const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
-
+      await fetch(uploadUrl, { method: "PUT", body: compressed, headers: { "Content-Type": compressed.type } });
       setManualImageUrl(publicUrl);
       toast.success("Image ajoutee");
     } catch {
@@ -174,169 +330,176 @@ export function ProductForm() {
   // ─── Submit ─────────────────────────────────────────────────────
 
   const handleSubmitStockX = useCallback(async () => {
-    if (selectedSizes.size === 0) {
-      toast.error("Selectionnez au moins une taille");
-      return;
-    }
-
-    // Validate all prices are filled
+    if (selectedSizes.size === 0) { toast.error("Selectionnez au moins une taille"); return; }
     for (const [size, data] of selectedSizes) {
-      if (!data.purchasePrice || Number(data.purchasePrice) <= 0) {
-        toast.error(`Prix d'achat requis pour la taille ${size}`);
-        return;
-      }
+      if (!data.purchasePrice || Number(data.purchasePrice) <= 0) { toast.error(`Prix d'achat requis pour la taille ${size}`); return; }
     }
-
     setIsSubmitting(true);
     try {
       await createProductWithVariants({
-        name: productTitle,
-        sku: productSku,
-        imageUrl: productImageUrl || undefined,
-        category: "sneakers",
-        purchaseDate: globalPurchaseDate,
+        name: productTitle, sku: productSku, imageUrl: productImageUrl || undefined,
+        category: "sneakers", purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
-        returnDeadline: globalReturnDeadline || undefined,
-        notes: notes || undefined,
+        returnDeadline: globalReturnDeadline || undefined, notes: notes || undefined,
         variants: Array.from(selectedSizes.values()).map((v) => ({
-          sizeVariant: v.sizeUS,
-          purchasePrice: Number(v.purchasePrice),
-          quantity: v.quantity,
+          sizeVariant: v.sizeEU ? `US ${v.sizeUS} / EU ${v.sizeEU}` : `US ${v.sizeUS}`,
+          purchasePrice: Number(v.purchasePrice), quantity: v.quantity,
           storageLocation: v.storageLocation || globalStorageLocation || undefined,
         })),
       });
-
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    selectedSizes, productTitle, productSku, productImageUrl,
-    globalPurchaseDate, globalTargetPrice, globalReturnDeadline,
-    globalStorageLocation, notes, router,
-  ]);
+    } finally { setIsSubmitting(false); }
+  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, notes, router]);
 
   const handleSubmitManual = useCallback(async () => {
-    if (!manualName.trim()) {
-      toast.error("Le nom du produit est requis");
-      return;
-    }
-    if (!manualPrice || Number(manualPrice) <= 0) {
-      toast.error("Le prix d'achat est requis");
-      return;
-    }
-
+    if (!manualName.trim()) { toast.error("Le nom du produit est requis"); return; }
+    if (!manualPrice || Number(manualPrice) <= 0) { toast.error("Le prix d'achat est requis"); return; }
     setIsSubmitting(true);
     try {
       await createProductWithVariants({
-        name: manualName.trim(),
-        imageUrl: manualImageUrl || undefined,
+        name: manualName.trim(), imageUrl: manualImageUrl || undefined,
         category: manualCategory as "sneakers" | "pokemon" | "lego" | "random",
         purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
-        returnDeadline: globalReturnDeadline || undefined,
-        notes: notes || undefined,
-        variants: [{
-          sizeVariant: manualSize || undefined,
-          purchasePrice: Number(manualPrice),
-          quantity: manualQuantity,
-          storageLocation: globalStorageLocation || undefined,
-        }],
+        returnDeadline: globalReturnDeadline || undefined, notes: notes || undefined,
+        variants: [{ sizeVariant: manualSize || undefined, purchasePrice: Number(manualPrice), quantity: manualQuantity, storageLocation: globalStorageLocation || undefined }],
       });
-
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    manualName, manualCategory, manualSize, manualPrice, manualQuantity,
-    manualImageUrl, globalPurchaseDate, globalTargetPrice,
-    globalReturnDeadline, globalStorageLocation, notes, router,
-  ]);
+    } finally { setIsSubmitting(false); }
+  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, notes, router]);
 
-  // ─── Render: Search Step ────────────────────────────────────────
+  // ─── Render: Search Step (with inline results) ─────────────────
 
   if (step === "search") {
     return (
-      <div className="space-y-6">
-        {/* SKU Search */}
-        <div className="space-y-3">
-          <Label htmlFor="sku-search" className="text-base font-semibold">
-            Rechercher par SKU
+      <div className="space-y-5">
+        {/* Search input */}
+        <div className="space-y-2">
+          <Label htmlFor="product-search" className="text-base font-semibold">
+            Rechercher un produit
           </Label>
-          <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              id="sku-search"
-              placeholder="DD1391-100"
-              value={skuInput}
-              onChange={(e) => {
-                setSkuInput(e.target.value);
-                setSearchStatus("idle");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSkuSearch();
-                }
-              }}
-              className="font-mono"
+              id="product-search"
+              placeholder="Nike Dunk Low, DD1391-100..."
+              value={searchInput}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="pl-9 pr-10 h-11"
+              autoFocus
             />
-            <Button
-              onClick={handleSkuSearch}
-              disabled={skuInput.trim().length < 3 || searchStatus === "loading"}
-              size="icon"
-              className="shrink-0"
-            >
-              {searchStatus === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-            </Button>
+            {searchStatus === "loading" && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+            )}
+            {searchInput && searchStatus !== "loading" && (
+              <button
+                type="button"
+                onClick={() => { handleSearchInputChange(""); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Entrez le SKU pour trouver automatiquement le produit et ses tailles
-          </p>
+          {searchStatus === "idle" && searchInput.length === 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Tapez un SKU ou un nom — la recherche se lance automatiquement
+            </p>
+          )}
         </div>
 
-        {/* Search Status Messages */}
+        {/* Loading skeleton */}
+        {searchStatus === "loading" && (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 animate-pulse">
+                <div className="h-16 w-16 rounded-lg bg-secondary" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-secondary rounded w-3/4" />
+                  <div className="h-2.5 bg-secondary rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Inline search results with images */}
+        {searchStatus === "found" && searchResults.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} — choisissez un produit
+            </p>
+            <div className="space-y-1.5">
+              {searchResults.map((product) => (
+                <button
+                  key={product.productId}
+                  type="button"
+                  disabled={loadingProductId !== null}
+                  onClick={() => handleSelectProduct(product)}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left",
+                    "bg-card border-border hover:border-primary/40 hover:bg-secondary/50 active:scale-[0.98]",
+                    loadingProductId === product.productId && "border-primary/50 bg-secondary/50"
+                  )}
+                >
+                  <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={product.imageUrl} alt={product.title} className="w-full h-full object-contain p-1.5" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-white/5"><Package className="h-5 w-5 text-muted-foreground" /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium leading-tight line-clamp-2">{product.title}</p>
+                    {product.styleId && (
+                      <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{product.styleId}</p>
+                    )}
+                  </div>
+                  {loadingProductId === product.productId ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                  ) : (
+                    <ArrowLeft className="h-4 w-4 text-muted-foreground/40 rotate-180 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No results */}
         {searchStatus === "not_found" && (
-          <div className="rounded-xl bg-secondary p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Produit non trouve sur StockX pour le SKU &quot;{skuInput.toUpperCase()}&quot;
+          <div className="rounded-xl bg-secondary/50 p-5 text-center space-y-1">
+            <Package className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+            <p className="text-sm font-medium text-muted-foreground">Aucun résultat</p>
+            <p className="text-xs text-muted-foreground/70">
+              Pas de produit trouvé pour &quot;{searchInput}&quot;
             </p>
           </div>
         )}
 
+        {/* Error */}
         {searchStatus === "error" && (
-          <div className="rounded-xl bg-secondary p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Service StockX temporairement indisponible. Reessayez ou ajoutez manuellement.
-            </p>
+          <div className="rounded-xl bg-secondary/50 p-5 text-center space-y-1">
+            <p className="text-sm text-muted-foreground">Service StockX temporairement indisponible</p>
+            <p className="text-xs text-muted-foreground/70">Réessayez ou ajoutez manuellement</p>
           </div>
         )}
 
-        {/* Manual Add Button */}
+        {/* Manual add */}
         <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-background px-3 text-muted-foreground">ou</span>
-          </div>
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+          <div className="relative flex justify-center text-xs"><span className="bg-background px-3 text-muted-foreground">ou</span></div>
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full h-12"
-          onClick={() => setStep("manual")}
-        >
+        <Button variant="outline" className="w-full h-12" onClick={() => setStep("manual")}>
           <Package className="h-4 w-4 mr-2" />
           Ajouter manuellement
         </Button>
@@ -349,132 +512,77 @@ export function ProductForm() {
   if (step === "sizes") {
     return (
       <div className="space-y-5">
-        {/* Back button + Product info */}
-        <button
-          type="button"
-          onClick={() => {
-            setStep("search");
-            setSearchStatus("idle");
-            setSelectedSizes(new Map());
-          }}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button type="button" onClick={() => { setStep("search"); setSelectedSizes(new Map()); }} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
           Retour
         </button>
 
-        {/* Product preview card */}
-        <div className="rounded-xl bg-secondary p-4 flex gap-4">
-          {productImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={productImageUrl}
-              alt={productTitle}
-              className="w-16 h-16 object-contain rounded-lg bg-white/5 shrink-0"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-              <Package className="h-6 w-6 text-muted-foreground" />
+        <div className="rounded-xl bg-card border border-border p-4">
+          <div className="flex gap-4">
+            <div className="relative h-20 w-20 rounded-lg overflow-hidden bg-white flex-shrink-0">
+              {productImageUrl ? (
+                <Image
+                  src={productImageUrl}
+                  alt={productTitle}
+                  fill
+                  className="object-contain p-1"
+                  sizes="80px"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Package className="h-8 w-8 text-muted-foreground" />
+                </div>
+              )}
             </div>
-          )}
-          <div className="min-w-0">
-            <p className="font-medium text-sm truncate">{productTitle}</p>
-            <p className="text-xs text-muted-foreground font-mono">{productSku}</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2">{productTitle}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                  Sneakers
+                </Badge>
+                {productSku && (
+                  <CopyableSku sku={productSku} className="text-[10px]" />
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Size Grid */}
         <div className="space-y-2">
-          <Label className="text-sm font-semibold">
-            Selectionnez les tailles ({selectedSizes.size} selectionnee{selectedSizes.size > 1 ? "s" : ""})
-          </Label>
+          <Label className="text-sm font-semibold">Selectionnez les tailles ({selectedSizes.size} selectionnee{selectedSizes.size > 1 ? "s" : ""})</Label>
           <div className="grid grid-cols-4 gap-1.5">
             {availableSizes.map((v) => {
               const isSelected = selectedSizes.has(v.sizeUS);
               return (
-                <button
-                  key={v.variantId}
-                  type="button"
-                  onClick={() => toggleSize(v.sizeUS)}
-                  className={cn(
-                    "py-2 px-1 rounded-lg font-medium transition-all min-h-[44px] flex flex-col items-center justify-center gap-0.5",
-                    isSelected
-                      ? "bg-primary text-primary-foreground ring-2 ring-primary/50"
-                      : "bg-secondary hover:bg-secondary/80 text-muted-foreground"
-                  )}
-                >
+                <button key={v.variantId} type="button" onClick={() => toggleSize(v.sizeUS, v.sizeEU)} className={cn("py-2 px-1 rounded-lg font-medium transition-all min-h-[44px] flex flex-col items-center justify-center gap-0.5", isSelected ? "bg-primary text-primary-foreground ring-2 ring-primary/50" : "bg-secondary hover:bg-secondary/80 text-muted-foreground")}>
                   <span className="text-xs">US {v.sizeUS}</span>
-                  {v.sizeEU && (
-                    <span className={cn(
-                      "text-[9px]",
-                      isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60"
-                    )}>
-                      EU {v.sizeEU}
-                    </span>
-                  )}
+                  {v.sizeEU && <span className={cn("text-[9px]", isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60")}>EU {v.sizeEU}</span>}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Selected sizes with price inputs */}
         {selectedSizes.size > 0 && (
           <div className="space-y-3">
             <Label className="text-sm font-semibold">Prix par taille</Label>
             {Array.from(selectedSizes.entries()).map(([size, data]) => (
               <div key={size} className="rounded-xl bg-secondary p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Taille {size}</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleSize(size)}
-                    className="text-xs text-muted-foreground hover:text-danger transition-colors"
-                  >
-                    Retirer
-                  </button>
+                  <span className="text-sm font-medium">US {size}{data.sizeEU ? ` / EU ${data.sizeEU}` : ""}</span>
+                  <button type="button" onClick={() => toggleSize(size, data.sizeEU)} className="text-xs text-muted-foreground hover:text-danger transition-colors">Retirer</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-[11px] text-muted-foreground">Prix d&apos;achat *</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="120.00"
-                      value={data.purchasePrice}
-                      onChange={(e) => updateSizeField(size, "purchasePrice", e.target.value)}
-                      className="h-9 text-sm"
-                    />
+                    <Input type="number" step="0.01" min="0" placeholder="120.00" value={data.purchasePrice} onChange={(e) => updateSizeField(size, "purchasePrice", e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
                     <Label className="text-[11px] text-muted-foreground">Quantite</Label>
                     <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0"
-                        onClick={() => updateSizeField(size, "quantity", Math.max(1, data.quantity - 1))}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={data.quantity}
-                        onChange={(e) => updateSizeField(size, "quantity", Math.max(1, parseInt(e.target.value) || 1))}
-                        className="h-9 text-sm text-center"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 shrink-0"
-                        onClick={() => updateSizeField(size, "quantity", data.quantity + 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                      <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => updateSizeField(size, "quantity", Math.max(1, data.quantity - 1))}><Minus className="h-3 w-3" /></Button>
+                      <Input type="number" min="1" value={data.quantity} onChange={(e) => updateSizeField(size, "quantity", Math.max(1, parseInt(e.target.value) || 1))} className="h-9 text-sm text-center" />
+                      <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => updateSizeField(size, "quantity", data.quantity + 1)}><Plus className="h-3 w-3" /></Button>
                     </div>
                   </div>
                 </div>
@@ -483,86 +591,40 @@ export function ProductForm() {
           </div>
         )}
 
-        {/* Global fields */}
         <div className="space-y-3 pt-2 border-t border-border">
           <Label className="text-sm font-semibold">Infos globales</Label>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
-              <Input
-                type="date"
-                value={globalPurchaseDate}
-                onChange={(e) => setGlobalPurchaseDate(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="h-9 text-sm" />
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="180.00"
-                value={globalTargetPrice}
-                onChange={(e) => setGlobalTargetPrice(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="h-9 text-sm" />
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Stockage</Label>
               <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Choisir..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {STORAGE_LOCATIONS.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>
-                      {l.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Date retour</Label>
-              <Input
-                type="date"
-                value={globalReturnDeadline}
-                onChange={(e) => setGlobalReturnDeadline(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
             </div>
           </div>
-
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Notes</Label>
-            <Textarea
-              placeholder="Notes supplementaires..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="text-sm"
-            />
+            <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
           </div>
         </div>
 
-        {/* Submit */}
-        <Button
-          onClick={handleSubmitStockX}
-          className="w-full h-12"
-          disabled={isSubmitting || selectedSizes.size === 0}
-        >
-          {isSubmitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Plus className="h-4 w-4 mr-2" />
-              Ajouter au stock ({Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0)} article{Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0) > 1 ? "s" : ""})
-            </>
+        <Button onClick={handleSubmitStockX} className="w-full h-12" disabled={isSubmitting || selectedSizes.size === 0}>
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+            <><Plus className="h-4 w-4 mr-2" />Ajouter au stock ({Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0)} article{Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0) > 1 ? "s" : ""})</>
           )}
         </Button>
       </div>
@@ -573,158 +635,71 @@ export function ProductForm() {
 
   return (
     <div className="space-y-4">
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={() => setStep("search")}
-        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
+      <button type="button" onClick={() => setStep("search")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="h-4 w-4" />
         Retour
       </button>
-
       <h2 className="text-base font-semibold">Ajout manuel</h2>
 
-      {/* Image upload */}
       <div className="space-y-1.5">
         {manualImageUrl ? (
           <div className="relative rounded-xl overflow-hidden bg-secondary">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={manualImageUrl}
-              alt="Produit"
-              className="w-full h-40 object-contain bg-white/5"
-            />
+            <img src={manualImageUrl} alt="Produit" className="w-full h-40 object-contain bg-white/5" />
           </div>
         ) : (
           <label className="cursor-pointer block">
             <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-6 text-center">
-              {manualUploading ? (
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-              ) : (
-                <>
-                  <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Ajouter une photo</p>
-                </>
+              {manualUploading ? <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /> : (
+                <><Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" /><p className="text-sm text-muted-foreground">Ajouter une photo</p></>
               )}
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleManualImageUpload}
-              disabled={manualUploading}
-            />
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleManualImageUpload} disabled={manualUploading} />
           </label>
         )}
       </div>
 
-      {/* Name */}
       <div className="space-y-1.5">
         <Label htmlFor="manual-name">Nom du produit *</Label>
-        <Input
-          id="manual-name"
-          placeholder="Pokemon Booster Box..."
-          value={manualName}
-          onChange={(e) => setManualName(e.target.value)}
-        />
+        <Input id="manual-name" placeholder="Pokemon Booster Box..." value={manualName} onChange={(e) => setManualName(e.target.value)} />
       </div>
 
-      {/* Category */}
       <div className="space-y-1.5">
         <Label>Categorie *</Label>
         <Select value={manualCategory} onValueChange={setManualCategory}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c.value} value={c.value}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 
-      {/* Size + Price */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="manual-size">Taille / Variante</Label>
-          <Input
-            id="manual-size"
-            placeholder="42, XL, OS..."
-            value={manualSize}
-            onChange={(e) => setManualSize(e.target.value)}
-          />
+          <Input id="manual-size" placeholder="42, XL, OS..." value={manualSize} onChange={(e) => setManualSize(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="manual-price">Prix d&apos;achat * (EUR)</Label>
-          <Input
-            id="manual-price"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="120.00"
-            value={manualPrice}
-            onChange={(e) => setManualPrice(e.target.value)}
-          />
+          <Input id="manual-price" type="number" step="0.01" min="0" placeholder="120.00" value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} />
         </div>
       </div>
 
-      {/* Quantity */}
       <div className="space-y-1.5">
         <Label>Quantite</Label>
         <div className="flex items-center gap-2 w-32">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setManualQuantity(Math.max(1, manualQuantity - 1))}
-          >
-            <Minus className="h-3 w-3" />
-          </Button>
-          <Input
-            type="number"
-            min="1"
-            value={manualQuantity}
-            onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-            className="h-9 text-center"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-9 w-9"
-            onClick={() => setManualQuantity(manualQuantity + 1)}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
+          <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => setManualQuantity(Math.max(1, manualQuantity - 1))}><Minus className="h-3 w-3" /></Button>
+          <Input type="number" min="1" value={manualQuantity} onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="h-9 text-center" />
+          <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => setManualQuantity(manualQuantity + 1)}><Plus className="h-3 w-3" /></Button>
         </div>
       </div>
 
-      {/* Global fields */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Date d&apos;achat *</Label>
-          <Input
-            type="date"
-            value={globalPurchaseDate}
-            onChange={(e) => setGlobalPurchaseDate(e.target.value)}
-          />
+          <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label>Prix cible</Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="180.00"
-            value={globalTargetPrice}
-            onChange={(e) => setGlobalTargetPrice(e.target.value)}
-          />
+          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} />
         </div>
       </div>
 
@@ -732,52 +707,24 @@ export function ProductForm() {
         <div className="space-y-1.5">
           <Label>Stockage</Label>
           <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
-            <SelectTrigger>
-              <SelectValue placeholder="Choisir..." />
-            </SelectTrigger>
-            <SelectContent>
-              {STORAGE_LOCATIONS.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+            <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
           <Label>Date retour</Label>
-          <Input
-            type="date"
-            value={globalReturnDeadline}
-            onChange={(e) => setGlobalReturnDeadline(e.target.value)}
-          />
+          <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
         </div>
       </div>
 
-      {/* Notes */}
       <div className="space-y-1.5">
         <Label>Notes</Label>
-        <Textarea
-          placeholder="Notes supplementaires..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-        />
+        <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </div>
 
-      {/* Submit */}
-      <Button
-        onClick={handleSubmitManual}
-        className="w-full h-12"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <>
-            <Plus className="h-4 w-4 mr-2" />
-            Ajouter au stock{manualQuantity > 1 ? ` (${manualQuantity} articles)` : ""}
-          </>
+      <Button onClick={handleSubmitManual} className="w-full h-12" disabled={isSubmitting}>
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+          <><Plus className="h-4 w-4 mr-2" />Ajouter au stock{manualQuantity > 1 ? ` (${manualQuantity} articles)` : ""}</>
         )}
       </Button>
     </div>

@@ -2,12 +2,10 @@
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CommunityFeed } from "./community-feed";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { VentesClient } from "./ventes-client";
 import { Users, User } from "lucide-react";
 
-interface UserSale {
+interface SaleItem {
   sale: {
     id: string;
     salePrice: string;
@@ -18,11 +16,13 @@ interface UserSale {
     otherFees: string | null;
   };
   variant: {
-    sizeVariant: string | null;
     purchasePrice: string;
+    sizeVariant: string | null;
   };
   product: {
     name: string;
+    imageUrl: string | null;
+    sku: string | null;
   };
 }
 
@@ -39,13 +39,11 @@ interface CommunitySale {
 }
 
 interface VentesTabsProps {
-  userSales: UserSale[];
+  userSales: SaleItem[];
   communitySales: CommunitySale[];
-  totalRevenue: number;
-  totalProfit: number;
 }
 
-export function VentesTabs({ userSales, communitySales, totalRevenue, totalProfit }: VentesTabsProps) {
+export function VentesTabs({ userSales, communitySales }: VentesTabsProps) {
   return (
     <Tabs defaultValue="me">
       <TabsList className="w-full">
@@ -65,76 +63,7 @@ export function VentesTabs({ userSales, communitySales, totalRevenue, totalProfi
       </TabsList>
 
       <TabsContent value="me" className="mt-4 space-y-4">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-2">
-          <Card className="p-3 bg-card border-border">
-            <p className="text-[10px] text-muted-foreground uppercase">Total ventes</p>
-            <p className="text-lg font-bold">{formatCurrency(totalRevenue)}</p>
-          </Card>
-          <Card className="p-3 bg-card border-border">
-            <p className="text-[10px] text-muted-foreground uppercase">Profit total</p>
-            <p className="text-lg font-bold text-success">{formatCurrency(totalProfit)}</p>
-          </Card>
-        </div>
-
-        {/* User's sales list */}
-        <div className="space-y-2">
-          {userSales.length === 0 ? (
-            <p className="text-center py-12 text-sm text-muted-foreground">
-              Aucune vente enregistree
-            </p>
-          ) : (
-            userSales.map(({ sale, variant, product }) => {
-              const profit =
-                Number(sale.salePrice) -
-                Number(variant.purchasePrice) -
-                Number(sale.platformFee ?? 0) -
-                Number(sale.shippingCost ?? 0) -
-                Number(sale.otherFees ?? 0);
-              const margin =
-                Number(sale.salePrice) > 0
-                  ? (profit / Number(sale.salePrice)) * 100
-                  : 0;
-
-              return (
-                <Card key={sale.id} className="p-3 bg-card border-border">
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-sm truncate">
-                        {product.name}
-                        {variant.sizeVariant && (
-                          <span className="text-muted-foreground font-normal"> &mdash; {variant.sizeVariant}</span>
-                        )}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(sale.saleDate)}
-                        </span>
-                        {sale.platform && (
-                          <Badge variant="outline" className="text-[10px] border-border capitalize">
-                            {sale.platform}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                        <span>Achat: {formatCurrency(Number(variant.purchasePrice))}</span>
-                        <span>Vente: {formatCurrency(Number(sale.salePrice))}</span>
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0 ml-3">
-                      <p className={`text-sm font-bold ${profit >= 0 ? "text-success" : "text-danger"}`}>
-                        {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {margin.toFixed(1)}% marge
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })
-          )}
-        </div>
+        <VentesClient salesData={userSales} />
       </TabsContent>
 
       <TabsContent value="community" className="mt-4 space-y-3">

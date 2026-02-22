@@ -9,13 +9,13 @@ export default function LoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
-            alt="Proxcop"
+            alt="ProxStock"
             width={80}
             height={80}
             className="mx-auto rounded-full"
           />
           <div>
-            <h1 className="text-2xl font-bold">Proxcop Dashboard</h1>
+            <h1 className="text-2xl font-bold">ProxStock</h1>
             <p className="text-muted-foreground text-sm mt-2">
               Connecte-toi avec Discord pour acceder a ton dashboard de resell.
             </p>

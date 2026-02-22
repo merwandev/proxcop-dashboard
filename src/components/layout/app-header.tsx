@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserMenu } from "./logout-button";
 import { Shield } from "lucide-react";
 import Link from "next/link";
 
@@ -15,12 +15,12 @@ export async function AppHeader() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
-            alt="Proxcop"
+            alt="ProxStock"
             width={32}
             height={32}
             className="rounded-full"
           />
-          <span className="font-semibold text-sm">Proxcop</span>
+          <span className="font-semibold text-sm">ProxStock</span>
         </div>
         <div className="flex items-center gap-2">
           {admin && (
@@ -33,15 +33,10 @@ export async function AppHeader() {
             </Link>
           )}
           {session?.user && (
-            <Avatar className="h-8 w-8">
-              <AvatarImage
-                src={session.user.image ?? undefined}
-                alt={session.user.name ?? "User"}
-              />
-              <AvatarFallback className="bg-secondary text-xs">
-                {session.user.name?.charAt(0).toUpperCase() ?? "U"}
-              </AvatarFallback>
-            </Avatar>
+            <UserMenu
+              userImage={session.user.image}
+              userName={session.user.name}
+            />
           )}
         </div>
       </div>

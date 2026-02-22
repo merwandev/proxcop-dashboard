@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     if (!result) {
       return NextResponse.json({
         status: "error",
-        message: "Service StockX temporairement indisponible.",
+        message: "Service de search temporairement indisponible.",
       });
     }
 
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       imageUrl: null,
       status: "error",
-      message: "Service StockX temporairement indisponible.",
+      message: "Service de search temporairement indisponible.",
     });
   }
 

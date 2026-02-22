@@ -615,7 +615,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
         {/* Error */}
         {searchStatus === "error" && (
           <div className="rounded-xl bg-secondary/50 p-5 text-center space-y-1">
-            <p className="text-sm text-muted-foreground">Service StockX temporairement indisponible</p>
+            <p className="text-sm text-muted-foreground">Service de search temporairement indisponible</p>
             <p className="text-xs text-muted-foreground/70">Réessayez ou ajoutez manuellement</p>
           </div>
         )}

@@ -30,6 +30,7 @@ import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2 } fr
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
+import { SkuSalesSection } from "@/components/product/sku-sales-section";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -175,6 +176,9 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
   // Median price state
   const [medianPrice, setMedianPrice] = useState<{ median: number; saleCount: number } | null>(null);
 
+  // Community sales state
+  const [skuSales, setSkuSales] = useState<{ saleId: string; salePrice: number; saleDate: string; platform: string | null; sizeVariant: string | null }[]>([]);
+
   // Supplier select state
   const [localSuppliers, setLocalSuppliers] = useState(suppliers);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
@@ -275,6 +279,17 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     fetch(`/api/median-price?sku=${encodeURIComponent(productSku)}`)
       .then((r) => r.json())
       .then((data) => { if (!cancelled && data.median) setMedianPrice(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [productSku]);
+
+  // Fetch community sales when SKU is set
+  useEffect(() => {
+    if (!productSku) { setSkuSales([]); return; }
+    let cancelled = false;
+    fetch(`/api/sku-sales?sku=${encodeURIComponent(productSku)}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled && data.sales) setSkuSales(data.sales); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [productSku]);
@@ -803,6 +818,13 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
           </div>
         </div>
+
+        {/* Community sales for this SKU */}
+        {skuSales.length > 0 && (
+          <div className="pt-2 border-t border-border">
+            <SkuSalesSection sales={skuSales} sku={productSku} />
+          </div>
+        )}
 
         <Button onClick={handleSubmitStockX} className="w-full h-12" disabled={isSubmitting || selectedSizes.size === 0}>
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (

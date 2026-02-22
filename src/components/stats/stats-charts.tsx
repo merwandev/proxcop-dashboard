@@ -15,6 +15,9 @@ import {
   ReferenceLine,
   PieChart,
   Pie,
+  FunnelChart,
+  Funnel,
+  LabelList,
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
@@ -36,6 +39,7 @@ const tooltipStyle = {
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: "8px",
   fontSize: "12px",
+  color: "#E4E4E7",
 };
 
 export function StatsCharts({
@@ -47,12 +51,15 @@ export function StatsCharts({
 }: StatsChartsProps) {
   const [platformView, setPlatformView] = useState<"bar" | "pie">("bar");
 
-  // Profit par categorie — total profit + pie data
+  // Profit par categorie — total profit + funnel data (sorted descending by profit)
   const totalProfit = roiByCategory.reduce((s, c) => s + c.profit, 0);
-  const categoryPieData = roiByCategory
+  const categoryFunnelData = [...roiByCategory]
     .filter((c) => c.profit > 0)
+    .sort((a, b) => b.profit - a.profit)
     .map((c, i) => ({
-      ...c,
+      name: c.category.charAt(0).toUpperCase() + c.category.slice(1),
+      value: c.profit,
+      count: c.count,
       fill: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
     }));
 
@@ -91,30 +98,7 @@ export function StatsCharts({
       fill: PLATFORM_COLORS[i % PLATFORM_COLORS.length],
     }));
 
-  // Custom pie label
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderCategoryPieLabel = (props: any) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, category } = props;
-    if (percent < 0.05) return null;
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    return (
-      <text
-        x={x}
-        y={y}
-        fill="#fff"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={10}
-        fontWeight={600}
-      >
-        {String(category).charAt(0).toUpperCase() + String(category).slice(1)}
-      </text>
-    );
-  };
-
+  // Custom pie label for platform
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderPlatformPieLabel = (props: any) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent, platform } = props;
@@ -140,7 +124,7 @@ export function StatsCharts({
 
   return (
     <>
-      {/* ── Profit par categorie (pie chart / camembert) ── */}
+      {/* ── Profit par categorie (funnel / cone chart) ── */}
       {roiByCategory.length > 0 && (
         <Card className="p-4 bg-card border-border">
           <div className="flex items-start justify-between mb-3">
@@ -155,46 +139,47 @@ export function StatsCharts({
             </p>
           </div>
 
-          {categoryPieData.length > 0 ? (
+          {categoryFunnelData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={categoryPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="profit"
-                    nameKey="category"
-                    label={renderCategoryPieLabel}
-                    labelLine={false}
-                  >
-                    {categoryPieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} stroke="transparent" />
-                    ))}
-                  </Pie>
+                <FunnelChart>
                   <Tooltip
                     contentStyle={tooltipStyle}
+                    itemStyle={{ color: "#C9CEEE" }}
                     formatter={(value) => [
                       `+${formatCurrency(Number(value ?? 0))}`,
                       "Profit",
                     ]}
-                    labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
                   />
-                </PieChart>
+                  <Funnel
+                    dataKey="value"
+                    nameKey="name"
+                    data={categoryFunnelData}
+                    isAnimationActive
+                  >
+                    {categoryFunnelData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} stroke="transparent" />
+                    ))}
+                    <LabelList
+                      dataKey="name"
+                      position="center"
+                      fill="#fff"
+                      fontSize={11}
+                      fontWeight={600}
+                    />
+                  </Funnel>
+                </FunnelChart>
               </ResponsiveContainer>
               {/* Legend */}
               <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
-                {roiByCategory.map((c, i) => (
-                  <div key={c.category} className="flex items-center gap-1.5">
+                {categoryFunnelData.map((c) => (
+                  <div key={c.name} className="flex items-center gap-1.5">
                     <div
                       className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
+                      style={{ backgroundColor: c.fill }}
                     />
-                    <span className="text-[10px] text-muted-foreground capitalize">
-                      {c.category} ({c.count})
+                    <span className="text-[10px] text-muted-foreground">
+                      {c.name} ({formatCurrency(c.value)})
                     </span>
                   </div>
                 ))}
@@ -248,6 +233,7 @@ export function StatsCharts({
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
+                itemStyle={{ color: "#C9CEEE" }}
                 formatter={(value) => {
                   const v = Number(value ?? 0);
                   return [`${v} unites`, "En stock"];
@@ -329,6 +315,7 @@ export function StatsCharts({
                 <Tooltip
                   contentStyle={tooltipStyle}
                   labelStyle={{ color: "#919191", marginBottom: 4 }}
+                  itemStyle={{ color: "#C9CEEE" }}
                   formatter={(value, name) => {
                     const v = Number(value ?? 0);
                     if (name === "profit") {
@@ -372,6 +359,7 @@ export function StatsCharts({
                   </Pie>
                   <Tooltip
                     contentStyle={tooltipStyle}
+                    itemStyle={{ color: "#C9CEEE" }}
                     formatter={(value) => [
                       `+${formatCurrency(Number(value ?? 0))}`,
                       "Profit",
@@ -418,6 +406,7 @@ export function StatsCharts({
               />
               <Tooltip
                 contentStyle={tooltipStyle}
+                itemStyle={{ color: "#C9CEEE" }}
                 formatter={(value) => [`${Number(value ?? 0)} ventes`]}
               />
               <Bar dataKey="count" fill="#C9CEEE" radius={[6, 6, 0, 0]} />

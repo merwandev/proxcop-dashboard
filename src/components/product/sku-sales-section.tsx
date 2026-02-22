@@ -35,6 +35,7 @@ const tooltipStyle = {
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: "8px",
   fontSize: "12px",
+  color: "#E4E4E7",
 };
 
 export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
@@ -127,6 +128,7 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
+                itemStyle={{ color: "#C9CEEE" }}
                 formatter={(value) => {
                   const v = Number(value ?? 0);
                   return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, "Profit"];

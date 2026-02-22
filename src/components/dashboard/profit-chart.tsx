@@ -102,8 +102,10 @@ export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
               border: "1px solid rgba(255,255,255,0.1)",
               borderRadius: "8px",
               fontSize: "12px",
+              color: "#E4E4E7",
             }}
             labelStyle={{ color: "#919191", marginBottom: 4 }}
+            itemStyle={{ color: "#C9CEEE", padding: "2px 0" }}
             formatter={(value, name) => {
               const v = Number(value ?? 0);
               if (value === null || value === undefined) return ["", ""];
@@ -115,7 +117,6 @@ export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
                     : "Projection";
               return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, label];
             }}
-            itemStyle={{ padding: "2px 0" }}
           />
           <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
 

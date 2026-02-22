@@ -179,11 +179,11 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
         </div>
       </Card>
 
-      {/* Variant filters — only show when there are multiple statuses or platforms */}
-      {allInStockVariants.length > 1 && (usedStatuses.length > 1 || usedPlatforms.length > 0) && (
+      {/* Variant filters */}
+      {allInStockVariants.length > 0 && (usedStatuses.length > 0 || usedPlatforms.length > 0) && (
         <div className="space-y-2">
           {/* Status filter chips */}
-          {usedStatuses.length > 1 && (
+          {usedStatuses.length > 0 && (
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => setSelectedStatus(null)}

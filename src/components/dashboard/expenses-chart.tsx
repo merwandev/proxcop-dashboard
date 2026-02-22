@@ -28,7 +28,7 @@ interface ExpensesChartProps {
 export function ExpensesChart({ data, periodLabel = "30j" }: ExpensesChartProps) {
   if (data.length === 0 || data.every((d) => d.current === null && d.previous === null)) {
     return (
-      <Card className="p-4 bg-card border-border">
+      <Card className="p-4 bg-card border-border h-full">
         <p className="text-sm text-muted-foreground text-center py-8">
           Pas encore de depenses
         </p>
@@ -41,7 +41,7 @@ export function ExpensesChart({ data, periodLabel = "30j" }: ExpensesChartProps)
   const currentTotal = lastCurrent?.current ?? 0;
 
   return (
-    <Card className="p-4 bg-card border-border">
+    <Card className="p-4 bg-card border-border h-full">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium">Depenses cumulees ({periodLabel})</h3>

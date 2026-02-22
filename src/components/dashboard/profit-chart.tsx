@@ -31,7 +31,7 @@ interface ProfitChartProps {
 export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
   if (data.length === 0 || data.every((d) => d.current === null && d.previous === null)) {
     return (
-      <Card className="p-4 bg-card border-border">
+      <Card className="p-4 bg-card border-border h-full">
         <p className="text-sm text-muted-foreground text-center py-8">
           Pas encore de donnees de vente
         </p>
@@ -51,7 +51,7 @@ export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
   const profitColor = currentTotal >= 0 ? "#4ADE80" : "#F87171";
 
   return (
-    <Card className="p-4 bg-card border-border" id="profit-chart">
+    <Card className="p-4 bg-card border-border h-full" id="profit-chart">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium">Profit cumulé ({periodLabel})</h3>

@@ -42,7 +42,7 @@ const tooltipStyle = {
 export function StatusBreakdownChart({ data }: StatusBreakdownChartProps) {
   if (data.length === 0) {
     return (
-      <Card className="p-4 bg-card border-border">
+      <Card className="p-4 bg-card border-border h-full">
         <p className="text-sm text-muted-foreground text-center py-8">
           Aucun produit en stock
         </p>
@@ -76,7 +76,7 @@ export function StatusBreakdownChart({ data }: StatusBreakdownChartProps) {
   };
 
   return (
-    <Card className="p-4 bg-card border-border">
+    <Card className="p-4 bg-card border-border h-full">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="text-sm font-medium">Repartition statuts</h3>

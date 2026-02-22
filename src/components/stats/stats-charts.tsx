@@ -213,11 +213,15 @@ export function StatsCharts({
                 }}
                 labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
               />
-              <Bar dataKey="count" fill="#C9CEEE" radius={[6, 6, 0, 0]}>
-                {stockByCategory.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                ))}
-              </Bar>
+              <Area
+                type="monotone"
+                dataKey="count"
+                stroke="#C9CEEE"
+                strokeWidth={2}
+                fill="url(#stockGradient)"
+                dot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </Card>
@@ -294,11 +298,15 @@ export function StatsCharts({
                   labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
                 />
                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
-                <Bar dataKey="profit" radius={[6, 6, 0, 0]}>
-                  {roiByPlatform.map((_, i) => (
-                    <Cell key={i} fill={PLATFORM_COLORS[i % PLATFORM_COLORS.length]} />
-                  ))}
-                </Bar>
+                <Area
+                  type="monotone"
+                  dataKey="profit"
+                  stroke="#4ADE80"
+                  strokeWidth={2}
+                  fill="url(#platformGradient)"
+                  dot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#4ADE80" }}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: "#4ADE80" }}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           ) : (

@@ -6,7 +6,6 @@ import { Download, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 import { toast } from "sonner";
 import {
-  AreaChart,
   Area,
   Line,
   XAxis,
@@ -51,38 +50,44 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
   const handleExport = async () => {
     setExporting(true);
     try {
-      const { toBlob } = await import("html-to-image");
+      const { toPng } = await import("html-to-image");
       const node = exportRef.current;
       if (!node) return;
 
-      // Temporarily show the export container
+      // Make visible for rendering (positioned off-screen)
+      node.style.position = "absolute";
+      node.style.left = "-9999px";
+      node.style.top = "0";
       node.style.display = "block";
-      // Wait for rendering
-      await new Promise((r) => setTimeout(r, 200));
+      node.style.visibility = "visible";
+      node.style.opacity = "1";
 
-      const blob = await toBlob(node, {
+      // Wait for Recharts SVG to render
+      await new Promise((r) => setTimeout(r, 500));
+
+      const dataUrl = await toPng(node, {
         backgroundColor: "#18191E",
         pixelRatio: 2,
         width: 430,
-        canvasWidth: 860,
-        canvasHeight: node.offsetHeight * 2,
+        height: node.offsetHeight,
+        style: {
+          transform: "none",
+          margin: "0",
+        },
       });
 
+      // Hide again
       node.style.display = "none";
 
-      if (!blob) {
-        toast.error("Erreur lors de l'export");
-        return;
-      }
-
-      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = dataUrl;
       a.download = `proxstock-${periodLabel}-${new Date().toISOString().split("T")[0]}.png`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Image exportée !");
-    } catch {
+      document.body.removeChild(a);
+      toast.success("Image exportee !");
+    } catch (err) {
+      console.error("Export error:", err);
       toast.error("Erreur lors de l'export");
     } finally {
       setExporting(false);

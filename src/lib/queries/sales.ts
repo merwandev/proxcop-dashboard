@@ -50,6 +50,48 @@ export async function getMedianSalePricesBatch(sku: string) {
 }
 
 /**
+ * Get all community sales for a specific SKU (across all users).
+ * Returns sale details including profit for cumulative chart.
+ */
+export async function getSalesBySku(sku: string) {
+  const result = await db
+    .select({
+      saleId: sales.id,
+      salePrice: sales.salePrice,
+      purchasePrice: productVariants.purchasePrice,
+      platformFee: sales.platformFee,
+      shippingCost: sales.shippingCost,
+      otherFees: sales.otherFees,
+      saleDate: sales.saleDate,
+      platform: sales.platform,
+      sizeVariant: productVariants.sizeVariant,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(sql`upper(${products.sku}) = upper(${sku})`)
+    .orderBy(sales.saleDate);
+
+  return result.map((r) => {
+    const salePrice = Number(r.salePrice);
+    const purchasePrice = Number(r.purchasePrice);
+    const fees =
+      Number(r.platformFee ?? 0) +
+      Number(r.shippingCost ?? 0) +
+      Number(r.otherFees ?? 0);
+    return {
+      saleId: r.saleId,
+      salePrice,
+      purchasePrice,
+      profit: salePrice - purchasePrice - fees,
+      saleDate: r.saleDate,
+      platform: r.platform,
+      sizeVariant: r.sizeVariant,
+    };
+  });
+}
+
+/**
  * Get recent community sales for the anonymous feed.
  * Deliberately excludes userId, purchasePrice, fees, notes for privacy.
  */

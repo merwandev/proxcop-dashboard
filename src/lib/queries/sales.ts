@@ -50,6 +50,25 @@ export async function getMedianSalePricesBatch(sku: string) {
 }
 
 /**
+ * Get overall median sale price for a SKU (across all sizes and users).
+ * Returns null if fewer than 3 sales exist.
+ */
+export async function getOverallMedianSalePrice(sku: string) {
+  const result = await db
+    .select({
+      median: sql<number>`percentile_cont(0.5) within group (order by cast(${sales.salePrice} as decimal))`,
+      count: sql<number>`count(*)`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(sql`upper(${products.sku}) = upper(${sku})`);
+
+  if (!result[0] || Number(result[0].count) < 3) return null;
+  return { median: Number(result[0].median), saleCount: Number(result[0].count) };
+}
+
+/**
  * Get all community sales for a specific SKU (across all users).
  * Returns sale details including profit for cumulative chart.
  */

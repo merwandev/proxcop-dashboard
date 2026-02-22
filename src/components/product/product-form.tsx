@@ -17,11 +17,19 @@ import {
 } from "@/components/ui/select";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { CATEGORIES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createProductWithVariants } from "@/lib/actions/product-actions";
+import { createSupplierAction } from "@/lib/actions/supplier-actions";
 import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
 import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils/format";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -152,7 +160,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     d.setDate(d.getDate() + 14);
     return d.toISOString().split("T")[0];
   });
-  const [globalStorageLocation, setGlobalStorageLocation] = useState("");
+  const [globalStorageLocation, setGlobalStorageLocation] = useState("home");
   const [globalSupplierName, setGlobalSupplierName] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -165,12 +173,24 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
   const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
   const [manualUploading, setManualUploading] = useState(false);
 
+  // Median price state
+  const [medianPrice, setMedianPrice] = useState<{ median: number; saleCount: number } | null>(null);
+
   // Supplier select state
+  const [localSuppliers, setLocalSuppliers] = useState(suppliers);
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [showCustomSupplier, setShowCustomSupplier] = useState(false);
+  const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierReturnDays, setNewSupplierReturnDays] = useState("none");
+  const [isAddingSupplier, setIsAddingSupplier] = useState(false);
 
   // Handler: supplier change → auto-fill return deadline + name
   const handleSupplierChange = (value: string) => {
+    if (value === "__add_new__") {
+      setShowAddSupplierDialog(true);
+      return;
+    }
     setSelectedSupplierId(value);
     if (value === "__other__") {
       setShowCustomSupplier(true);
@@ -178,7 +198,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       return;
     }
     setShowCustomSupplier(false);
-    const supplier = suppliers.find((s) => s.id === value);
+    const supplier = localSuppliers.find((s) => s.id === value);
     if (supplier) {
       setGlobalSupplierName(supplier.name);
       if (supplier.returnDays) {
@@ -187,11 +207,49 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     }
   };
 
+  // Handler: add new supplier from dialog
+  const handleAddNewSupplier = async () => {
+    const name = newSupplierName.trim();
+    if (!name) { toast.error("Nom requis"); return; }
+    setIsAddingSupplier(true);
+    try {
+      const returnDays = newSupplierReturnDays === "none" ? null : newSupplierReturnDays;
+      const supplier = await createSupplierAction({ name, returnDays });
+      setLocalSuppliers((prev) => [...prev, { id: supplier.id, name: supplier.name, returnDays: supplier.returnDays }].sort((a, b) => a.name.localeCompare(b.name)));
+      // Auto-select the new supplier
+      setSelectedSupplierId(supplier.id);
+      setShowCustomSupplier(false);
+      setGlobalSupplierName(supplier.name);
+      if (supplier.returnDays) {
+        setGlobalReturnDeadline(addDays(Number(supplier.returnDays)));
+      }
+      setShowAddSupplierDialog(false);
+      setNewSupplierName("");
+      setNewSupplierReturnDays("none");
+      toast.success("Fournisseur ajoute");
+    } catch {
+      toast.error("Erreur lors de l'ajout");
+    } finally {
+      setIsAddingSupplier(false);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
   }, []);
+
+  // Fetch median price when SKU is set
+  useEffect(() => {
+    if (!productSku) { setMedianPrice(null); return; }
+    let cancelled = false;
+    fetch(`/api/median-price?sku=${encodeURIComponent(productSku)}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled && data.median) setMedianPrice(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [productSku]);
 
   // ─── Detect if input looks like a SKU ─────────────────────────────
 
@@ -404,6 +462,45 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
   }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
+
+  // ─── Add Supplier Dialog (shared across steps) ─────────────────
+
+  const addSupplierDialog = (
+    <Dialog open={showAddSupplierDialog} onOpenChange={setShowAddSupplierDialog}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nouveau fournisseur</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Nom</Label>
+            <Input
+              placeholder="Nom du fournisseur..."
+              value={newSupplierName}
+              onChange={(e) => setNewSupplierName(e.target.value)}
+              className="h-9 text-sm"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddNewSupplier(); } }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Delai de retour</Label>
+            <Select value={newSupplierReturnDays} onValueChange={setNewSupplierReturnDays}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucun</SelectItem>
+                <SelectItem value="14">14 jours</SelectItem>
+                <SelectItem value="30">30 jours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={handleAddNewSupplier} disabled={isAddingSupplier || !newSupplierName.trim()} className="w-full h-10">
+            {isAddingSupplier ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-1.5" />Ajouter</>}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
   // ─── Render: Search Step (with inline results) ─────────────────
 
@@ -631,7 +728,16 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
-              <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="h-9 text-sm" />
+              <Input type="number" step="0.01" min="0" placeholder={medianPrice ? `~${Math.round(medianPrice.median)}` : "180.00"} value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="h-9 text-sm" />
+              {medianPrice && (
+                <button
+                  type="button"
+                  onClick={() => setGlobalTargetPrice(String(Math.round(medianPrice.median)))}
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Mediane membres : {formatCurrency(medianPrice.median)} ({medianPrice.saleCount} ventes)
+                </button>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -649,24 +755,21 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Fournisseur</Label>
-            {suppliers.length > 0 ? (
-              <div className="space-y-1.5">
-                <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
-                    ))}
-                    <SelectItem value="__other__">Autre</SelectItem>
-                  </SelectContent>
-                </Select>
-                {showCustomSupplier && (
-                  <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
-                )}
-              </div>
-            ) : (
-              <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
-            )}
+            <div className="space-y-1.5">
+              <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                <SelectContent>
+                  {localSuppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
+                  ))}
+                  <SelectItem value="__other__">Autre</SelectItem>
+                  <SelectItem value="__add_new__">+ Nouveau fournisseur</SelectItem>
+                </SelectContent>
+              </Select>
+              {showCustomSupplier && (
+                <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Notes</Label>
@@ -679,6 +782,8 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             <><Plus className="h-4 w-4 mr-2" />Ajouter au stock ({Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0)} article{Array.from(selectedSizes.values()).reduce((sum, v) => sum + v.quantity, 0) > 1 ? "s" : ""})</>
           )}
         </Button>
+
+        {addSupplierDialog}
       </div>
     );
   }
@@ -771,24 +876,21 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
 
       <div className="space-y-1.5">
         <Label>Fournisseur</Label>
-        {suppliers.length > 0 ? (
-          <div className="space-y-1.5">
-            <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
-              <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
-              <SelectContent>
-                {suppliers.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
-                ))}
-                <SelectItem value="__other__">Autre</SelectItem>
-              </SelectContent>
-            </Select>
-            {showCustomSupplier && (
-              <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
-            )}
-          </div>
-        ) : (
-          <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
-        )}
+        <div className="space-y-1.5">
+          <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
+            <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+            <SelectContent>
+              {localSuppliers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
+              ))}
+              <SelectItem value="__other__">Autre</SelectItem>
+              <SelectItem value="__add_new__">+ Nouveau fournisseur</SelectItem>
+            </SelectContent>
+          </Select>
+          {showCustomSupplier && (
+            <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
+          )}
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -801,6 +903,8 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           <><Plus className="h-4 w-4 mr-2" />Ajouter au stock{manualQuantity > 1 ? ` (${manualQuantity} articles)` : ""}</>
         )}
       </Button>
+
+      {addSupplierDialog}
     </div>
   );
 }

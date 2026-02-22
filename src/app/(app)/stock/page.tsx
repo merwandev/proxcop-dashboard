@@ -1,8 +1,10 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getStockProductsGrouped } from "@/lib/queries/products";
+import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
 import { ProductGroupCard } from "@/components/product/product-card";
 import { ProductFilters } from "@/components/product/product-filters";
+import { AdviceBanner } from "@/components/product/advice-banner";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +23,12 @@ export default async function StockPage({ searchParams }: StockPageProps) {
   // Get stock products grouped by parent (excludes fully-sold products)
   const allProducts = await getStockProductsGrouped(session.user.id);
 
+  // Get active advice for user's products
+  const userSkus = allProducts
+    .map((p) => p.sku)
+    .filter((sku): sku is string => sku !== null && sku !== undefined);
+  const advice = await getActiveAdviceForSkus(userSkus);
+
   // Apply category filter
   let filtered = allProducts;
   if (params.category) {
@@ -32,6 +40,21 @@ export default async function StockPage({ searchParams }: StockPageProps) {
 
   return (
     <div className="py-4 space-y-4">
+      {/* Admin advice banners */}
+      {advice.length > 0 && (
+        <div className="space-y-2">
+          {advice.map((a) => (
+            <AdviceBanner
+              key={a.id}
+              title={a.title}
+              message={a.message}
+              severity={a.severity}
+              sku={a.sku}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

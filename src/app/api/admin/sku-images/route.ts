@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth-utils";
 import { upsertSkuImage } from "@/lib/queries/sku-images";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -8,10 +8,8 @@ import { NextRequest, NextResponse } from "next/server";
  * This makes the image available to all users.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id || session.user.role !== "staff") {
-    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
-  }
+  const authResult = await requireStaff();
+  if (authResult instanceof NextResponse) return authResult;
 
   const body = await req.json();
   const sku = (body.sku as string)?.trim().toUpperCase();

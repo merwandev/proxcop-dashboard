@@ -13,7 +13,7 @@ import {
 import { relations } from "drizzle-orm";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["member", "staff", "shop"]);
+export const userRoleEnum = pgEnum("user_role", ["member", "staff", "shop", "dev"]);
 export const categoryEnum = pgEnum("category", ["sneakers", "pokemon", "lego", "random"]);
 export const platformEnum = pgEnum("platform", [
   "stockx", "vinted", "ebay", "laced", "hypeboost", "alias", "other",
@@ -150,6 +150,19 @@ export const stockxProductsCache = pgTable("stockx_products_cache", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Product Advice (admin warnings/recommendations for specific SKUs)
+export const productAdvice = pgTable("product_advice", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sku: text("sku").notNull(),
+  title: text("title").notNull(), // e.g. "Nike Dunk Low Panda"
+  message: text("message").notNull(), // e.g. "Les prix chutent, retournez si possible"
+  severity: text("severity").notNull().default("warning"), // "info" | "warning" | "critical"
+  active: boolean("active").notNull().default(true),
+  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // User SKU Images (private per-user fallback images)
 export const userSkuImages = pgTable("user_sku_images", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -171,6 +184,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   cashbacks: many(cashbacks),
   expenses: many(expenses),
   userSkuImages: many(userSkuImages),
+  createdAdvice: many(productAdvice),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -201,4 +215,8 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
 
 export const userSkuImagesRelations = relations(userSkuImages, ({ one }) => ({
   user: one(users, { fields: [userSkuImages.userId], references: [users.id] }),
+}));
+
+export const productAdviceRelations = relations(productAdvice, ({ one }) => ({
+  creator: one(users, { fields: [productAdvice.createdBy], references: [users.id] }),
 }));

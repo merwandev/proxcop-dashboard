@@ -1,8 +1,10 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getProductWithVariants } from "@/lib/queries/products";
+import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
 import { ProductDetailClient } from "@/components/product/product-detail-client";
+import { AdviceBanner } from "@/components/product/advice-banner";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -18,8 +20,24 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   const product = await getProductWithVariants(id, session.user.id);
   if (!product) notFound();
 
+  // Get advice for this product's SKU
+  const advice = product.sku
+    ? await getActiveAdviceForSkus([product.sku])
+    : [];
+
   return (
     <div className="py-4 space-y-4">
+      {/* Advice banner */}
+      {advice.map((a) => (
+        <AdviceBanner
+          key={a.id}
+          title={a.title}
+          message={a.message}
+          severity={a.severity}
+          sku={a.sku}
+        />
+      ))}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

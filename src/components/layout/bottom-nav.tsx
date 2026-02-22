@@ -20,7 +20,8 @@ interface BottomNavProps {
 
 export function BottomNav({ userRole }: BottomNavProps) {
   const pathname = usePathname();
-  const navItems = userRole === "staff"
+  const isAdmin = userRole === "staff" || userRole === "dev";
+  const navItems = isAdmin
     ? [...baseNavItems, adminNavItem]
     : baseNavItems;
 

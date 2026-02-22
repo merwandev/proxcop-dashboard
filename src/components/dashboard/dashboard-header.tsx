@@ -72,7 +72,8 @@ export function DashboardHeader({ userName }: DashboardHeaderProps) {
   };
 
   const greeting = getGreeting();
-  const firstName = userName?.split(" ")[0] ?? userName;
+  // userName is the discord username — show with @ prefix
+  const displayName = userName ? `@${userName}` : "";
 
   return (
     <div className="flex items-center gap-3">
@@ -87,7 +88,7 @@ export function DashboardHeader({ userName }: DashboardHeaderProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold lg:text-2xl truncate">
-            {greeting} {firstName} 👋
+            {greeting} {displayName} 👋
           </h1>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

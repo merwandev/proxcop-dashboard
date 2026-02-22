@@ -99,6 +99,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.userId = dbUser[0].id;
           token.role = dbUser[0].role;
           token.discordId = discordId;
+          token.discordUsername = dbUser[0].discordUsername;
         }
       }
       return token;
@@ -108,6 +109,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.userId as string;
         session.user.role = token.role as string;
         session.user.discordId = token.discordId as string;
+        session.user.discordUsername = token.discordUsername as string;
       }
       return session;
     },

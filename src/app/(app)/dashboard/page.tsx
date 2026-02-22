@@ -13,6 +13,8 @@ import { TimeBadge } from "@/components/product/time-badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { PendingDealRow } from "@/components/dashboard/pending-deal-row";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { RotateCcw, Receipt, Wallet } from "lucide-react";
+import Link from "next/link";
 
 interface DashboardPageProps {
   searchParams: Promise<{ period?: string }>;
@@ -42,16 +44,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         })()
       : "30j";
 
+  const hasExpenses = kpis.expenses.total > 0;
+
   return (
     <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
       {/* Header with greeting, clock, weather + export */}
       <div className="flex items-center justify-between gap-3">
-        <DashboardHeader userName={session.user.name ?? ""} />
+        <DashboardHeader userName={session.user.discordUsername ?? session.user.name ?? ""} />
         <ChartExport
           kpis={kpis}
           chartData={chartData}
           periodLabel={periodLabel}
-          userName={session.user.name ?? undefined}
+          userName={session.user.discordUsername ?? session.user.name ?? undefined}
         />
       </div>
 
@@ -118,6 +122,54 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   }}
                 />
               ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Expenses summary */}
+        {hasExpenses && (
+          <Card className="p-4 lg:p-5 bg-card border-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                Depenses ({periodLabel})
+              </h3>
+              <Link href="/settings" className="text-[10px] text-primary hover:underline">
+                Gerer
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {/* Recurring expenses */}
+              {kpis.expenses.recurring.map((exp) => (
+                <div key={exp.id} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <RotateCcw className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs truncate">{exp.description}</span>
+                  </div>
+                  <span className="text-xs text-warning font-medium flex-shrink-0">
+                    -{formatCurrency(exp.amount)}/m
+                  </span>
+                </div>
+              ))}
+              {/* Fixed expenses */}
+              {kpis.expenses.fixed.map((exp) => (
+                <div key={exp.id} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Receipt className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs truncate">{exp.description}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-medium flex-shrink-0">
+                    -{formatCurrency(exp.amount)}
+                  </span>
+                </div>
+              ))}
+              {/* Total */}
+              <div className="pt-2 border-t border-border flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Total depenses</span>
+                <span className="text-sm font-bold text-warning">
+                  -{formatCurrency(kpis.expenses.total)}
+                </span>
+              </div>
             </div>
           </Card>
         )}

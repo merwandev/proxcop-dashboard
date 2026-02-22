@@ -109,7 +109,7 @@ export const cashbacks = pgTable("cashbacks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Expenses (Phase 2)
+// Expenses (monthly recurring + one-time fixed)
 export const expenses = pgTable("expenses", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -118,6 +118,7 @@ export const expenses = pgTable("expenses", {
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   date: date("date").notNull(),
   recurring: boolean("recurring").notNull().default(false),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { sales, productVariants, products } from "@/lib/db/schema";
 import { eq, and, gte, desc, sql, ne, lte } from "drizzle-orm";
+import { getTotalExpensesForPeriod, getExpenseSummary } from "./expenses";
 
 function daysAgoDate(days: number): string {
   const d = new Date();
@@ -168,10 +169,21 @@ export async function getDashboardKPIs(userId: string, period = "30j") {
     .orderBy(productVariants.purchaseDate)
     .limit(5);
 
+  // Expenses for current and previous period
+  const [expensesCurrent, expensesPrev, expenseSummary] = await Promise.all([
+    getTotalExpensesForPeriod(userId, from, to),
+    getTotalExpensesForPeriod(userId, prevFrom, from),
+    getExpenseSummary(userId, from, to),
+  ]);
+
   const revenue = Number(revResult[0]?.total ?? 0);
   const revenuePrev = Number(revPrevResult[0]?.total ?? 0);
-  const profit = Number(profitResult[0]?.total ?? 0);
-  const profitPrev = Number(profitPrevResult[0]?.total ?? 0);
+  const rawProfit = Number(profitResult[0]?.total ?? 0);
+  const rawProfitPrev = Number(profitPrevResult[0]?.total ?? 0);
+
+  // Net profit = sales profit - expenses
+  const profit = rawProfit - expensesCurrent.total;
+  const profitPrev = rawProfitPrev - expensesPrev.total;
 
   return {
     revenue,
@@ -186,6 +198,24 @@ export async function getDashboardKPIs(userId: string, period = "30j") {
     },
     rotation: Math.round(Number(rotation[0]?.avgDays ?? 0)),
     cashImmobilized: Number(stockStats[0]?.purchaseValue ?? 0),
+    expenses: {
+      total: expensesCurrent.total,
+      fixedTotal: expensesCurrent.fixedTotal,
+      recurringTotal: expensesCurrent.recurringTotal,
+      recurring: expenseSummary.recurring.map((e) => ({
+        id: e.id,
+        description: e.description,
+        amount: Number(e.amount),
+        category: e.category,
+      })),
+      fixed: expenseSummary.fixed.map((e) => ({
+        id: e.id,
+        description: e.description,
+        amount: Number(e.amount),
+        category: e.category,
+        date: e.date,
+      })),
+    },
     top5: top5.map((t) => ({
       name: t.productName,
       image: t.productImage,

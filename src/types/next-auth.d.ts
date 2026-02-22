@@ -6,6 +6,7 @@ declare module "next-auth" {
       id: string;
       role: string;
       discordId: string;
+      discordUsername: string;
       name?: string | null;
       email?: string | null;
       image?: string | null;
@@ -18,5 +19,6 @@ declare module "next-auth/jwt" {
     userId?: string;
     role?: string;
     discordId?: string;
+    discordUsername?: string;
   }
 }

@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sales, productVariants, products } from "@/lib/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { sales, productVariants, products, users } from "@/lib/db/schema";
+import { eq, desc, sql, and } from "drizzle-orm";
 
 export async function getSalesByUser(userId: string) {
   return db
@@ -84,7 +84,11 @@ export async function getSalesBySku(sku: string) {
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .innerJoin(products, eq(productVariants.productId, products.id))
-    .where(sql`upper(${products.sku}) = upper(${sku})`)
+    .innerJoin(users, eq(sales.userId, users.id))
+    .where(and(
+      sql`upper(${products.sku}) = upper(${sku})`,
+      eq(users.communityOptIn, true),
+    ))
     .orderBy(sales.saleDate);
 
   return result.map((r) => ({
@@ -116,6 +120,8 @@ export async function getCommunitySales(limit = 50) {
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .innerJoin(products, eq(productVariants.productId, products.id))
+    .innerJoin(users, eq(sales.userId, users.id))
+    .where(eq(users.communityOptIn, true))
     .orderBy(desc(sales.saleDate), desc(sales.createdAt))
     .limit(limit);
 }

@@ -86,3 +86,22 @@ export async function saveTaxSettings(userId: string, enabled: boolean, rate: nu
     .set({ tvaEnabled: enabled, tvaRate: rate.toFixed(2), updatedAt: new Date() })
     .where(eq(users.id, userId));
 }
+
+// ─── Community Opt-In ───────────────────────────────────────────────
+
+export async function getCommunityOptIn(userId: string): Promise<boolean> {
+  const result = await db
+    .select({ communityOptIn: users.communityOptIn })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return result[0]?.communityOptIn ?? true;
+}
+
+export async function saveCommunityOptIn(userId: string, optIn: boolean) {
+  await db
+    .update(users)
+    .set({ communityOptIn: optIn, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}

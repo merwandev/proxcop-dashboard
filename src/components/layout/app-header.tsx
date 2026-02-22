@@ -10,8 +10,9 @@ export async function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 glass border-b border-border">
-      <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between h-14 px-4 lg:px-8 max-w-lg lg:max-w-6xl mx-auto">
+        {/* Mobile: logo + name / Desktop: empty spacer (logo in sidebar) */}
+        <div className="flex items-center gap-2 lg:hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
@@ -22,10 +23,12 @@ export async function AppHeader() {
           />
           <span className="font-semibold text-sm">ProxStock</span>
         </div>
+        <div className="hidden lg:block" />
+
         <div className="flex items-center gap-3">
           <Link
             href="/settings"
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors lg:hidden"
             title="Parametres"
           >
             <Settings className="h-4.5 w-4.5" />

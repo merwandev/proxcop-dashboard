@@ -164,7 +164,6 @@ export function SupplierSettings({ suppliers: initialSuppliers }: SupplierSettin
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 className="h-9 text-sm"
-                autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();

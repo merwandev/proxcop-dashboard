@@ -31,11 +31,11 @@ export default async function StockPage() {
   );
 
   return (
-    <div className="py-4 space-y-4">
+    <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Stock</h1>
+          <h1 className="text-xl font-bold lg:text-2xl">Stock</h1>
           <p className="text-sm text-muted-foreground">
             {allProducts.length} produit{allProducts.length !== 1 ? "s" : ""}{" "}
             &middot; {totalInStock} unité{totalInStock !== 1 ? "s" : ""}

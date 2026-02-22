@@ -479,7 +479,6 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
               value={newSupplierName}
               onChange={(e) => setNewSupplierName(e.target.value)}
               className="h-9 text-sm"
-              autoFocus
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddNewSupplier(); } }}
             />
           </div>

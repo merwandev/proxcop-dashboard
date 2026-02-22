@@ -19,8 +19,8 @@ export default async function StatsPage() {
     stats.stockEvolution.length > 0;
 
   return (
-    <div className="py-4 space-y-4">
-      <h1 className="text-xl font-bold">Analytics</h1>
+    <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
+      <h1 className="text-xl font-bold lg:text-2xl">Analytics</h1>
 
       {/* KPI summary */}
       <div className="grid grid-cols-2 gap-2">

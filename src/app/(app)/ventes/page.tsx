@@ -51,11 +51,11 @@ export default async function VentesPage() {
   }));
 
   return (
-    <div className="py-4 space-y-4">
+    <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Ventes</h1>
+          <h1 className="text-xl font-bold lg:text-2xl">Ventes</h1>
           <p className="text-sm text-muted-foreground">
             {salesData.length} vente{salesData.length !== 1 ? "s" : ""}
           </p>

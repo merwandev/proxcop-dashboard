@@ -486,10 +486,10 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
         </p>
       )}
 
-      {/* Product list */}
-      <div className="space-y-3">
+      {/* Product list — stack on mobile, 2-col grid on desktop */}
+      <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
         {filtered.length === 0 ? (
-          <p className="text-center py-12 text-sm text-muted-foreground">
+          <p className="text-center py-12 text-sm text-muted-foreground lg:col-span-2">
             {products.length === 0
               ? "Aucun produit en stock"
               : "Aucun resultat"}

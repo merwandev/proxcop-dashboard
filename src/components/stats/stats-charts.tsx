@@ -123,7 +123,7 @@ export function StatsCharts({
   };
 
   return (
-    <>
+    <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
       {/* ── Profit par categorie (funnel / cone chart) ── */}
       {roiByCategory.length > 0 && (
         <Card className="p-4 bg-card border-border">
@@ -418,6 +418,6 @@ export function StatsCharts({
           </ResponsiveContainer>
         </Card>
       )}
-    </>
+    </div>
   );
 }

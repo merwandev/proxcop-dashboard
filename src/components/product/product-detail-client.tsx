@@ -73,6 +73,12 @@ interface MedianPrice {
   saleCount: number;
 }
 
+interface Supplier {
+  id: string;
+  name: string;
+  returnDays: string | null;
+}
+
 interface ProductDetailClientProps {
   product: {
     id: string;
@@ -86,9 +92,10 @@ interface ProductDetailClientProps {
     variants: ProductVariant[];
   };
   medianPrices?: Record<string, MedianPrice>;
+  suppliers?: Supplier[];
 }
 
-export function ProductDetailClient({ product, medianPrices }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, medianPrices, suppliers = [] }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -253,6 +260,7 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
                 key={variant.id}
                 variant={variant}
                 medianPrice={medianPrices?.[sizeKey] ?? null}
+                suppliers={suppliers}
               />
             );
           })}
@@ -289,6 +297,7 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
                   variant={variant}
                   soldView
                   medianPrice={medianPrices?.[sizeKey] ?? null}
+                  suppliers={suppliers}
                 />
               );
             })}
@@ -317,10 +326,12 @@ function VariantCard({
   variant,
   soldView = false,
   medianPrice = null,
+  suppliers = [],
 }: {
   variant: ProductVariant;
   soldView?: boolean;
   medianPrice?: MedianPrice | null;
+  suppliers?: Supplier[];
 }) {
   const returnStatus = !soldView ? getReturnDeadlineStatus(variant.returnDeadline) : null;
 
@@ -399,7 +410,7 @@ function VariantCard({
         {/* Actions */}
         {!soldView && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            <EditVariantDialog variant={variant} medianPrice={medianPrice} />
+            <EditVariantDialog variant={variant} medianPrice={medianPrice} suppliers={suppliers} />
             {variant.status !== "vendu" && (
               <SaleDialog variantId={variant.id} />
             )}
@@ -598,7 +609,7 @@ function AddVariantDialog({ productId }: { productId: string }) {
 
 // --- Edit Variant Dialog ---
 
-function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVariant; medianPrice?: MedianPrice | null }) {
+function EditVariantDialog({ variant, medianPrice = null, suppliers = [] }: { variant: ProductVariant; medianPrice?: MedianPrice | null; suppliers?: Supplier[] }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [listedOn, setListedOn] = useState<string[]>(variant.listedOn ?? []);
@@ -635,7 +646,7 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
         status: form.get("status") as string,
         storageLocation: (form.get("storageLocation") as string) || undefined,
         returnDeadline: (form.get("returnDeadline") as string) || undefined,
-        supplierName: (form.get("supplierName") as string) || undefined,
+        supplierName: ((form.get("supplierName") as string) === "__none__" ? undefined : (form.get("supplierName") as string)) || undefined,
         listedOn,
       });
       toast.success("Variant modifie");
@@ -757,13 +768,20 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
           </div>
           {/* Supplier */}
           <div className="space-y-1.5">
-            <Label htmlFor="ev-supplier">Fournisseur</Label>
-            <Input
-              id="ev-supplier"
-              name="supplierName"
-              placeholder="Nom du fournisseur"
-              defaultValue={variant.supplierName ?? ""}
-            />
+            <Label>Fournisseur</Label>
+            <Select name="supplierName" defaultValue={variant.supplierName ?? ""}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Aucun</SelectItem>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.name}>
+                    {s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {/* Listed on platforms */}
           <div className="space-y-1.5">

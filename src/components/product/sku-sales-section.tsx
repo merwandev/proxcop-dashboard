@@ -7,7 +7,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
   ComposedChart,
 } from "recharts";
 import { Card } from "@/components/ui/card";
@@ -18,8 +17,6 @@ import { PLATFORMS } from "@/lib/utils/constants";
 interface SkuSale {
   saleId: string;
   salePrice: number;
-  purchasePrice: number;
-  profit: number;
   saleDate: string;
   platform: string | null;
   sizeVariant: string | null;
@@ -42,8 +39,15 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
   // KPIs
   const totalSales = sales.length;
   const lastSale = sales[sales.length - 1];
-  const totalProfit = sales.reduce((s, sale) => s + sale.profit, 0);
-  const profitColor = totalProfit >= 0 ? "#4ADE80" : "#F87171";
+
+  // Median sale price
+  const sortedPrices = [...sales].map((s) => s.salePrice).sort((a, b) => a - b);
+  const medianPrice =
+    sortedPrices.length > 0
+      ? sortedPrices.length % 2 === 1
+        ? sortedPrices[Math.floor(sortedPrices.length / 2)]
+        : (sortedPrices[sortedPrices.length / 2 - 1] + sortedPrices[sortedPrices.length / 2]) / 2
+      : 0;
 
   // Most used platform
   const platformCounts: Record<string, number> = {};
@@ -56,16 +60,16 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
     ? PLATFORMS.find((p) => p.value === topPlatform[0])?.label ?? topPlatform[0]
     : "N/A";
 
-  // Build per-sale profit chart data
+  // Build per-sale price chart data (sale prices over time)
   const chartData = sales.map((sale) => ({
     label: formatDateShort(sale.saleDate),
-    profit: Math.round(sale.profit * 100) / 100,
+    price: Math.round(sale.salePrice * 100) / 100,
   }));
 
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-medium text-muted-foreground px-1">
-        Ventes du SKU ({totalSales})
+        Ventes membres — {sku} ({totalSales})
       </h3>
 
       {/* KPI cards */}
@@ -81,20 +85,20 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
           sub={topPlatform ? `${topPlatform[1]} ventes` : undefined}
         />
         <KpiCard
-          label="Profit total"
-          value={formatCurrency(totalProfit)}
-          trend={totalProfit >= 0 ? "up" : "down"}
+          label="Prix median"
+          value={formatCurrency(medianPrice)}
+          sub={`${totalSales} ventes`}
         />
       </div>
 
-      {/* Per-sale profit chart */}
+      {/* Per-sale price chart */}
       {chartData.length >= 2 && (
         <Card className="p-4 bg-card border-border">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h3 className="text-sm font-medium">Historique des ventes — {sku}</h3>
-              <p className={`text-lg font-bold mt-0.5 ${totalProfit >= 0 ? "text-success" : "text-danger"}`}>
-                {totalProfit >= 0 ? "+" : ""}{formatCurrency(totalProfit)}
+              <h3 className="text-sm font-medium">Prix de vente — {sku}</h3>
+              <p className="text-lg font-bold mt-0.5">
+                {formatCurrency(medianPrice)} <span className="text-sm font-normal text-muted-foreground">median</span>
               </p>
             </div>
             <p className="text-[10px] text-muted-foreground uppercase mt-1">
@@ -105,9 +109,9 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={chartData}>
               <defs>
-                <linearGradient id="skuProfitGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={profitColor} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={profitColor} stopOpacity={0.02} />
+                <linearGradient id="skuPriceGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#C9CEEE" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#C9CEEE" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
@@ -132,18 +136,17 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
                 itemStyle={{ color: "#C9CEEE" }}
                 formatter={(value) => {
                   const v = Number(value ?? 0);
-                  return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, "Profit"];
+                  return [formatCurrency(v), "Prix de vente"];
                 }}
               />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
               <Area
                 type="monotone"
-                dataKey="profit"
-                stroke={profitColor}
+                dataKey="price"
+                stroke="#C9CEEE"
                 strokeWidth={2}
-                fill="url(#skuProfitGradient)"
+                fill="url(#skuPriceGradient)"
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: profitColor }}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
                 connectNulls
               />
             </ComposedChart>
@@ -172,9 +175,6 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm font-medium">{formatCurrency(sale.salePrice)}</p>
-                  <p className={`text-[10px] font-medium ${sale.profit >= 0 ? "text-success" : "text-danger"}`}>
-                    {sale.profit >= 0 ? "+" : ""}{formatCurrency(sale.profit)}
-                  </p>
                 </div>
               </div>
             );

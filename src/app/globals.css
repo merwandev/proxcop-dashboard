@@ -131,3 +131,9 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Remove focus outline on Recharts SVG (accessibility rectangle on click/tap) */
+.recharts-surface:focus,
+.recharts-wrapper:focus {
+  outline: none;
+}

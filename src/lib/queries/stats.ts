@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { sales, productVariants, products } from "@/lib/db/schema";
-import { eq, sql, ne, and, gte } from "drizzle-orm";
+import { eq, sql, ne, and } from "drizzle-orm";
 
 export async function getStatsData(userId: string) {
   // ROI by category (category is on parent product)
@@ -97,9 +97,6 @@ export async function getStatsData(userId: string) {
     .groupBy(products.category);
 
   // Stock evolution over time (purchases +1, sales -1)
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const oneYearAgoStr = oneYearAgo.toISOString().split("T")[0];
 
   // Get all variant purchase dates
   const purchaseEvents = await db
@@ -132,17 +129,15 @@ export async function getStatsData(userId: string) {
     stockSnapshots.push({ date: event.date, stock: runningStock });
   }
 
-  // Sample weekly over the last year
+  // Start from the earliest event (first user activity) instead of fixed 1 year ago
+  const startDate = allEvents.length > 0 ? allEvents[0].date : new Date().toISOString().split("T")[0];
+
+  // Sample weekly from first activity to today
   const stockEvolution: { date: string; stock: number }[] = [];
   const today = new Date();
-  const cursor = new Date(oneYearAgoStr);
+  const cursor = new Date(startDate);
   let snapshotIdx = 0;
-  // Advance to get stock level just before the window
   let currentLevel = 0;
-  while (snapshotIdx < stockSnapshots.length && stockSnapshots[snapshotIdx].date < oneYearAgoStr) {
-    currentLevel = stockSnapshots[snapshotIdx].stock;
-    snapshotIdx++;
-  }
 
   while (cursor <= today) {
     const dateStr = cursor.toISOString().split("T")[0];

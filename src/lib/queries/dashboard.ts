@@ -326,6 +326,16 @@ export async function getProfitChartData(userId: string, period = "30j") {
     }
   }
 
+  // Trim leading empty days (no current or previous activity)
+  // Find the first day with actual data
+  const firstCurrentDay = currentPeriod.length > 0 ? Math.min(...Array.from(currentMap.keys())) : totalDays;
+  const firstPreviousDay = previousPeriod.length > 0 ? Math.min(...Array.from(previousMap.keys())) : totalDays;
+  const firstActiveDay = Math.max(1, Math.min(firstCurrentDay, firstPreviousDay) - 1);
+
+  if (firstActiveDay > 1) {
+    return chartData.slice(firstActiveDay - 1);
+  }
+
   return chartData;
 }
 

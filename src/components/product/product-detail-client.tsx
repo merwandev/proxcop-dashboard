@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface ProductVariant {
   id: string;
@@ -89,10 +90,42 @@ interface ProductDetailClientProps {
 
 export function ProductDetailClient({ product, medianPrices }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
 
-  const inStockVariants = product.variants.filter((v) => v.status !== "vendu");
+  const allInStockVariants = product.variants.filter((v) => v.status !== "vendu");
   const soldVariants = product.variants.filter((v) => v.status === "vendu");
   const categoryLabel = CATEGORIES.find((c) => c.value === product.category)?.label ?? product.category;
+
+  // Get statuses present in in-stock variants
+  const usedStatuses = useMemo(() => {
+    const statusSet = new Set<string>();
+    allInStockVariants.forEach((v) => { if (v.status) statusSet.add(v.status); });
+    return STATUSES.filter((s) => statusSet.has(s.value) && s.value !== "vendu");
+  }, [allInStockVariants]);
+
+  // Get platforms present in in-stock variants
+  const usedPlatforms = useMemo(() => {
+    const platformSet = new Set<string>();
+    allInStockVariants.forEach((v) => {
+      if (v.listedOn) v.listedOn.forEach((p) => platformSet.add(p));
+    });
+    return PLATFORMS.filter((p) => platformSet.has(p.value));
+  }, [allInStockVariants]);
+
+  // Filter in-stock variants
+  const inStockVariants = useMemo(() => {
+    let result = allInStockVariants;
+    if (selectedStatus) {
+      result = result.filter((v) => v.status === selectedStatus);
+    }
+    if (selectedPlatform) {
+      result = result.filter((v) => v.listedOn?.includes(selectedPlatform));
+    }
+    return result;
+  }, [allInStockVariants, selectedStatus, selectedPlatform]);
+
+  const hasFilters = selectedStatus || selectedPlatform;
 
   return (
     <div className="space-y-4">
@@ -128,7 +161,7 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
-              {inStockVariants.length} en stock
+              {allInStockVariants.length} en stock
               {soldVariants.length > 0 && (
                 <span> &middot; {soldVariants.length} vendu{soldVariants.length > 1 ? "s" : ""}</span>
               )}
@@ -146,11 +179,72 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
         </div>
       </Card>
 
+      {/* Variant filters — only show when there are multiple statuses or platforms */}
+      {allInStockVariants.length > 1 && (usedStatuses.length > 1 || usedPlatforms.length > 0) && (
+        <div className="space-y-2">
+          {/* Status filter chips */}
+          {usedStatuses.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              <button
+                onClick={() => setSelectedStatus(null)}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                  !selectedStatus
+                    ? "bg-accent text-accent-foreground border-accent"
+                    : "bg-card border-border text-muted-foreground hover:border-border-hover"
+                )}
+              >
+                Tous
+              </button>
+              {usedStatuses.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() =>
+                    setSelectedStatus(selectedStatus === s.value ? null : s.value)
+                  }
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1",
+                    selectedStatus === s.value
+                      ? "bg-accent text-accent-foreground border-accent"
+                      : "bg-card border-border text-muted-foreground hover:border-border-hover"
+                  )}
+                >
+                  <span className={cn("h-1.5 w-1.5 rounded-full", s.color)} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Platform filter chips */}
+          {usedPlatforms.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {usedPlatforms.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() =>
+                    setSelectedPlatform(selectedPlatform === p.value ? null : p.value)
+                  }
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                    selectedPlatform === p.value
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "bg-card border-border text-muted-foreground hover:border-border-hover"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* In-stock variants */}
       {inStockVariants.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground px-1">
-            En stock ({inStockVariants.length})
+            En stock ({inStockVariants.length}{hasFilters ? ` / ${allInStockVariants.length}` : ""})
           </h3>
           {inStockVariants.map((variant) => {
             const sizeKey = variant.sizeVariant?.toUpperCase() ?? "";
@@ -163,6 +257,13 @@ export function ProductDetailClient({ product, medianPrices }: ProductDetailClie
             );
           })}
         </div>
+      )}
+
+      {/* No results when filtering */}
+      {inStockVariants.length === 0 && hasFilters && (
+        <p className="text-center py-8 text-sm text-muted-foreground">
+          Aucun variant avec ces filtres
+        </p>
       )}
 
       {/* Sold variants */}

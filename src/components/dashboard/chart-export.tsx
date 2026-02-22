@@ -54,16 +54,12 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
       const node = exportRef.current;
       if (!node) return;
 
-      // Make visible for rendering (positioned off-screen)
-      node.style.position = "absolute";
-      node.style.left = "-9999px";
-      node.style.top = "0";
-      node.style.display = "block";
+      // Make visible for rendering (already on-screen with visibility hidden)
       node.style.visibility = "visible";
       node.style.opacity = "1";
 
-      // Wait for Recharts SVG to render
-      await new Promise((r) => setTimeout(r, 500));
+      // Wait for any re-render to settle
+      await new Promise((r) => setTimeout(r, 300));
 
       const dataUrl = await toPng(node, {
         backgroundColor: "#18191E",
@@ -73,11 +69,14 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
         style: {
           transform: "none",
           margin: "0",
+          visibility: "visible",
+          opacity: "1",
         },
       });
 
       // Hide again
-      node.style.display = "none";
+      node.style.visibility = "hidden";
+      node.style.opacity = "0";
 
       const a = document.createElement("a");
       a.href = dataUrl;
@@ -108,15 +107,17 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
       <div
         ref={exportRef}
         style={{
-          display: "none",
           position: "fixed",
-          left: "-9999px",
+          left: 0,
           top: 0,
           width: 430,
           fontFamily: "'Inter', 'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
           background: "#18191E",
           color: "#fff",
           overflow: "hidden",
+          visibility: "hidden",
+          zIndex: -9999,
+          pointerEvents: "none",
         }}
       >
         {/* ── Background decorations ── */}

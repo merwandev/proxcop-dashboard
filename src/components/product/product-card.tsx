@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { TimeBadge } from "./time-badge";
 import { formatCurrency } from "@/lib/utils/format";
-import { Package, AlertTriangle } from "lucide-react";
+import { Package, AlertTriangle, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { CATEGORIES } from "@/lib/utils/constants";
@@ -34,9 +34,10 @@ interface ProductGroupCardProps {
     oldestPurchaseDate: string | null;
     nearestReturnDeadline: string | null;
   };
+  hasAdvice?: boolean;
 }
 
-export function ProductGroupCard({ product }: ProductGroupCardProps) {
+export function ProductGroupCard({ product, hasAdvice }: ProductGroupCardProps) {
   const categoryLabel = CATEGORIES.find((c) => c.value === product.category)?.label ?? product.category;
   const soldCount = product.totalCount - product.inStockCount;
   const returnStatus = getReturnDeadlineStatus(product.nearestReturnDeadline);
@@ -64,7 +65,10 @@ export function ProductGroupCard({ product }: ProductGroupCardProps) {
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-[13px] leading-tight line-clamp-2 flex-1 min-w-0">
+            <h3 className="font-medium text-[13px] leading-tight line-clamp-2 flex-1 min-w-0 flex items-start gap-1">
+              {hasAdvice && (
+                <Info className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+              )}
               {product.name}
             </h3>
             <div className="flex items-center gap-1.5 flex-shrink-0">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Package, Receipt, TrendingUp, Shield } from "lucide-react";
+import { BarChart3, Package, Receipt, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const baseNavItems = [
@@ -12,18 +12,9 @@ const baseNavItems = [
   { href: "/stats", label: "Stats", icon: TrendingUp },
 ];
 
-const adminNavItem = { href: "/admin", label: "Admin", icon: Shield };
-
-interface BottomNavProps {
-  userRole?: string;
-}
-
-export function BottomNav({ userRole }: BottomNavProps) {
+export function BottomNav() {
   const pathname = usePathname();
-  const isAdmin = userRole === "staff" || userRole === "dev";
-  const navItems = isAdmin
-    ? [...baseNavItems, adminNavItem]
-    : baseNavItems;
+  const navItems = baseNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border">

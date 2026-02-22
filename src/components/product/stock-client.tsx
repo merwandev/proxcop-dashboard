@@ -503,7 +503,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                 </button>
               )}
               <div className={cn("flex-1 min-w-0", selectMode && selectedIds.has(product.id) && "opacity-75")}>
-                <ProductGroupCard product={product} />
+                <ProductGroupCard product={product} hasAdvice={!!product.sku && adviceSkus.includes(product.sku.toUpperCase())} />
               </div>
             </div>
           ))

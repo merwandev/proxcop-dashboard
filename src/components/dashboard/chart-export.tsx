@@ -38,15 +38,19 @@ interface ChartExportProps {
   chartData: ChartDataPoint[];
   periodLabel: string;
   userName?: string;
+  taxRate?: number;
 }
 
-export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExportProps) {
+export function ChartExport({ kpis, chartData, periodLabel, userName, taxRate = 0 }: ChartExportProps) {
   const exportRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
 
   const lastCurrent = chartData.filter((d) => d.current !== null).pop();
   const currentTotal = lastCurrent?.current ?? 0;
-  const profitColor = currentTotal >= 0 ? "#4ADE80" : "#F87171";
+  const cotisations = kpis.revenue * taxRate;
+  const profitAfterTax = kpis.profit - cotisations;
+  const displayProfit = taxRate > 0 ? profitAfterTax : kpis.profit;
+  const profitColor = displayProfit >= 0 ? "#4ADE80" : "#F87171";
 
   const handleExport = async () => {
     setExporting(true);
@@ -222,7 +226,7 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
                     lineHeight: 1.1,
                   }}
                 >
-                  {kpis.profit >= 0 ? "+" : ""}{formatCurrency(kpis.profit)}
+                  {displayProfit >= 0 ? "+" : ""}{formatCurrency(displayProfit)}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -237,11 +241,9 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
           </div>
 
           {/* ── KPI grid ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
             <KpiBox label="Ventes" value={kpis.salesCount.toString()} />
-            <KpiBox label="En stock" value={kpis.stock.count.toString()} />
             <KpiBox label="Rotation" value={`${kpis.rotation}j`} />
-            <KpiBox label="Immobilisé" value={formatCurrency(kpis.cashImmobilized)} small />
           </div>
 
           {/* ── Chart ── */}

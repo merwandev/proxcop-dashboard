@@ -62,6 +62,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           chartData={chartData}
           periodLabel={periodLabel}
           userName={session.user.discordUsername ?? session.user.name ?? undefined}
+          taxRate={taxRate}
         />
       </div>
 

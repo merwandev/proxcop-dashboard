@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/auth-utils";
 import { NextResponse } from "next/server";
 
 /**
@@ -8,11 +8,9 @@ import { NextResponse } from "next/server";
  * Visit: /api/stockx/auth → redirects to StockX login
  */
 export async function GET() {
-  // Only allow authenticated users (admin)
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
-  }
+  // Only allow staff users
+  const authResult = await requireStaff();
+  if (authResult instanceof NextResponse) return authResult;
 
   const clientId = process.env.STOCKX_CLIENT_ID;
   const callbackUrl = process.env.STOCKX_FALLBACK_URL;

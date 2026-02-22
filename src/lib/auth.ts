@@ -7,6 +7,8 @@ import { eq } from "drizzle-orm";
 interface DiscordGuild {
   id: string;
   name: string;
+  owner: boolean;
+  permissions: string;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -42,6 +44,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!isInGuild) return false;
 
+        // Check if user is guild owner or has ADMINISTRATOR permission (0x8)
+        const proxcopGuild = guilds.find(
+          (guild) => guild.id === process.env.DISCORD_GUILD_ID
+        )!;
+        const permissions = BigInt(proxcopGuild.permissions);
+        const isAdmin = proxcopGuild.owner || (permissions & BigInt(0x8)) !== BigInt(0);
+        const detectedRole = isAdmin ? "staff" : "member";
+
         // Upsert user in database
         const discordId = profile.id as string;
         const existingUser = await db
@@ -56,6 +66,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             discordUsername: profile.username as string,
             discordAvatar: profile.image_url as string | undefined,
             email: profile.email as string | undefined,
+            role: detectedRole,
           });
         } else {
           await db
@@ -64,6 +75,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               discordUsername: profile.username as string,
               discordAvatar: profile.image_url as string | undefined,
               email: profile.email as string | undefined,
+              role: detectedRole,
               updatedAt: new Date(),
             })
             .where(eq(users.discordId, discordId));

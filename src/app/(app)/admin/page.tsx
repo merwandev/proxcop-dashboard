@@ -1,42 +1,48 @@
 import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { getNotFoundSkuImages } from "@/lib/queries/sku-images";
-import { MissingSkuList } from "@/components/admin/missing-sku-list";
+import { getAllAdvice } from "@/lib/queries/product-advice";
+import { AdminTabs } from "@/components/admin/admin-tabs";
 
 export default async function AdminPage() {
   const session = await auth();
-  if (!session?.user?.id || session.user.role !== "staff") {
+  if (!session?.user?.id || !isAdminRole(session.user.role)) {
     redirect("/dashboard");
   }
 
-  const notFoundSkus = await getNotFoundSkuImages();
+  const [notFoundSkus, adviceItems] = await Promise.all([
+    getNotFoundSkuImages(),
+    getAllAdvice(),
+  ]);
 
   return (
     <div className="py-6 space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Admin — Images SKU</h1>
+        <h1 className="text-xl font-bold">Admin</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          SKUs dont l&apos;image n&apos;a pas pu etre trouvee automatiquement.
-          Vous pouvez ajouter manuellement une image pour chaque SKU.
+          Gestion des images SKU et conseils pour la communaute.
         </p>
       </div>
 
-      {notFoundSkus.length === 0 ? (
-        <div className="rounded-xl bg-secondary p-8 text-center">
-          <p className="text-muted-foreground">
-            Aucun SKU en attente d&apos;image. Tout est a jour !
-          </p>
-        </div>
-      ) : (
-        <MissingSkuList
-          skus={notFoundSkus.map((s) => ({
-            id: s.id,
-            sku: s.sku,
-            stockxProductId: s.stockxProductId,
-            createdAt: s.createdAt.toISOString(),
-          }))}
-        />
-      )}
+      <AdminTabs
+        skus={notFoundSkus.map((s) => ({
+          id: s.id,
+          sku: s.sku,
+          stockxProductId: s.stockxProductId,
+          createdAt: s.createdAt.toISOString(),
+        }))}
+        adviceItems={adviceItems.map((a) => ({
+          id: a.id,
+          sku: a.sku,
+          title: a.title,
+          message: a.message,
+          severity: a.severity,
+          active: a.active,
+          createdAt: a.createdAt.toISOString(),
+          creatorUsername: a.creatorUsername,
+        }))}
+      />
     </div>
   );
 }

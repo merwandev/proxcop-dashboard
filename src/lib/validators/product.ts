@@ -37,7 +37,7 @@ export const updateVariantSchema = z.object({
   purchasePrice: z.coerce.number().min(0, "Le prix doit etre positif"),
   purchaseDate: z.string().min(1, "La date est requise"),
   targetPrice: z.coerce.number().min(0).optional(),
-  status: z.enum(["en_attente", "en_stock", "liste", "reserve", "expedie", "vendu", "en_litige", "return_waiting_rf", "hold"]),
+  status: z.enum(["en_attente", "en_stock", "liste", "reserve", "expedie", "vendu", "en_litige", "return_waiting_rf", "hold", "reship", "consign"]),
   storageLocation: z.string().optional(),
   returnDeadline: z.string().optional(),
   supplierName: z.string().optional(),

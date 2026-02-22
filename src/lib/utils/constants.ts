@@ -31,6 +31,8 @@ export const STATUSES = [
   { value: "en_litige", label: "En litige", color: "bg-danger" },
   { value: "return_waiting_rf", label: "Return / Waiting RF", color: "bg-warning" },
   { value: "hold", label: "Hold", color: "bg-muted-foreground" },
+  { value: "reship", label: "Reship", color: "bg-rose-500" },
+  { value: "consign", label: "Consign", color: "bg-teal-500" },
 ] as const;
 
 export const CASHBACK_STATUSES = [

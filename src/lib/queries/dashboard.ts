@@ -554,6 +554,8 @@ export async function getStatusBreakdown(userId: string) {
     en_litige: "En litige",
     return_waiting_rf: "Retour en cours",
     hold: "En pause",
+    reship: "Reship",
+    consign: "Consign",
   };
 
   return result.map((r) => ({

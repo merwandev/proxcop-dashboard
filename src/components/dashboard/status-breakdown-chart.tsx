@@ -29,6 +29,8 @@ const STATUS_COLORS: Record<string, string> = {
   en_litige: "#F87171",      // danger
   return_waiting_rf: "#FBBF24", // amber
   hold: "#919191",           // gray
+  reship: "#FB7185",         // rose
+  consign: "#2DD4BF",        // teal
 };
 
 const tooltipStyle = {

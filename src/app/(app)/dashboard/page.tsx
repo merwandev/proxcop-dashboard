@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { TimeBadge } from "@/components/product/time-badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { PendingDealRow } from "@/components/dashboard/pending-deal-row";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
 interface DashboardPageProps {
   searchParams: Promise<{ period?: string }>;
@@ -43,20 +44,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   return (
     <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
-      {/* Header with export + period selector */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold lg:text-2xl">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Hey {session.user.name ?? ""}
-          </p>
-        </div>
+      {/* Header with greeting, clock, weather + export */}
+      <div className="flex items-center justify-between gap-3">
+        <DashboardHeader userName={session.user.name ?? ""} />
         <ChartExport
-            kpis={kpis}
-            chartData={chartData}
-            periodLabel={periodLabel}
-            userName={session.user.name ?? undefined}
-          />
+          kpis={kpis}
+          chartData={chartData}
+          periodLabel={periodLabel}
+          userName={session.user.name ?? undefined}
+        />
       </div>
 
       {/* Period selector */}

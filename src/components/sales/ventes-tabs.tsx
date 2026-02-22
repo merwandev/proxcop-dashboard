@@ -52,6 +52,11 @@ export function VentesTabs({ userSales, communitySales }: VentesTabsProps) {
         <TabsTrigger value="me" className="gap-1.5">
           <User className="h-3.5 w-3.5" />
           Mes ventes
+          {userSales.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+              {userSales.length}
+            </span>
+          )}
         </TabsTrigger>
         <TabsTrigger value="community" className="gap-1.5">
           <Users className="h-3.5 w-3.5" />

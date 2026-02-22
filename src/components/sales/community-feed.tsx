@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { PLATFORMS, CATEGORIES } from "@/lib/utils/constants";
-import { CheckCircle2, Package, Search, X } from "lucide-react";
+import { Package, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CommunitySale {
@@ -205,68 +205,70 @@ export function CommunityFeed({ sales }: CommunityFeedProps) {
           Aucun resultat
         </p>
       ) : (
-        filtered.map((sale) => (
-          <Card key={sale.saleId} className="p-3 bg-card border-border">
-            <div className="flex items-start gap-3">
-              {/* Product image */}
-              <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
-                {sale.imageUrl ? (
-                  <Image
-                    src={sale.imageUrl}
-                    alt={sale.productName}
-                    fill
-                    className="object-contain p-0.5"
-                    sizes="40px"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <Package className="h-4 w-4 text-muted-foreground" />
+        <div className="space-y-2">
+          {filtered.map((sale) => (
+            <Card key={sale.saleId} className="p-3 bg-card border-border">
+              <div className="flex gap-3">
+                {/* Product image */}
+                <div className="relative h-14 w-14 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                  {sale.imageUrl ? (
+                    <Image
+                      src={sale.imageUrl}
+                      alt={sale.productName}
+                      fill
+                      className="object-contain p-1"
+                      sizes="56px"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <Package className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-[13px] leading-tight line-clamp-2">
+                        {sale.productName}
+                        {sale.sizeVariant && (
+                          <span className="text-muted-foreground font-normal">
+                            {" "}&mdash; {sale.sizeVariant}
+                          </span>
+                        )}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDate(sale.saleDate)}
+                        </span>
+                        {sale.platform && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-border capitalize"
+                          >
+                            {sale.platform}
+                          </Badge>
+                        )}
+                        {sale.sku && (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {sale.sku}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Price */}
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold">
+                        {formatCurrency(Number(sale.salePrice))}
+                      </p>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-medium text-sm truncate">
-                    {sale.productName}
-                    {sale.sizeVariant && (
-                      <span className="text-muted-foreground font-normal">
-                        {" "}&mdash; {sale.sizeVariant}
-                      </span>
-                    )}
-                  </h3>
-                  <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-muted-foreground">
-                    {formatDate(sale.saleDate)}
-                  </span>
-                  {sale.platform && (
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] border-border capitalize"
-                    >
-                      {sale.platform}
-                    </Badge>
-                  )}
-                  {sale.sku && (
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      {sale.sku}
-                    </span>
-                  )}
                 </div>
               </div>
-
-              {/* Price */}
-              <div className="text-right flex-shrink-0">
-                <p className="text-sm font-bold">
-                  {formatCurrency(Number(sale.salePrice))}
-                </p>
-              </div>
-            </div>
-          </Card>
-        ))
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );

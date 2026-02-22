@@ -111,7 +111,7 @@ function ReturnDeadlinePicker({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn("h-9 text-sm", isCustom && "border-primary")}
+        className={cn("h-9 text-sm max-w-full", isCustom && "border-primary")}
       />
     </div>
   );
@@ -119,7 +119,13 @@ function ReturnDeadlinePicker({
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function ProductForm() {
+interface SupplierOption {
+  id: string;
+  name: string;
+  returnDays: string | null;
+}
+
+export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>("search");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,6 +164,28 @@ export function ProductForm() {
   const [manualQuantity, setManualQuantity] = useState(1);
   const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
   const [manualUploading, setManualUploading] = useState(false);
+
+  // Supplier select state
+  const [selectedSupplierId, setSelectedSupplierId] = useState("");
+  const [showCustomSupplier, setShowCustomSupplier] = useState(false);
+
+  // Handler: supplier change → auto-fill return deadline + name
+  const handleSupplierChange = (value: string) => {
+    setSelectedSupplierId(value);
+    if (value === "__other__") {
+      setShowCustomSupplier(true);
+      setGlobalSupplierName("");
+      return;
+    }
+    setShowCustomSupplier(false);
+    const supplier = suppliers.find((s) => s.id === value);
+    if (supplier) {
+      setGlobalSupplierName(supplier.name);
+      if (supplier.returnDays) {
+        setGlobalReturnDeadline(addDays(Number(supplier.returnDays)));
+      }
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -597,9 +625,9 @@ export function ProductForm() {
         <div className="space-y-3 pt-2 border-t border-border">
           <Label className="text-sm font-semibold">Infos globales</Label>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
-              <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="h-9 text-sm" />
+              <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="h-9 text-sm max-w-full" />
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
@@ -614,14 +642,31 @@ export function ProductForm() {
                 <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Date retour</Label>
               <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
             </div>
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Fournisseur</Label>
-            <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
+            {suppliers.length > 0 ? (
+              <div className="space-y-1.5">
+                <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
+                    ))}
+                    <SelectItem value="__other__">Autre</SelectItem>
+                  </SelectContent>
+                </Select>
+                {showCustomSupplier && (
+                  <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
+                )}
+              </div>
+            ) : (
+              <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
+            )}
           </div>
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Notes</Label>
@@ -700,25 +745,25 @@ export function ProductForm() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <Label>Date d&apos;achat *</Label>
-          <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} />
+          <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="max-w-full" />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <Label>Prix cible</Label>
-          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} />
+          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="max-w-full" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <Label>Stockage</Label>
           <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
             <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
             <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 min-w-0">
           <Label>Date retour</Label>
           <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
         </div>
@@ -726,7 +771,24 @@ export function ProductForm() {
 
       <div className="space-y-1.5">
         <Label>Fournisseur</Label>
-        <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
+        {suppliers.length > 0 ? (
+          <div className="space-y-1.5">
+            <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
+              <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+              <SelectContent>
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}{s.returnDays ? ` (${s.returnDays}j)` : ""}</SelectItem>
+                ))}
+                <SelectItem value="__other__">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+            {showCustomSupplier && (
+              <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
+            )}
+          </div>
+        ) : (
+          <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
+        )}
       </div>
 
       <div className="space-y-1.5">

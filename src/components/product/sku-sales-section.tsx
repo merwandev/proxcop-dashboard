@@ -126,6 +126,7 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
                 width={50}
               />
               <Tooltip
+                cursor={false}
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
                 itemStyle={{ color: "#C9CEEE" }}

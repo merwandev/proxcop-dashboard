@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { UserMenu } from "./logout-button";
-import { Shield } from "lucide-react";
+import { Shield, Settings } from "lucide-react";
 import Link from "next/link";
 
 export async function AppHeader() {
@@ -23,6 +23,13 @@ export async function AppHeader() {
           <span className="font-semibold text-sm">ProxStock</span>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/settings"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Parametres"
+          >
+            <Settings className="h-4.5 w-4.5" />
+          </Link>
           {admin && (
             <Link
               href="/admin"

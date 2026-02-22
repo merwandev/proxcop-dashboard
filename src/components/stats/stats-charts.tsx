@@ -144,6 +144,7 @@ export function StatsCharts({
               <ResponsiveContainer width="100%" height={200}>
                 <FunnelChart>
                   <Tooltip
+                    cursor={false}
                     contentStyle={tooltipStyle}
                     itemStyle={{ color: "#C9CEEE" }}
                     formatter={(value) => [
@@ -231,6 +232,7 @@ export function StatsCharts({
                 width={35}
               />
               <Tooltip
+                cursor={false}
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
                 itemStyle={{ color: "#C9CEEE" }}
@@ -358,6 +360,7 @@ export function StatsCharts({
                     ))}
                   </Pie>
                   <Tooltip
+                    cursor={false}
                     contentStyle={tooltipStyle}
                     itemStyle={{ color: "#C9CEEE" }}
                     formatter={(value) => [
@@ -405,6 +408,7 @@ export function StatsCharts({
                 axisLine={false}
               />
               <Tooltip
+                cursor={false}
                 contentStyle={tooltipStyle}
                 itemStyle={{ color: "#C9CEEE" }}
                 formatter={(value) => [`${Number(value ?? 0)} ventes`]}

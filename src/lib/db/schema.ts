@@ -190,6 +190,15 @@ export const appConfig = pgTable("app_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Suppliers (per-user, with optional return days)
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  returnDays: text("return_days"), // "14", "30", or null (no return)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Relations ──────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -200,6 +209,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   expenses: many(expenses),
   userSkuImages: many(userSkuImages),
   createdAdvice: many(productAdvice),
+  suppliers: many(suppliers),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -234,4 +244,8 @@ export const userSkuImagesRelations = relations(userSkuImages, ({ one }) => ({
 
 export const productAdviceRelations = relations(productAdvice, ({ one }) => ({
   creator: one(users, { fields: [productAdvice.createdBy], references: [users.id] }),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ one }) => ({
+  user: one(users, { fields: [suppliers.userId], references: [users.id] }),
 }));

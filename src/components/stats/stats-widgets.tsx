@@ -5,6 +5,7 @@ import { SortableWidgetList } from "@/components/dashboard/sortable-widget-list"
 import { WidgetPicker } from "@/components/dashboard/widget-picker";
 import { STATS_WIDGETS } from "@/lib/utils/widget-registry";
 import { saveStatsLayoutAction } from "@/lib/actions/preferences-actions";
+import { type WidgetSize } from "@/lib/queries/user-preferences";
 import { Card } from "@/components/ui/card";
 import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { BarChart3, PieChart as PieChartIcon } from "lucide-react";
@@ -30,6 +31,7 @@ import type { ReactNode } from "react";
 
 interface StatsWidgetsProps {
   activeWidgets: string[];
+  widgetSizes: Record<string, WidgetSize>;
   roiByCategory: { category: string; profit: number; roi: number; count: number }[];
   roiByPlatform: { platform: string; profit: number; roi: number; count: number }[];
   stockByCategory: { category: string; count: number; value: number }[];
@@ -50,6 +52,7 @@ const tooltipStyle = {
 
 export function StatsWidgets({
   activeWidgets,
+  widgetSizes,
   roiByCategory,
   roiByPlatform,
   stockByCategory,
@@ -433,6 +436,7 @@ export function StatsWidgets({
         <WidgetPicker
           availableWidgets={STATS_WIDGETS}
           activeWidgets={activeWidgets}
+          widgetSizes={widgetSizes}
           onSave={saveStatsLayoutAction}
         />
       </div>
@@ -440,6 +444,7 @@ export function StatsWidgets({
       {/* Sortable widget list */}
       <SortableWidgetList
         widgetIds={activeWidgets}
+        widgetSizes={widgetSizes}
         renderWidget={renderWidget}
         onReorder={saveStatsLayoutAction}
       />

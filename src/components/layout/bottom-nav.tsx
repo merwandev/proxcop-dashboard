@@ -12,7 +12,11 @@ const baseNavItems = [
   { href: "/stats", label: "Stats", icon: TrendingUp },
 ];
 
-export function BottomNav() {
+interface BottomNavProps {
+  hasStockNotification?: boolean;
+}
+
+export function BottomNav({ hasStockNotification }: BottomNavProps) {
   const pathname = usePathname();
   const navItems = baseNavItems;
 
@@ -21,6 +25,7 @@ export function BottomNav() {
       <div className="flex items-center justify-around h-16 pb-[env(safe-area-inset-bottom)] max-w-lg mx-auto">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
+          const showDot = item.href === "/stock" && hasStockNotification;
           return (
             <Link
               key={item.href}
@@ -32,7 +37,12 @@ export function BottomNav() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <div className="relative">
+                <item.icon className="h-5 w-5" />
+                {showDot && (
+                  <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-blue-400 ring-2 ring-background" />
+                )}
+              </div>
               <span className="text-[10px] font-medium">{item.label}</span>
             </Link>
           );

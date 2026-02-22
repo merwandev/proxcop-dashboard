@@ -48,7 +48,8 @@ export default async function StatsPage() {
         </Card>
       ) : (
         <StatsWidgets
-          activeWidgets={statsLayout}
+          activeWidgets={statsLayout.widgets}
+          widgetSizes={statsLayout.sizes}
           roiByCategory={stats.roiByCategory}
           roiByPlatform={stats.roiByPlatform}
           stockByCategory={stats.stockByCategory}

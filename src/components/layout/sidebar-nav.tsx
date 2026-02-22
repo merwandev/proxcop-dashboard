@@ -16,7 +16,11 @@ const bottomItems = [
   { href: "/settings", label: "Parametres", icon: Settings },
 ];
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  hasStockNotification?: boolean;
+}
+
+export function SidebarNav({ hasStockNotification }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
@@ -38,6 +42,7 @@ export function SidebarNav() {
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
+          const showDot = item.href === "/stock" && hasStockNotification;
           return (
             <Link
               key={item.href}
@@ -49,7 +54,12 @@ export function SidebarNav() {
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
               )}
             >
-              <item.icon className="h-[18px] w-[18px] flex-shrink-0" />
+              <div className="relative flex-shrink-0">
+                <item.icon className="h-[18px] w-[18px]" />
+                {showDot && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-blue-400 ring-2 ring-card" />
+                )}
+              </div>
               {item.label}
             </Link>
           );

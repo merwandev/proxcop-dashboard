@@ -13,12 +13,14 @@ import { TimeBadge } from "@/components/product/time-badge";
 import { formatCurrency } from "@/lib/utils/format";
 import { DASHBOARD_WIDGETS } from "@/lib/utils/widget-registry";
 import { saveDashboardLayoutAction } from "@/lib/actions/preferences-actions";
+import { type WidgetSize } from "@/lib/queries/user-preferences";
 import { RotateCcw, Receipt, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface DashboardWidgetsProps {
   activeWidgets: string[];
+  widgetSizes: Record<string, WidgetSize>;
   periodLabel: string;
   // Data for each widget
   chartData: {
@@ -67,6 +69,7 @@ interface DashboardWidgetsProps {
 
 export function DashboardWidgets({
   activeWidgets,
+  widgetSizes,
   periodLabel,
   chartData,
   expensesChartData,
@@ -238,6 +241,7 @@ export function DashboardWidgets({
         <WidgetPicker
           availableWidgets={DASHBOARD_WIDGETS}
           activeWidgets={activeWidgets}
+          widgetSizes={widgetSizes}
           onSave={saveDashboardLayoutAction}
         />
       </div>
@@ -245,6 +249,7 @@ export function DashboardWidgets({
       {/* Sortable widgets */}
       <SortableWidgetList
         widgetIds={activeWidgets}
+        widgetSizes={widgetSizes}
         renderWidget={renderWidget}
         onReorder={saveDashboardLayoutAction}
       />

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { productAdvice, users } from "@/lib/db/schema";
-import { eq, desc, and, inArray, sql } from "drizzle-orm";
+import { productAdvice, users, products } from "@/lib/db/schema";
+import { eq, desc, and, inArray, sql, ne } from "drizzle-orm";
 
 /**
  * Get all advice entries (staff only — admin panel).
@@ -127,4 +127,37 @@ export async function markAdviceAsRead(adviceId: string, userId: string) {
     .returning();
 
   return updated;
+}
+
+/**
+ * Check if a user has unread active advice for any of their products.
+ * Returns true if there's at least one active advice not read by this user.
+ */
+export async function hasUnreadAdvice(userId: string): Promise<boolean> {
+  // Get user's product SKUs (distinct, non-null)
+  const userSkus = await db
+    .select({ sku: sql<string>`upper(${products.sku})` })
+    .from(products)
+    .where(and(eq(products.userId, userId), sql`${products.sku} is not null`))
+    .groupBy(products.sku);
+
+  if (userSkus.length === 0) return false;
+
+  const skuList = userSkus.map((s) => s.sku).filter(Boolean);
+  if (skuList.length === 0) return false;
+
+  // Check for active advice on those SKUs where user is NOT in readBy
+  const unread = await db
+    .select({ id: productAdvice.id })
+    .from(productAdvice)
+    .where(
+      and(
+        eq(productAdvice.active, true),
+        inArray(productAdvice.sku, skuList),
+        sql`NOT (${productAdvice.readBy}::jsonb @> to_jsonb(${userId}::text))`
+      )
+    )
+    .limit(1);
+
+  return unread.length > 0;
 }

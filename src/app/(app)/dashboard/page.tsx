@@ -93,7 +93,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
       {/* Customizable widgets area */}
       <DashboardWidgets
-        activeWidgets={dashboardLayout}
+        activeWidgets={dashboardLayout.widgets}
+        widgetSizes={dashboardLayout.sizes}
         periodLabel={periodLabel}
         chartData={chartData}
         expensesChartData={expensesChartData}

@@ -78,14 +78,18 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
     return CATEGORIES.filter((c) => cats.has(c.value));
   }, [products]);
 
-  // Get statuses that actually exist in products
+  // Get statuses that actually exist in products + count variants per status
   const usedStatuses = useMemo(() => {
-    const statusSet = new Set<string>();
+    const statusCount = new Map<string, number>();
     products.forEach((p) => {
       const statuses = p.variantStatuses ?? [];
-      statuses.forEach((s) => { if (s) statusSet.add(s); });
+      statuses.forEach((s) => {
+        if (s) statusCount.set(s, (statusCount.get(s) ?? 0) + 1);
+      });
     });
-    return STATUSES.filter((s) => statusSet.has(s.value) && s.value !== "vendu");
+    return STATUSES
+      .filter((s) => statusCount.has(s.value) && s.value !== "vendu")
+      .map((s) => ({ ...s, count: statusCount.get(s.value) ?? 0 }));
   }, [products]);
 
   // Filter products
@@ -409,6 +413,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                 >
                   <span className={cn("h-1.5 w-1.5 rounded-full", s.color)} />
                   {s.label}
+                  <span className="text-[10px] opacity-60">{s.count}</span>
                 </button>
               ))}
             </div>

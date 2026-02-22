@@ -58,8 +58,8 @@ type WizardStep = "search" | "sizes" | "manual";
 
 // ─── Return Deadline Picker ─────────────────────────────────────────
 
-function addDays(days: number): string {
-  const d = new Date();
+function addDays(days: number, from?: string): string {
+  const d = from ? new Date(from + "T00:00:00") : new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 }
@@ -67,12 +67,14 @@ function addDays(days: number): string {
 function ReturnDeadlinePicker({
   value,
   onChange,
+  baseDate,
 }: {
   value: string;
   onChange: (v: string) => void;
+  baseDate?: string;
 }) {
-  const is14 = value === addDays(14);
-  const is30 = value === addDays(30);
+  const is14 = value === addDays(14, baseDate);
+  const is30 = value === addDays(30, baseDate);
   const isCustom = value && !is14 && !is30;
 
   return (
@@ -80,7 +82,7 @@ function ReturnDeadlinePicker({
       <div className="flex gap-1">
         <button
           type="button"
-          onClick={() => onChange(addDays(14))}
+          onClick={() => onChange(addDays(14, baseDate))}
           className={cn(
             "text-[11px] px-2.5 py-1 rounded-md border transition-colors",
             is14
@@ -92,7 +94,7 @@ function ReturnDeadlinePicker({
         </button>
         <button
           type="button"
-          onClick={() => onChange(addDays(30))}
+          onClick={() => onChange(addDays(30, baseDate))}
           className={cn(
             "text-[11px] px-2.5 py-1 rounded-md border transition-colors",
             is30
@@ -155,11 +157,8 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
   const [selectedSizes, setSelectedSizes] = useState<Map<string, SelectedVariant>>(new Map());
   const [globalPurchaseDate, setGlobalPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
   const [globalTargetPrice, setGlobalTargetPrice] = useState("");
-  const [globalReturnDeadline, setGlobalReturnDeadline] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().split("T")[0];
-  });
+  const [returnDaysOffset, setReturnDaysOffset] = useState<number | null>(14);
+  const [globalReturnDeadline, setGlobalReturnDeadline] = useState(() => addDays(14));
   const [globalStorageLocation, setGlobalStorageLocation] = useState("home");
   const [globalSupplierName, setGlobalSupplierName] = useState("");
   const [notes, setNotes] = useState("");
@@ -202,7 +201,34 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     if (supplier) {
       setGlobalSupplierName(supplier.name);
       if (supplier.returnDays) {
-        setGlobalReturnDeadline(addDays(Number(supplier.returnDays)));
+        const days = Number(supplier.returnDays);
+        setReturnDaysOffset(days);
+        setGlobalReturnDeadline(addDays(days, globalPurchaseDate));
+      }
+    }
+  };
+
+  // Handler: purchase date change → recalculate return deadline
+  const handlePurchaseDateChange = (newDate: string) => {
+    setGlobalPurchaseDate(newDate);
+    if (returnDaysOffset !== null && newDate) {
+      setGlobalReturnDeadline(addDays(returnDaysOffset, newDate));
+    }
+  };
+
+  // Handler: return deadline change → track offset
+  const handleReturnDeadlineChange = (newDeadline: string) => {
+    setGlobalReturnDeadline(newDeadline);
+    if (!newDeadline) {
+      setReturnDaysOffset(null);
+    } else if (globalPurchaseDate) {
+      const base = new Date(globalPurchaseDate + "T00:00:00");
+      const target = new Date(newDeadline + "T00:00:00");
+      const diff = Math.round((target.getTime() - base.getTime()) / 86400000);
+      if (diff === 14 || diff === 30) {
+        setReturnDaysOffset(diff);
+      } else {
+        setReturnDaysOffset(null);
       }
     }
   };
@@ -221,7 +247,9 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       setShowCustomSupplier(false);
       setGlobalSupplierName(supplier.name);
       if (supplier.returnDays) {
-        setGlobalReturnDeadline(addDays(Number(supplier.returnDays)));
+        const days = Number(supplier.returnDays);
+        setReturnDaysOffset(days);
+        setGlobalReturnDeadline(addDays(days, globalPurchaseDate));
       }
       setShowAddSupplierDialog(false);
       setNewSupplierName("");
@@ -723,7 +751,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
-              <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="h-9 text-sm max-w-full" />
+              <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm max-w-full" />
             </div>
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
@@ -749,7 +777,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             </div>
             <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Date retour</Label>
-              <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
+              <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
             </div>
           </div>
           <div className="space-y-1">
@@ -882,7 +910,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5 min-w-0">
           <Label>Date d&apos;achat *</Label>
-          <Input type="date" value={globalPurchaseDate} onChange={(e) => setGlobalPurchaseDate(e.target.value)} className="max-w-full" />
+          <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="max-w-full" />
         </div>
         <div className="space-y-1.5 min-w-0">
           <Label>Prix cible</Label>
@@ -900,7 +928,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
         </div>
         <div className="space-y-1.5 min-w-0">
           <Label>Date retour</Label>
-          <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
+          <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
         </div>
       </div>
 

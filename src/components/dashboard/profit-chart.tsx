@@ -21,6 +21,7 @@ interface ChartDataPoint {
   current: number | null;
   previous: number | null;
   projection: number | null;
+  cumRevenue: number | null;
 }
 
 interface ProfitChartProps {
@@ -40,16 +41,30 @@ export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitCh
     );
   }
 
+  // Compute after-tax data if taxRate > 0
+  const hasTax = taxRate > 0;
+  const chartData = hasTax
+    ? data.map((d) => ({
+        ...d,
+        afterTax:
+          d.current !== null && d.cumRevenue !== null
+            ? Math.round((d.current - d.cumRevenue * taxRate) * 100) / 100
+            : null,
+      }))
+    : data.map((d) => ({ ...d, afterTax: null as number | null }));
+
   // Get last known current value for display
-  const lastCurrent = data.filter((d) => d.current !== null).pop();
-  const lastPrevious = data[data.length - 1];
+  const lastCurrent = chartData.filter((d) => d.current !== null).pop();
+  const lastPrevious = chartData[chartData.length - 1];
   const currentTotal = lastCurrent?.current ?? 0;
+  const afterTaxTotal = lastCurrent?.afterTax ?? 0;
   const previousTotal = lastPrevious?.previous ?? 0;
-  const projectionEnd = data.filter((d) => d.projection !== null).pop();
+  const projectionEnd = chartData.filter((d) => d.projection !== null).pop();
   const projectedTotal = projectionEnd?.projection ?? currentTotal;
 
   // Determine color based on current profit
   const profitColor = currentTotal >= 0 ? "#4ADE80" : "#F87171";
+  const afterTaxColor = "#FB923C"; // warning/orange for after-tax line
 
   return (
     <Card className="p-4 bg-card border-border h-full" id="profit-chart">
@@ -57,11 +72,15 @@ export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitCh
         <div>
           <h3 className="text-sm font-medium">
             Profit cumulé ({periodLabel})
-            {taxRate > 0 && <span className="text-[10px] text-muted-foreground font-normal ml-1">avant cotis.</span>}
           </h3>
           <p className={`text-lg font-bold mt-0.5 ${currentTotal >= 0 ? "text-success" : "text-danger"}`}>
             {currentTotal >= 0 ? "+" : ""}{formatCurrency(currentTotal)}
           </p>
+          {hasTax && (
+            <p className="text-xs mt-0.5" style={{ color: afterTaxColor }}>
+              Après cotis: {afterTaxTotal >= 0 ? "+" : ""}{formatCurrency(afterTaxTotal)}
+            </p>
+          )}
         </div>
         {projectionEnd && (
           <div className="text-right">
@@ -74,12 +93,18 @@ export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitCh
       </div>
 
       <ResponsiveContainer width="100%" height={200}>
-        <ComposedChart data={data}>
+        <ComposedChart data={chartData}>
           <defs>
             <linearGradient id="currentGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={profitColor} stopOpacity={0.3} />
               <stop offset="95%" stopColor={profitColor} stopOpacity={0.02} />
             </linearGradient>
+            {hasTax && (
+              <linearGradient id="afterTaxGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={afterTaxColor} stopOpacity={0.2} />
+                <stop offset="95%" stopColor={afterTaxColor} stopOpacity={0.02} />
+              </linearGradient>
+            )}
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
@@ -116,10 +141,12 @@ export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitCh
               if (value === null || value === undefined) return ["", ""];
               const label =
                 name === "current"
-                  ? "Période actuelle"
-                  : name === "previous"
-                    ? "Période précédente"
-                    : "Projection";
+                  ? "Profit brut"
+                  : name === "afterTax"
+                    ? "Après cotis."
+                    : name === "previous"
+                      ? "Période précédente"
+                      : "Projection";
               return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, label];
             }}
           />
@@ -161,15 +188,35 @@ export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitCh
             activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: profitColor }}
             connectNulls
           />
+
+          {/* After cotisations — orange line */}
+          {hasTax && (
+            <Area
+              type="monotone"
+              dataKey="afterTax"
+              stroke={afterTaxColor}
+              strokeWidth={1.5}
+              fill="url(#afterTaxGradient)"
+              dot={false}
+              activeDot={{ r: 3, strokeWidth: 2, stroke: "#fff", fill: afterTaxColor }}
+              connectNulls
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-2">
+      <div className="flex items-center justify-center gap-4 mt-2 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: profitColor }} />
-          <span className="text-[10px] text-muted-foreground">Période actuelle</span>
+          <span className="text-[10px] text-muted-foreground">Profit brut</span>
         </div>
+        {hasTax && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: afterTaxColor }} />
+            <span className="text-[10px] text-muted-foreground">Après cotis.</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-0.5 rounded-full border-b border-dashed" style={{ borderColor: "rgba(255,255,255,0.3)" }} />
           <span className="text-[10px] text-muted-foreground">Période préc.</span>

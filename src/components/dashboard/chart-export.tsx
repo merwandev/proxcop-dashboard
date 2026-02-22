@@ -30,6 +30,7 @@ interface ChartDataPoint {
   current: number | null;
   previous: number | null;
   projection: number | null;
+  cumRevenue: number | null;
 }
 
 interface ChartExportProps {

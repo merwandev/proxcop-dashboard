@@ -30,6 +30,7 @@ interface DashboardWidgetsProps {
     current: number | null;
     previous: number | null;
     projection: number | null;
+    cumRevenue: number | null;
   }[];
   expensesChartData: {
     day: number;

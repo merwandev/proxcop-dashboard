@@ -244,7 +244,7 @@ export async function getProfitChartData(userId: string, period = "30j") {
   prevStartDate.setDate(prevStartDate.getDate() - totalDays);
   const prevPeriodStart = prevStartDate.toISOString().split("T")[0];
 
-  // Get daily profit for current period
+  // Get daily profit + revenue for current period
   const currentPeriod = await db
     .select({
       day: sql<string>`${sales.saleDate}`,
@@ -255,6 +255,7 @@ export async function getProfitChartData(userId: string, period = "30j") {
         - coalesce(cast(${sales.shippingCost} as decimal), 0)
         - coalesce(cast(${sales.otherFees} as decimal), 0)
       ), 0)`,
+      revenue: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)`,
     })
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
@@ -262,7 +263,7 @@ export async function getProfitChartData(userId: string, period = "30j") {
     .groupBy(sales.saleDate)
     .orderBy(sales.saleDate);
 
-  // Get daily profit for previous period
+  // Get daily profit + revenue for previous period
   const previousPeriod = await db
     .select({
       day: sql<string>`${sales.saleDate}`,
@@ -273,6 +274,7 @@ export async function getProfitChartData(userId: string, period = "30j") {
         - coalesce(cast(${sales.shippingCost} as decimal), 0)
         - coalesce(cast(${sales.otherFees} as decimal), 0)
       ), 0)`,
+      revenue: sql<number>`coalesce(sum(cast(${sales.salePrice} as decimal)), 0)`,
     })
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
@@ -286,12 +288,12 @@ export async function getProfitChartData(userId: string, period = "30j") {
     .groupBy(sales.saleDate)
     .orderBy(sales.saleDate);
 
-  // Build day-indexed maps
-  const currentMap = new Map<number, number>();
+  // Build day-indexed maps (profit + revenue)
+  const currentMap = new Map<number, { profit: number; revenue: number }>();
   for (const row of currentPeriod) {
     const d = new Date(row.day);
     const dayNum = Math.floor((d.getTime() - periodStartDate.getTime()) / 86400000) + 1;
-    currentMap.set(dayNum, Number(row.profit));
+    currentMap.set(dayNum, { profit: Number(row.profit), revenue: Number(row.revenue) });
   }
 
   const previousMap = new Map<number, number>();
@@ -315,16 +317,20 @@ export async function getProfitChartData(userId: string, period = "30j") {
     current: number | null;
     previous: number | null;
     projection: number | null;
+    cumRevenue: number | null;
   }[] = [];
 
   let cumCurrent = 0;
   let cumPrevious = 0;
+  let cumRevenue = 0;
 
   // For long periods (> 60 days), sample every N days for labels
   const labelInterval = totalDays > 90 ? 7 : totalDays > 60 ? 3 : 1;
 
   for (let d = 1; d <= totalDays; d++) {
-    cumCurrent += currentMap.get(d) ?? 0;
+    const dayData = currentMap.get(d);
+    cumCurrent += dayData?.profit ?? 0;
+    cumRevenue += dayData?.revenue ?? 0;
     cumPrevious += previousMap.get(d) ?? 0;
 
     // Date label
@@ -340,6 +346,7 @@ export async function getProfitChartData(userId: string, period = "30j") {
       current: d <= elapsedDays ? Math.round(cumCurrent * 100) / 100 : null,
       previous: Math.round(cumPrevious * 100) / 100,
       projection: null,
+      cumRevenue: d <= elapsedDays ? Math.round(cumRevenue * 100) / 100 : null,
     });
   }
 

@@ -42,7 +42,7 @@ export default async function StockPage() {
           </p>
         </div>
         <Link href="/stock/add">
-          <Button size="sm" className="gap-1.5">
+          <Button size="sm" className="gap-1.5 hover:bg-background hover:text-primary hover:border hover:border-primary/50">
             <Plus className="h-3.5 w-3.5" />
             Ajouter
           </Button>

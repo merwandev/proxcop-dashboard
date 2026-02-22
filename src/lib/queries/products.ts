@@ -14,7 +14,7 @@ export async function getStockProductsGrouped(userId: string) {
     .select({
       id: sql<string>`min(${products.id}::text)`,
       name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
-      sku: products.sku,
+      sku: sql<string | null>`max(${products.sku})`,
       category: sql<string>`(array_agg(${products.category}::text order by ${products.createdAt} desc))[1]`,
       imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
       createdAt: sql<Date>`max(${products.createdAt})`,

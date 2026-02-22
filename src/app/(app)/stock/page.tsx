@@ -18,7 +18,11 @@ export default async function StockPage() {
     .map((p) => p.sku)
     .filter((sku): sku is string => sku !== null && sku !== undefined);
   const advice = await getActiveAdviceForSkus(userSkus);
-  const adviceSkus = advice.map((a) => a.sku.toUpperCase());
+  // Only include advice that the user hasn't dismissed/read
+  const unreadAdvice = advice.filter(
+    (a) => !(a.readBy ?? []).includes(session.user.id)
+  );
+  const adviceSkus = unreadAdvice.map((a) => a.sku.toUpperCase());
 
   // Count total variants in stock
   const totalInStock = allProducts.reduce(

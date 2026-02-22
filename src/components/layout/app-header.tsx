@@ -22,7 +22,7 @@ export async function AppHeader() {
           />
           <span className="font-semibold text-sm">ProxStock</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {admin && (
             <Link
               href="/admin"

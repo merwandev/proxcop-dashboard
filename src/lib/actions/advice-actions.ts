@@ -6,6 +6,7 @@ import {
   createAdvice,
   toggleAdviceActive,
   deleteAdvice,
+  markAdviceAsRead,
 } from "@/lib/queries/product-advice";
 import { revalidatePath } from "next/cache";
 
@@ -63,5 +64,18 @@ export async function deleteAdviceAction(adviceId: string) {
   await deleteAdvice(adviceId);
 
   revalidatePath("/admin");
+  revalidatePath("/stock");
+}
+
+/**
+ * Dismiss an advice for the current user (mark as read).
+ * Any authenticated user can dismiss — no admin required.
+ */
+export async function dismissAdviceAction(adviceId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  await markAdviceAsRead(adviceId, session.user.id);
+
   revalidatePath("/stock");
 }

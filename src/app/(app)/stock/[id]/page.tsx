@@ -6,7 +6,7 @@ import { getMedianSalePricesBatch, getSalesBySku } from "@/lib/queries/sales";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
 import { ProductDetailClient } from "@/components/product/product-detail-client";
 import { SkuSalesSection } from "@/components/product/sku-sales-section";
-import { AdviceBanner } from "@/components/product/advice-banner";
+import { AdviceSection } from "@/components/product/advice-section";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -31,16 +31,8 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
 
   return (
     <div className="py-4 space-y-4">
-      {/* Advice banner */}
-      {advice.map((a) => (
-        <AdviceBanner
-          key={a.id}
-          title={a.title}
-          message={a.message}
-          severity={a.severity}
-          sku={a.sku}
-        />
-      ))}
+      {/* Advice banners with dismiss */}
+      <AdviceSection advice={advice} userId={session.user.id} />
 
       {/* Header */}
       <div className="flex items-center justify-between gap-2">

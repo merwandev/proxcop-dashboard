@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { productAdvice, users } from "@/lib/db/schema";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 
 /**
  * Get all advice entries (staff only — admin panel).
@@ -38,6 +38,7 @@ export async function getActiveAdviceForSkus(skus: string[]) {
       title: productAdvice.title,
       message: productAdvice.message,
       severity: productAdvice.severity,
+      readBy: productAdvice.readBy,
       createdAt: productAdvice.createdAt,
     })
     .from(productAdvice)
@@ -98,4 +99,32 @@ export async function toggleAdviceActive(adviceId: string) {
  */
 export async function deleteAdvice(adviceId: string) {
   await db.delete(productAdvice).where(eq(productAdvice.id, adviceId));
+}
+
+/**
+ * Mark an advice as read by a specific user.
+ * Uses jsonb append to add userId to readBy array if not already present.
+ */
+export async function markAdviceAsRead(adviceId: string, userId: string) {
+  const [existing] = await db
+    .select({ readBy: productAdvice.readBy })
+    .from(productAdvice)
+    .where(eq(productAdvice.id, adviceId))
+    .limit(1);
+
+  if (!existing) return null;
+
+  const currentReadBy = (existing.readBy ?? []) as string[];
+  if (currentReadBy.includes(userId)) return existing;
+
+  const [updated] = await db
+    .update(productAdvice)
+    .set({
+      readBy: [...currentReadBy, userId],
+      updatedAt: new Date(),
+    })
+    .where(eq(productAdvice.id, adviceId))
+    .returning();
+
+  return updated;
 }

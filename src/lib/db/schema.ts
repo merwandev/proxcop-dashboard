@@ -164,6 +164,7 @@ export const productAdvice = pgTable("product_advice", {
   message: text("message").notNull(), // e.g. "Les prix chutent, retournez si possible"
   severity: text("severity").notNull().default("warning"), // "info" | "warning" | "critical"
   active: boolean("active").notNull().default(true),
+  readBy: jsonb("read_by").$type<string[]>().default([]),
   createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

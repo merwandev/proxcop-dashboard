@@ -1,10 +1,14 @@
-import { AlertTriangle, Info, AlertOctagon } from "lucide-react";
+"use client";
+
+import { AlertTriangle, Info, AlertOctagon, X } from "lucide-react";
 
 interface AdviceBannerProps {
+  id?: string;
   title: string;
   message: string;
   severity: string;
   sku: string;
+  onDismiss?: (id: string) => void;
 }
 
 const severityConfig: Record<
@@ -31,7 +35,7 @@ const severityConfig: Record<
   },
 };
 
-export function AdviceBanner({ title, message, severity, sku }: AdviceBannerProps) {
+export function AdviceBanner({ id, title, message, severity, sku, onDismiss }: AdviceBannerProps) {
   const config = severityConfig[severity] ?? severityConfig.warning;
   const Icon = config.icon;
 
@@ -52,6 +56,14 @@ export function AdviceBanner({ title, message, severity, sku }: AdviceBannerProp
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{message}</p>
         </div>
+        {onDismiss && id && (
+          <button
+            onClick={() => onDismiss(id)}
+            className="flex-shrink-0 p-0.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );

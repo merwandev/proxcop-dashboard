@@ -46,9 +46,58 @@ interface StockProduct {
   variantStatuses: string[];
 }
 
+interface MergedStockProduct extends StockProduct {
+  /** All product IDs grouped under this SKU (for bulk actions) */
+  allProductIds: string[];
+}
+
 interface StockClientProps {
   products: StockProduct[];
   adviceSkus: string[];
+}
+
+/** Merge products that share the same non-null SKU */
+function mergeProductsBySku(products: StockProduct[]): MergedStockProduct[] {
+  const skuMap = new Map<string, MergedStockProduct>();
+  const result: MergedStockProduct[] = [];
+
+  for (const p of products) {
+    if (!p.sku) {
+      // No SKU → keep as-is
+      result.push({ ...p, allProductIds: [p.id] });
+      continue;
+    }
+
+    const key = p.sku.toUpperCase();
+    const existing = skuMap.get(key);
+    if (existing) {
+      // Merge into existing
+      existing.allProductIds.push(p.id);
+      existing.inStockCount += p.inStockCount;
+      existing.totalCount += p.totalCount;
+      existing.totalValue += Number(p.totalValue);
+      // Keep earliest purchase date
+      if (p.oldestPurchaseDate && (!existing.oldestPurchaseDate || p.oldestPurchaseDate < existing.oldestPurchaseDate)) {
+        existing.oldestPurchaseDate = p.oldestPurchaseDate;
+      }
+      // Keep nearest return deadline
+      if (p.nearestReturnDeadline && (!existing.nearestReturnDeadline || p.nearestReturnDeadline < existing.nearestReturnDeadline)) {
+        existing.nearestReturnDeadline = p.nearestReturnDeadline;
+      }
+      existing.hasUnlistedVariants = existing.hasUnlistedVariants || p.hasUnlistedVariants;
+      // Merge statuses (unique)
+      const statusSet = new Set([...existing.variantStatuses, ...p.variantStatuses]);
+      existing.variantStatuses = Array.from(statusSet);
+      // Keep best image (prefer non-null)
+      if (!existing.imageUrl && p.imageUrl) existing.imageUrl = p.imageUrl;
+    } else {
+      const merged: MergedStockProduct = { ...p, totalValue: Number(p.totalValue), allProductIds: [p.id] };
+      skuMap.set(key, merged);
+      result.push(merged);
+    }
+  }
+
+  return result;
 }
 
 export function StockClient({ products, adviceSkus }: StockClientProps) {
@@ -70,26 +119,29 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
   const [showListingDialog, setShowListingDialog] = useState(false);
   const [listingLoading, setListingLoading] = useState<string | null>(null);
 
+  // Merge products with same SKU
+  const mergedProducts = useMemo(() => mergeProductsBySku(products), [products]);
+
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
     const cats = new Set<string>();
-    products.forEach((p) => cats.add(p.category));
+    mergedProducts.forEach((p) => cats.add(p.category));
     return CATEGORIES.filter((c) => cats.has(c.value));
-  }, [products]);
+  }, [mergedProducts]);
 
   // Get statuses that actually exist in products
   const usedStatuses = useMemo(() => {
     const statusSet = new Set<string>();
-    products.forEach((p) => {
+    mergedProducts.forEach((p) => {
       const statuses = p.variantStatuses ?? [];
       statuses.forEach((s) => { if (s) statusSet.add(s); });
     });
     return STATUSES.filter((s) => statusSet.has(s.value) && s.value !== "vendu");
-  }, [products]);
+  }, [mergedProducts]);
 
   // Filter products
   const filtered = useMemo(() => {
-    let result = products.filter((p) => {
+    let result = mergedProducts.filter((p) => {
       if (search) {
         const q = search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
@@ -113,7 +165,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       });
     }
     return result;
-  }, [products, search, selectedCategory, showUnlisted, showWithAdvice, selectedStatus, sortOldest, adviceSkus]);
+  }, [mergedProducts, search, selectedCategory, showUnlisted, showWithAdvice, selectedStatus, sortOldest, adviceSkus]);
 
   const totalInStock = filtered.reduce(
     (sum, p) => sum + Number(p.inStockCount),
@@ -142,11 +194,23 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
     setSelectedIds(new Set());
   };
 
+  /** Expand selected merged IDs to all underlying product IDs */
+  const expandSelectedIds = () => {
+    const allIds: string[] = [];
+    for (const mp of filtered) {
+      if (selectedIds.has(mp.id)) {
+        allIds.push(...mp.allProductIds);
+      }
+    }
+    return allIds;
+  };
+
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     setDeleting(true);
     try {
-      await deleteProducts(Array.from(selectedIds));
+      const allIds = expandSelectedIds();
+      await deleteProducts(allIds);
       toast.success(`${selectedIds.size} produit${selectedIds.size > 1 ? "s" : ""} supprime${selectedIds.size > 1 ? "s" : ""}`);
       setShowDeleteConfirm(false);
       exitSelectMode();
@@ -162,9 +226,10 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
     if (selectedIds.size === 0) return;
     setListingLoading(platform);
     try {
-      await bulkListProducts(Array.from(selectedIds), platform);
+      const allIds = expandSelectedIds();
+      await bulkListProducts(allIds, platform);
       const label = PLATFORMS.find((p) => p.value === platform)?.label ?? platform;
-      toast.success(`Publie sur ${label}`);
+      toast.success(`Marque comme publie sur ${label}`);
       setShowListingDialog(false);
       exitSelectMode();
       router.refresh();
@@ -179,7 +244,8 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
     if (selectedIds.size === 0) return;
     setWtsLoading(true);
     try {
-      const productsData = await getProductsWithSizes(Array.from(selectedIds));
+      const allIds = expandSelectedIds();
+      const productsData = await getProductsWithSizes(allIds);
 
       let msg = "WTS\n";
       for (const product of productsData) {
@@ -323,7 +389,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           <div className="flex items-center justify-between gap-2">
             <div />
             <div className="flex items-center gap-1">
-              {products.length > 0 && (
+              {mergedProducts.length > 0 && (
                 <>
                   <Button
                     variant="ghost"
@@ -449,7 +515,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                   : "bg-card border-border text-muted-foreground hover:border-border-hover"
               )}
             >
-              Non publie
+              Non marque
             </button>
             {adviceSkus.length > 0 && (
               <button
@@ -482,28 +548,32 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <p className="text-center py-12 text-sm text-muted-foreground">
-            {products.length === 0
+            {mergedProducts.length === 0
               ? "Aucun produit en stock"
               : "Aucun resultat"}
           </p>
         ) : (
           filtered.map((product) => (
-            <div key={product.id} className="flex items-center gap-2">
+            <div
+              key={product.id}
+              className={cn("flex items-center gap-2", selectMode && "cursor-pointer")}
+              onClick={selectMode ? () => toggleSelect(product.id) : undefined}
+            >
               {selectMode && (
-                <button
-                  type="button"
-                  onClick={() => toggleSelect(product.id)}
-                  className="flex-shrink-0 p-1"
-                >
+                <div className="flex-shrink-0 p-1">
                   {selectedIds.has(product.id) ? (
                     <CheckSquare className="h-5 w-5 text-primary" />
                   ) : (
                     <Square className="h-5 w-5 text-muted-foreground" />
                   )}
-                </button>
+                </div>
               )}
               <div className={cn("flex-1 min-w-0", selectMode && selectedIds.has(product.id) && "opacity-75")}>
-                <ProductGroupCard product={product} hasAdvice={!!product.sku && adviceSkus.includes(product.sku.toUpperCase())} />
+                <ProductGroupCard
+                  product={product}
+                  hasAdvice={!!product.sku && adviceSkus.includes(product.sku.toUpperCase())}
+                  disableLink={selectMode}
+                />
               </div>
             </div>
           ))
@@ -549,7 +619,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Globe className="h-4 w-4" />
-              Publier sur...
+              Marquer comme publie sur...
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-wrap gap-2">

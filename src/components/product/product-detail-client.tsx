@@ -767,7 +767,7 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
           </div>
           {/* Listed on platforms */}
           <div className="space-y-1.5">
-            <Label>Publie sur</Label>
+            <Label>Marque comme publie sur</Label>
             <div className="flex flex-wrap gap-1.5">
               {listingPlatforms.map((p) => {
                 const isActive = listedOn.includes(p.value);

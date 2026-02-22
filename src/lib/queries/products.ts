@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { products, productVariants, sales, cashbacks } from "@/lib/db/schema";
-import { eq, and, desc, sql, ne } from "drizzle-orm";
+import { eq, and, desc, sql, ne, inArray } from "drizzle-orm";
 
 /**
  * Get all product parents grouped with variant counts for stock page.
@@ -65,6 +65,7 @@ export async function getProductsByUser(userId: string) {
 
 /**
  * Get a single parent product with all its variants.
+ * If the product has a SKU, also includes variants from other products with the same SKU.
  */
 export async function getProductWithVariants(productId: string, userId: string) {
   const product = await db
@@ -75,11 +76,28 @@ export async function getProductWithVariants(productId: string, userId: string) 
 
   if (!product[0]) return null;
 
-  const variants = await db
-    .select()
-    .from(productVariants)
-    .where(eq(productVariants.productId, productId))
-    .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
+  let variants;
+  if (product[0].sku) {
+    // Find all product IDs with the same SKU for this user
+    const sameSkuProducts = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(and(eq(products.userId, userId), eq(products.sku, product[0].sku)));
+
+    const productIds = sameSkuProducts.map((p) => p.id);
+
+    variants = await db
+      .select()
+      .from(productVariants)
+      .where(inArray(productVariants.productId, productIds))
+      .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
+  } else {
+    variants = await db
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.productId, productId))
+      .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
+  }
 
   return {
     ...product[0],

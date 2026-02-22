@@ -12,7 +12,7 @@ import { eq, and, desc, sql, ne, inArray } from "drizzle-orm";
 export async function getStockProductsGrouped(userId: string) {
   const result = await db
     .select({
-      id: sql<string>`min(${products.id})`,
+      id: sql<string>`min(${products.id}::text)`,
       name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
       sku: products.sku,
       category: sql<string>`(array_agg(${products.category}::text order by ${products.createdAt} desc))[1]`,

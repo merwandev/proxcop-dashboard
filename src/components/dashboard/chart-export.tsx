@@ -100,7 +100,7 @@ export function ChartExport({ kpis, chartData, periodLabel, userName }: ChartExp
     <>
       <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport} disabled={exporting}>
         {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-        Export
+        Imprimer success
       </Button>
 
       {/* Hidden export container — premium branded layout */}

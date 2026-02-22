@@ -22,6 +22,7 @@ interface DashboardWidgetsProps {
   activeWidgets: string[];
   widgetSizes: Record<string, WidgetSize>;
   periodLabel: string;
+  taxRate?: number;
   // Data for each widget
   chartData: {
     day: number;
@@ -71,6 +72,7 @@ export function DashboardWidgets({
   activeWidgets,
   widgetSizes,
   periodLabel,
+  taxRate = 0,
   chartData,
   expensesChartData,
   statusBreakdown,
@@ -82,7 +84,7 @@ export function DashboardWidgets({
   const renderWidget = (id: string): ReactNode => {
     switch (id) {
       case "profit-chart":
-        return <ProfitChart data={chartData} periodLabel={periodLabel} />;
+        return <ProfitChart data={chartData} periodLabel={periodLabel} taxRate={taxRate} />;
 
       case "expenses-chart":
         return <ExpensesChart data={expensesChartData} periodLabel={periodLabel} />;

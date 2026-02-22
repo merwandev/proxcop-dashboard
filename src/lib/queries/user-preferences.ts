@@ -59,3 +59,30 @@ export async function saveStatsLayout(userId: string, widgets: string[], sizes: 
     .set({ statsLayout: { widgets, sizes }, updatedAt: new Date() })
     .where(eq(users.id, userId));
 }
+
+// ─── Tax Settings ───────────────────────────────────────────────────
+
+export interface TaxSettings {
+  tvaEnabled: boolean;
+  tvaRate: number;
+}
+
+export async function getTaxSettings(userId: string): Promise<TaxSettings> {
+  const result = await db
+    .select({ tvaEnabled: users.tvaEnabled, tvaRate: users.tvaRate })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return {
+    tvaEnabled: result[0]?.tvaEnabled ?? false,
+    tvaRate: Number(result[0]?.tvaRate ?? 0),
+  };
+}
+
+export async function saveTaxSettings(userId: string, enabled: boolean, rate: number) {
+  await db
+    .update(users)
+    .set({ tvaEnabled: enabled, tvaRate: rate.toFixed(2), updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}

@@ -358,7 +358,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           </div>
 
           {/* Category chips */}
-          {usedCategories.length > 1 && (
+          {usedCategories.length > 0 && (
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => setSelectedCategory(null)}

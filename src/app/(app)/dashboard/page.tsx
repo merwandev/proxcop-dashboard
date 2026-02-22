@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getDashboardKPIs, getProfitChartData, getPendingDeals, getExpensesChartData, getStatusBreakdown } from "@/lib/queries/dashboard";
-import { getDashboardLayout } from "@/lib/queries/user-preferences";
+import { getDashboardLayout, getTaxSettings } from "@/lib/queries/user-preferences";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ChartExport } from "@/components/dashboard/chart-export";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
@@ -21,14 +21,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const period = params.period ?? "30j";
 
-  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout] = await Promise.all([
+  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout, taxSettings] = await Promise.all([
     getDashboardKPIs(session.user.id, period),
     getProfitChartData(session.user.id, period),
     getPendingDeals(session.user.id),
     getExpensesChartData(session.user.id, period),
     getStatusBreakdown(session.user.id),
     getDashboardLayout(session.user.id),
+    getTaxSettings(session.user.id),
   ]);
+
+  // Apply AE cotisations if enabled
+  const taxRate = taxSettings.tvaEnabled ? taxSettings.tvaRate / 100 : 0;
+  const cotisations = kpis.revenue * taxRate;
+  const cotisationsPrev = kpis.revenuePrev * taxRate;
+  const profitAfterTax = kpis.profit - cotisations;
+  const profitPrevAfterTax = kpis.profitPrev - cotisationsPrev;
 
   // Period label for display
   const periodLabel = period === "ytd"
@@ -71,9 +79,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
         <KpiCard
           label={`Profit net (${periodLabel})`}
-          value={formatCurrency(kpis.profit)}
-          trend={kpis.profit >= 0 ? "up" : "down"}
-          sub={kpis.profitPrev !== 0 ? `Prec: ${formatCurrency(kpis.profitPrev)}` : undefined}
+          value={formatCurrency(profitAfterTax)}
+          trend={profitAfterTax >= 0 ? "up" : "down"}
+          sub={
+            taxSettings.tvaEnabled
+              ? `Cotis: -${formatCurrency(cotisations)}${profitPrevAfterTax !== 0 ? ` | Prec: ${formatCurrency(profitPrevAfterTax)}` : ""}`
+              : kpis.profitPrev !== 0 ? `Prec: ${formatCurrency(kpis.profitPrev)}` : undefined
+          }
         />
         <KpiCard
           label="En stock"
@@ -105,6 +117,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           top5: kpis.top5,
           sleeping: kpis.sleeping,
         }}
+        taxRate={taxRate}
       />
     </div>
   );

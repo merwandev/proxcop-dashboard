@@ -26,7 +26,7 @@ export function SidebarNav({ hasStockNotification }: SidebarNavProps) {
   return (
     <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 z-40 w-[220px] flex-col border-r border-border bg-card/50">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border flex-shrink-0">
+      <div className="flex items-center gap-2.5 px-5 h-14 border-b border-border flex-shrink-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"

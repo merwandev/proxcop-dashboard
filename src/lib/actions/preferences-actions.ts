@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { saveDashboardLayout, saveStatsLayout, type WidgetSize } from "@/lib/queries/user-preferences";
+import { saveDashboardLayout, saveStatsLayout, saveTaxSettings, type WidgetSize } from "@/lib/queries/user-preferences";
 import { revalidatePath } from "next/cache";
 
 export async function saveDashboardLayoutAction(widgets: string[], sizes?: Record<string, WidgetSize>) {
@@ -17,5 +17,15 @@ export async function saveStatsLayoutAction(widgets: string[], sizes?: Record<st
   if (!session?.user?.id) throw new Error("Non authentifie");
 
   await saveStatsLayout(session.user.id, widgets, sizes ?? {});
+  revalidatePath("/stats");
+}
+
+export async function saveTaxSettingsAction(enabled: boolean, rate: number) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  await saveTaxSettings(session.user.id, enabled, rate);
+  revalidatePath("/dashboard");
+  revalidatePath("/settings");
   revalidatePath("/stats");
 }

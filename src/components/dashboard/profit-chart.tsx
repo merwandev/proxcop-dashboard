@@ -26,9 +26,10 @@ interface ChartDataPoint {
 interface ProfitChartProps {
   data: ChartDataPoint[];
   periodLabel?: string;
+  taxRate?: number;
 }
 
-export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
+export function ProfitChart({ data, periodLabel = "30j", taxRate = 0 }: ProfitChartProps) {
   if (data.length === 0 || data.every((d) => d.current === null && d.previous === null)) {
     return (
       <Card className="p-4 bg-card border-border h-full">
@@ -54,7 +55,10 @@ export function ProfitChart({ data, periodLabel = "30j" }: ProfitChartProps) {
     <Card className="p-4 bg-card border-border h-full" id="profit-chart">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-sm font-medium">Profit cumulé ({periodLabel})</h3>
+          <h3 className="text-sm font-medium">
+            Profit cumulé ({periodLabel})
+            {taxRate > 0 && <span className="text-[10px] text-muted-foreground font-normal ml-1">avant cotis.</span>}
+          </h3>
           <p className={`text-lg font-bold mt-0.5 ${currentTotal >= 0 ? "text-success" : "text-danger"}`}>
             {currentTotal >= 0 ? "+" : ""}{formatCurrency(currentTotal)}
           </p>

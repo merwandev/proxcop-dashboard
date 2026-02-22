@@ -2,16 +2,19 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserSuppliers } from "@/lib/queries/suppliers";
 import { getUserExpenses } from "@/lib/queries/expenses";
+import { getTaxSettings } from "@/lib/queries/user-preferences";
 import { SupplierSettings } from "@/components/settings/supplier-settings";
 import { ExpenseSettings } from "@/components/settings/expense-settings";
+import { TaxSettings } from "@/components/settings/tax-settings";
 
 export default async function SettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [suppliers, expenses] = await Promise.all([
+  const [suppliers, expenses, taxSettings] = await Promise.all([
     getUserSuppliers(session.user.id),
     getUserExpenses(session.user.id),
+    getTaxSettings(session.user.id),
   ]);
 
   return (
@@ -19,7 +22,10 @@ export default async function SettingsPage() {
       <h1 className="text-xl font-bold lg:text-2xl">Parametres</h1>
 
       <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
-        <SupplierSettings suppliers={suppliers} />
+        <div className="space-y-6">
+          <SupplierSettings suppliers={suppliers} />
+          <TaxSettings tvaEnabled={taxSettings.tvaEnabled} tvaRate={taxSettings.tvaRate} />
+        </div>
         <ExpenseSettings expenses={expenses} />
       </div>
     </div>

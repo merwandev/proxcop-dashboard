@@ -13,7 +13,9 @@ export default async function StatsPage() {
   const stats = await getStatsData(session.user.id);
 
   const hasData =
-    stats.roiByCategory.length > 0 || stats.roiByPlatform.length > 0;
+    stats.roiByCategory.length > 0 ||
+    stats.roiByPlatform.length > 0 ||
+    stats.stockByCategory.length > 0;
 
   return (
     <div className="py-4 space-y-4">
@@ -41,59 +43,65 @@ export default async function StatsPage() {
         </Card>
       ) : (
         <>
-          {/* ROI by category */}
-          <Card className="p-4 bg-card border-border">
-            <h3 className="text-sm font-medium mb-3">ROI par categorie</h3>
-            <div className="space-y-2">
-              {stats.roiByCategory.map((cat) => (
-                <div key={cat.category} className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm capitalize">{cat.category}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      ({cat.count} ventes)
-                    </span>
+          {/* ROI by category — text summary */}
+          {stats.roiByCategory.length > 0 && (
+            <Card className="p-4 bg-card border-border">
+              <h3 className="text-sm font-medium mb-3">ROI par categorie</h3>
+              <div className="space-y-2">
+                {stats.roiByCategory.map((cat) => (
+                  <div key={cat.category} className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm capitalize">{cat.category}</span>
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        ({cat.count} ventes)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-medium ${cat.profit >= 0 ? "text-success" : "text-danger"}`}>
+                        {formatCurrency(cat.profit)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        ROI {formatPercent(cat.roi)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-sm font-medium ${cat.profit >= 0 ? "text-success" : "text-danger"}`}>
-                      {formatCurrency(cat.profit)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      ROI {formatPercent(cat.roi)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          )}
 
-          {/* ROI by platform */}
-          <Card className="p-4 bg-card border-border">
-            <h3 className="text-sm font-medium mb-3">ROI par plateforme</h3>
-            <div className="space-y-2">
-              {stats.roiByPlatform.map((plat) => (
-                <div key={plat.platform} className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm capitalize">{plat.platform}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      ({plat.count} ventes)
-                    </span>
+          {/* ROI by platform — text summary */}
+          {stats.roiByPlatform.length > 0 && (
+            <Card className="p-4 bg-card border-border">
+              <h3 className="text-sm font-medium mb-3">ROI par plateforme</h3>
+              <div className="space-y-2">
+                {stats.roiByPlatform.map((plat) => (
+                  <div key={plat.platform} className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm capitalize">{plat.platform}</span>
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        ({plat.count} ventes)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-sm font-medium ${plat.profit >= 0 ? "text-success" : "text-danger"}`}>
+                        {formatCurrency(plat.profit)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground ml-1.5">
+                        ROI {formatPercent(plat.roi)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-sm font-medium ${plat.profit >= 0 ? "text-success" : "text-danger"}`}>
-                      {formatCurrency(plat.profit)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">
-                      ROI {formatPercent(plat.roi)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Charts (client component) */}
           <StatsCharts
             roiByCategory={stats.roiByCategory}
+            roiByPlatform={stats.roiByPlatform}
+            stockByCategory={stats.stockByCategory}
             marginDistribution={stats.marginDistribution}
           />
         </>

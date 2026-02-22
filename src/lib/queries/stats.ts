@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { sales, productVariants, products } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, ne, and } from "drizzle-orm";
 
 export async function getStatsData(userId: string) {
   // ROI by category (category is on parent product)
@@ -84,6 +84,18 @@ export async function getStatsData(userId: string) {
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .where(eq(sales.userId, userId));
 
+  // Stock by category (variants in stock, not sold)
+  const stockByCategory = await db
+    .select({
+      category: products.category,
+      count: sql<number>`count(*)`,
+      value: sql<number>`coalesce(sum(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")))
+    .groupBy(products.category);
+
   const total = Number(winRateData[0]?.total ?? 0);
   const wins = Number(winRateData[0]?.wins ?? 0);
 
@@ -103,6 +115,11 @@ export async function getStatsData(userId: string) {
       count: Number(r.count),
     })),
     marginDistribution: marginDist.map((m) => Number(m.margin)),
+    stockByCategory: stockByCategory.map((s) => ({
+      category: s.category,
+      count: Number(s.count),
+      value: Number(s.value),
+    })),
     winRate: total > 0 ? (wins / total) * 100 : 0,
     avgMargin: Number(avgMarginData[0]?.avgMargin ?? 0),
   };

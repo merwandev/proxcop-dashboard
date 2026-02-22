@@ -44,6 +44,7 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -62,6 +63,11 @@ interface ProductVariant {
   updatedAt: Date;
 }
 
+interface MedianPrice {
+  median: number;
+  saleCount: number;
+}
+
 interface ProductDetailClientProps {
   product: {
     id: string;
@@ -74,9 +80,10 @@ interface ProductDetailClientProps {
     updatedAt: Date;
     variants: ProductVariant[];
   };
+  medianPrices?: Record<string, MedianPrice>;
 }
 
-export function ProductDetailClient({ product }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, medianPrices }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
 
   const inStockVariants = product.variants.filter((v) => v.status !== "vendu");
@@ -143,9 +150,16 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
           <h3 className="text-sm font-medium text-muted-foreground px-1">
             En stock ({inStockVariants.length})
           </h3>
-          {inStockVariants.map((variant) => (
-            <VariantCard key={variant.id} variant={variant} />
-          ))}
+          {inStockVariants.map((variant) => {
+            const sizeKey = variant.sizeVariant?.toUpperCase() ?? "";
+            return (
+              <VariantCard
+                key={variant.id}
+                variant={variant}
+                medianPrice={medianPrices?.[sizeKey] ?? null}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -164,9 +178,17 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
             )}
           </button>
           {showSold &&
-            soldVariants.map((variant) => (
-              <VariantCard key={variant.id} variant={variant} soldView />
-            ))}
+            soldVariants.map((variant) => {
+              const sizeKey = variant.sizeVariant?.toUpperCase() ?? "";
+              return (
+                <VariantCard
+                  key={variant.id}
+                  variant={variant}
+                  soldView
+                  medianPrice={medianPrices?.[sizeKey] ?? null}
+                />
+              );
+            })}
         </div>
       )}
     </div>
@@ -178,9 +200,11 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
 function VariantCard({
   variant,
   soldView = false,
+  medianPrice = null,
 }: {
   variant: ProductVariant;
   soldView?: boolean;
+  medianPrice?: MedianPrice | null;
 }) {
   return (
     <Card className={`p-3 bg-card border-border ${soldView ? "opacity-60" : ""}`}>
@@ -201,6 +225,15 @@ function VariantCard({
               <span className="flex items-center gap-0.5">
                 <Target className="h-3 w-3" />
                 {formatCurrency(Number(variant.targetPrice))}
+              </span>
+            )}
+            {medianPrice && (
+              <span className="flex items-center gap-0.5 text-blue-400">
+                <TrendingUp className="h-3 w-3" />
+                {formatCurrency(medianPrice.median)}
+                <span className="text-[9px] text-muted-foreground">
+                  ({medianPrice.saleCount})
+                </span>
               </span>
             )}
             {variant.storageLocation && (
@@ -226,7 +259,7 @@ function VariantCard({
         {/* Actions */}
         {!soldView && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            <EditVariantDialog variant={variant} />
+            <EditVariantDialog variant={variant} medianPrice={medianPrice} />
             {variant.status !== "vendu" && (
               <SaleDialog variantId={variant.id} />
             )}
@@ -425,7 +458,7 @@ function AddVariantDialog({ productId }: { productId: string }) {
 
 // --- Edit Variant Dialog ---
 
-function EditVariantDialog({ variant }: { variant: ProductVariant }) {
+function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVariant; medianPrice?: MedianPrice | null }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -512,6 +545,12 @@ function EditVariantDialog({ variant }: { variant: ProductVariant }) {
                 min="0"
                 defaultValue={variant.targetPrice ?? ""}
               />
+              {medianPrice && (
+                <p className="text-[10px] text-blue-400 flex items-center gap-0.5">
+                  <TrendingUp className="h-2.5 w-2.5" />
+                  Median: {formatCurrency(medianPrice.median)} ({medianPrice.saleCount} ventes)
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-1.5">

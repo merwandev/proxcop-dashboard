@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { products, productVariants } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
+import { isAdminRole } from "@/lib/auth-utils";
 import { createProductSchema, updateProductSchema, updateVariantSchema } from "@/lib/validators/product";
 import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -138,6 +139,22 @@ export async function updateProductImage(productId: string, imageUrl: string) {
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);
+}
+
+export async function adminSetProductImage(productId: string, imageUrl: string) {
+  const session = await auth();
+  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+    throw new Error("Acces refuse");
+  }
+
+  await db
+    .update(products)
+    .set({ imageUrl, updatedAt: new Date() })
+    .where(eq(products.id, productId));
+
+  revalidatePath("/stock");
+  revalidatePath(`/stock/${productId}`);
+  revalidatePath("/admin");
 }
 
 export async function deleteProduct(productId: string) {

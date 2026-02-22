@@ -26,7 +26,7 @@ import {
 import { createProductWithVariants } from "@/lib/actions/product-actions";
 import { createSupplierAction } from "@/lib/actions/supplier-actions";
 import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
@@ -802,16 +802,47 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           <div className="relative rounded-xl overflow-hidden bg-secondary">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={manualImageUrl} alt="Produit" className="w-full h-40 object-contain bg-white/5" />
+            <button
+              type="button"
+              onClick={() => setManualImageUrl(null)}
+              className="absolute top-2 right-2 p-1 rounded-full bg-black/60 hover:bg-black/80 transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-white" />
+            </button>
           </div>
         ) : (
-          <label className="cursor-pointer block">
-            <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-6 text-center">
-              {manualUploading ? <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /> : (
-                <><Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" /><p className="text-sm text-muted-foreground">Ajouter une photo</p></>
-              )}
+          <div className="space-y-2">
+            <label className="cursor-pointer block">
+              <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-6 text-center">
+                {manualUploading ? <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /> : (
+                  <><Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" /><p className="text-sm text-muted-foreground">Ajouter une photo</p></>
+                )}
+              </div>
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleManualImageUpload} disabled={manualUploading} />
+            </label>
+            <div className="flex items-center gap-2">
+              <Link2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              <Input
+                placeholder="Ou coller une URL d'image..."
+                className="h-8 text-xs"
+                onBlur={(e) => {
+                  const url = e.target.value.trim();
+                  if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+                    setManualImageUrl(url);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const url = (e.target as HTMLInputElement).value.trim();
+                    if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+                      setManualImageUrl(url);
+                    }
+                  }
+                }}
+              />
             </div>
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleManualImageUpload} disabled={manualUploading} />
-          </label>
+          </div>
         )}
       </div>
 

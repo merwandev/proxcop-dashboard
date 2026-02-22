@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { getProductWithVariants } from "@/lib/queries/products";
 import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
+import { getMedianSalePricesBatch } from "@/lib/queries/sales";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
 import { ProductDetailClient } from "@/components/product/product-detail-client";
 import { AdviceBanner } from "@/components/product/advice-banner";
@@ -20,10 +21,11 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   const product = await getProductWithVariants(id, session.user.id);
   if (!product) notFound();
 
-  // Get advice for this product's SKU
-  const advice = product.sku
-    ? await getActiveAdviceForSkus([product.sku])
-    : [];
+  // Get advice + median prices for this product's SKU
+  const [advice, medianPrices] = await Promise.all([
+    product.sku ? getActiveAdviceForSkus([product.sku]) : Promise.resolve([]),
+    product.sku ? getMedianSalePricesBatch(product.sku) : Promise.resolve({}),
+  ]);
 
   return (
     <div className="py-4 space-y-4">
@@ -50,7 +52,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       </div>
 
       {/* Client component for interactive variant management */}
-      <ProductDetailClient product={product} />
+      <ProductDetailClient product={product} medianPrices={medianPrices} />
     </div>
   );
 }

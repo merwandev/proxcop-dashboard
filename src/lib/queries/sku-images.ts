@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { skuImages, userSkuImages, stockxProductsCache } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { skuImages, userSkuImages, stockxProductsCache, products, users } from "@/lib/db/schema";
+import { eq, and, desc, isNull, sql } from "drizzle-orm";
 import type { StockXCachedVariant } from "@/lib/stockx/client";
 
 // ─── Global SKU Images (shared across all users) ────────────────────
@@ -73,6 +73,27 @@ export async function getNotFoundSkuImages(limit = 50, offset = 0) {
     .orderBy(desc(skuImages.updatedAt))
     .limit(limit)
     .offset(offset);
+}
+
+/**
+ * Get products that have no image (imageUrl IS NULL).
+ * These are typically manually-added products that never went through StockX lookup.
+ */
+export async function getProductsWithoutImages(limit = 50) {
+  return db
+    .select({
+      id: products.id,
+      name: products.name,
+      sku: products.sku,
+      category: products.category,
+      createdAt: products.createdAt,
+      ownerUsername: users.discordUsername,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.userId, users.id))
+    .where(isNull(products.imageUrl))
+    .orderBy(desc(products.createdAt))
+    .limit(limit);
 }
 
 // ─── StockX Products Cache (full product + variants) ────────────────

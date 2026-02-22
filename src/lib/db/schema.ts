@@ -175,6 +175,14 @@ export const userSkuImages = pgTable("user_sku_images", {
   unique("user_sku_unique").on(table.userId, table.sku),
 ]);
 
+// App Config (key-value store for global settings like webhook URLs)
+export const appConfig = pgTable("app_config", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ─── Relations ──────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({

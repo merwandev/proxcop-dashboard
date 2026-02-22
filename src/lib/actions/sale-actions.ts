@@ -1,11 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sales, productVariants } from "@/lib/db/schema";
+import { sales, productVariants, products } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { saleSchema } from "@/lib/validators/sale";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { sendSaleWebhook } from "@/lib/discord-webhook";
 
 export async function createSale(formData: FormData) {
   const session = await auth();
@@ -37,6 +38,31 @@ export async function createSale(formData: FormData) {
   revalidatePath("/ventes");
   revalidatePath("/dashboard");
   revalidatePath("/stats");
+
+  // Fire-and-forget: send Discord webhook notification (anonymous)
+  const variantInfo = await db
+    .select({
+      productName: products.name,
+      sku: products.sku,
+      imageUrl: products.imageUrl,
+      sizeVariant: productVariants.sizeVariant,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(eq(productVariants.id, parsed.variantId))
+    .limit(1);
+
+  if (variantInfo[0]) {
+    sendSaleWebhook({
+      productName: variantInfo[0].productName,
+      sku: variantInfo[0].sku,
+      sizeVariant: variantInfo[0].sizeVariant,
+      imageUrl: variantInfo[0].imageUrl,
+      salePrice: parsed.salePrice,
+      platform: parsed.platform ?? null,
+      saleDate: parsed.saleDate,
+    }).catch(() => {});
+  }
 }
 
 export async function deleteSale(saleId: string) {

@@ -100,6 +100,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.role = dbUser[0].role;
           token.discordId = discordId;
           token.discordUsername = dbUser[0].discordUsername;
+          token.discordAvatar = dbUser[0].discordAvatar;
         }
       }
       return token;
@@ -110,6 +111,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.role = token.role as string;
         session.user.discordId = token.discordId as string;
         session.user.discordUsername = token.discordUsername as string;
+        session.user.discordAvatar = token.discordAvatar as string | null;
       }
       return session;
     },

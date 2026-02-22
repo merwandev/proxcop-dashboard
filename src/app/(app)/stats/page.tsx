@@ -1,16 +1,20 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getStatsData } from "@/lib/queries/stats";
+import { getStatsLayout } from "@/lib/queries/user-preferences";
 import { Card } from "@/components/ui/card";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { formatPercent } from "@/lib/utils/format";
-import { StatsCharts } from "@/components/stats/stats-charts";
+import { StatsWidgets } from "@/components/stats/stats-widgets";
 
 export default async function StatsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const stats = await getStatsData(session.user.id);
+  const [stats, statsLayout] = await Promise.all([
+    getStatsData(session.user.id),
+    getStatsLayout(session.user.id),
+  ]);
 
   const hasData =
     stats.roiByCategory.length > 0 ||
@@ -43,16 +47,14 @@ export default async function StatsPage() {
           </p>
         </Card>
       ) : (
-        <>
-          {/* Charts (client component) */}
-          <StatsCharts
-            roiByCategory={stats.roiByCategory}
-            roiByPlatform={stats.roiByPlatform}
-            stockByCategory={stats.stockByCategory}
-            stockEvolution={stats.stockEvolution}
-            marginDistribution={stats.marginDistribution}
-          />
-        </>
+        <StatsWidgets
+          activeWidgets={statsLayout}
+          roiByCategory={stats.roiByCategory}
+          roiByPlatform={stats.roiByPlatform}
+          stockByCategory={stats.stockByCategory}
+          stockEvolution={stats.stockEvolution}
+          marginDistribution={stats.marginDistribution}
+        />
       )}
     </div>
   );

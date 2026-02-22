@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 
 interface DashboardHeaderProps {
   userName: string;
+  avatarUrl?: string | null;
 }
 
-export function DashboardHeader({ userName }: DashboardHeaderProps) {
+export function DashboardHeader({ userName, avatarUrl }: DashboardHeaderProps) {
   const [time, setTime] = useState<string>("");
   const [seconds, setSeconds] = useState<string>("");
   const [temperature, setTemperature] = useState<string | null>(null);
@@ -79,8 +80,8 @@ export function DashboardHeader({ userName }: DashboardHeaderProps) {
     <div className="flex items-center gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/logo.png"
-        alt="ProxStock"
+        src={avatarUrl || "/logo.png"}
+        alt={avatarUrl ? userName : "ProxStock"}
         width={40}
         height={40}
         className="rounded-xl flex-shrink-0"

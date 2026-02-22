@@ -43,6 +43,8 @@ export const users = pgTable("users", {
   currency: text("currency").notNull().default("EUR"),
   tvaEnabled: boolean("tva_enabled").notNull().default(false),
   tvaRate: decimal("tva_rate", { precision: 5, scale: 2 }).default("20.00"),
+  dashboardLayout: jsonb("dashboard_layout").$type<{ widgets: string[] }>(),
+  statsLayout: jsonb("stats_layout").$type<{ widgets: string[] }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

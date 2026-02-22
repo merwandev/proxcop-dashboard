@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { sales, productVariants, products } from "@/lib/db/schema";
+import { sales, productVariants, products, expenses } from "@/lib/db/schema";
 import { eq, and, gte, desc, sql, ne, lte } from "drizzle-orm";
 import { getTotalExpensesForPeriod, getExpenseSummary } from "./expenses";
 
@@ -395,4 +395,163 @@ export async function getPendingDeals(userId: string) {
     .orderBy(desc(sales.createdAt));
 
   return result;
+}
+
+/**
+ * Returns daily cumulative expenses for a given period (same pattern as getProfitChartData).
+ */
+export async function getExpensesChartData(userId: string, period = "30j") {
+  const { from, to, days } = resolvePeriodSync(period);
+  const periodStartDate = new Date(from);
+  const totalDays = days;
+
+  // Previous period
+  const prevStartDate = new Date(periodStartDate);
+  prevStartDate.setDate(prevStartDate.getDate() - totalDays);
+  const prevPeriodStart = prevStartDate.toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
+
+  // Get fixed expenses in current period (by date)
+  const fixedCurrent = await db
+    .select({
+      day: sql<string>`${expenses.date}`,
+      amount: sql<number>`coalesce(sum(cast(${expenses.amount} as decimal)), 0)`,
+    })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.userId, userId),
+        eq(expenses.recurring, false),
+        eq(expenses.active, true),
+        gte(expenses.date, from),
+        lte(expenses.date, to)
+      )
+    )
+    .groupBy(expenses.date)
+    .orderBy(expenses.date);
+
+  // Get fixed expenses in previous period
+  const fixedPrevious = await db
+    .select({
+      day: sql<string>`${expenses.date}`,
+      amount: sql<number>`coalesce(sum(cast(${expenses.amount} as decimal)), 0)`,
+    })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.userId, userId),
+        eq(expenses.recurring, false),
+        eq(expenses.active, true),
+        gte(expenses.date, prevPeriodStart),
+        sql`${expenses.date} < ${from}`
+      )
+    )
+    .groupBy(expenses.date)
+    .orderBy(expenses.date);
+
+  // Get total recurring monthly cost
+  const recurringExpenses = await db
+    .select({
+      amount: expenses.amount,
+      date: expenses.date,
+    })
+    .from(expenses)
+    .where(
+      and(
+        eq(expenses.userId, userId),
+        eq(expenses.recurring, true),
+        eq(expenses.active, true)
+      )
+    );
+
+  const dailyRecurring = recurringExpenses.reduce(
+    (sum, e) => sum + Number(e.amount),
+    0
+  ) / 30; // Approximate daily recurring cost
+
+  // Build day-indexed maps for fixed expenses
+  const currentFixedMap = new Map<number, number>();
+  for (const row of fixedCurrent) {
+    const d = new Date(row.day);
+    const dayNum = Math.floor((d.getTime() - periodStartDate.getTime()) / 86400000) + 1;
+    currentFixedMap.set(dayNum, Number(row.amount));
+  }
+
+  const previousFixedMap = new Map<number, number>();
+  for (const row of fixedPrevious) {
+    const d = new Date(row.day);
+    const dayNum = Math.floor((d.getTime() - prevStartDate.getTime()) / 86400000) + 1;
+    previousFixedMap.set(dayNum, Number(row.amount));
+  }
+
+  // How many days elapsed
+  const todayDate = new Date(today);
+  const elapsedDays = Math.min(
+    totalDays,
+    Math.floor((todayDate.getTime() - periodStartDate.getTime()) / 86400000) + 1
+  );
+
+  const labelInterval = totalDays > 90 ? 7 : totalDays > 60 ? 3 : 1;
+
+  const chartData: {
+    day: number;
+    label: string;
+    current: number | null;
+    previous: number | null;
+  }[] = [];
+
+  let cumCurrent = 0;
+  let cumPrevious = 0;
+
+  for (let d = 1; d <= totalDays; d++) {
+    cumCurrent += (currentFixedMap.get(d) ?? 0) + dailyRecurring;
+    cumPrevious += (previousFixedMap.get(d) ?? 0) + dailyRecurring;
+
+    const labelDate = new Date(periodStartDate);
+    labelDate.setDate(labelDate.getDate() + d - 1);
+    const label = d % labelInterval === 0 || d === 1 || d === totalDays
+      ? `${labelDate.getDate()}/${labelDate.getMonth() + 1}`
+      : "";
+
+    chartData.push({
+      day: d,
+      label,
+      current: d <= elapsedDays ? Math.round(cumCurrent * 100) / 100 : null,
+      previous: Math.round(cumPrevious * 100) / 100,
+    });
+  }
+
+  return chartData;
+}
+
+/**
+ * Get count of variants by status (for status breakdown pie chart).
+ */
+export async function getStatusBreakdown(userId: string) {
+  const result = await db
+    .select({
+      status: productVariants.status,
+      count: sql<number>`count(*)`,
+    })
+    .from(productVariants)
+    .where(eq(productVariants.userId, userId))
+    .groupBy(productVariants.status);
+
+  const STATUS_LABELS: Record<string, string> = {
+    en_attente: "En attente",
+    en_stock: "En stock",
+    liste: "Liste",
+    reserve: "Reserve",
+    expedie: "Expedie",
+    vendu: "Vendu",
+    en_litige: "En litige",
+    return_waiting_rf: "Retour en cours",
+    hold: "En pause",
+  };
+
+  return result.map((r) => ({
+    status: r.status,
+    label: STATUS_LABELS[r.status] ?? r.status,
+    count: Number(r.count),
+  }));
 }

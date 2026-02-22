@@ -30,8 +30,8 @@ export function CommunitySettings({ communityOptIn }: CommunitySettingsProps) {
   };
 
   return (
-    <Card className="p-4 bg-card border-border space-y-4">
-      <div className="flex items-center gap-2">
+    <Card className="p-4 gap-0 bg-card border-border">
+      <div className="flex items-center gap-2 mb-3">
         <Users className="h-4 w-4 text-muted-foreground" />
         <h3 className="text-sm font-medium">Communaute</h3>
       </div>
@@ -47,7 +47,7 @@ export function CommunitySettings({ communityOptIn }: CommunitySettingsProps) {
           disabled={isPending}
         />
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground mt-2">
         Vos ventes sont toujours anonymes — seuls le prix, la taille, la date et la plateforme sont visibles.
       </p>
     </Card>

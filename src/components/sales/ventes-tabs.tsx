@@ -14,6 +14,8 @@ interface SaleItem {
     platformFee: string | null;
     shippingCost: string | null;
     otherFees: string | null;
+    buyerUsername: string | null;
+    paymentStatus: string | null;
   };
   variant: {
     purchasePrice: string;

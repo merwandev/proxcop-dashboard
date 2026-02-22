@@ -18,6 +18,7 @@ export const createProductSchema = z.object({
   targetPrice: z.coerce.number().min(0).optional(),
   returnDeadline: z.string().optional(),
   notes: z.string().optional(),
+  supplierName: z.string().optional(),
   variants: z.array(variantInputSchema).min(1, "Au moins 1 taille requise"),
 });
 
@@ -39,6 +40,8 @@ export const updateVariantSchema = z.object({
   status: z.enum(["en_stock", "liste", "reserve", "vendu", "en_litige", "return_waiting_rf", "hold"]),
   storageLocation: z.string().optional(),
   returnDeadline: z.string().optional(),
+  supplierName: z.string().optional(),
+  listedOn: z.array(z.string()).optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

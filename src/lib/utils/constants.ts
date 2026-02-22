@@ -12,7 +12,13 @@ export const PLATFORMS = [
   { value: "laced", label: "Laced" },
   { value: "hypeboost", label: "Hypeboost" },
   { value: "alias", label: "Alias" },
+  { value: "discord", label: "Discord" },
   { value: "other", label: "Autre" },
+] as const;
+
+export const PAYMENT_STATUSES = [
+  { value: "paid", label: "Payé" },
+  { value: "pending", label: "En attente" },
 ] as const;
 
 export const STATUSES = [

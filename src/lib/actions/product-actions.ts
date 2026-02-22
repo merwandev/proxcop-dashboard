@@ -17,6 +17,7 @@ export async function createProductWithVariants(data: {
   targetPrice?: number;
   returnDeadline?: string;
   notes?: string;
+  supplierName?: string;
   variants: Array<{
     sizeVariant?: string;
     purchasePrice: number;
@@ -65,6 +66,7 @@ export async function createProductWithVariants(data: {
       targetPrice: parsed.targetPrice?.toString() ?? null,
       storageLocation: v.storageLocation ?? null,
       returnDeadline: parsed.returnDeadline || null,
+      supplierName: parsed.supplierName ?? null,
     }));
   });
 
@@ -115,6 +117,8 @@ export async function updateVariant(variantId: string, data: {
   status: string;
   storageLocation?: string;
   returnDeadline?: string;
+  supplierName?: string;
+  listedOn?: string[];
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");
@@ -131,8 +135,36 @@ export async function updateVariant(variantId: string, data: {
       status: parsed.status as typeof productVariants.status.enumValues[number],
       storageLocation: parsed.storageLocation ?? null,
       returnDeadline: parsed.returnDeadline || null,
+      supplierName: parsed.supplierName ?? null,
+      listedOn: parsed.listedOn ?? [],
       updatedAt: new Date(),
     })
+    .where(and(eq(productVariants.id, variantId), eq(productVariants.userId, session.user.id)));
+
+  revalidatePath("/stock");
+  revalidatePath("/dashboard");
+}
+
+export async function toggleVariantListing(variantId: string, platform: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  const [variant] = await db
+    .select({ listedOn: productVariants.listedOn })
+    .from(productVariants)
+    .where(and(eq(productVariants.id, variantId), eq(productVariants.userId, session.user.id)))
+    .limit(1);
+
+  if (!variant) throw new Error("Variant introuvable");
+
+  const current: string[] = (variant.listedOn as string[]) ?? [];
+  const updated = current.includes(platform)
+    ? current.filter((p) => p !== platform)
+    : [...current, platform];
+
+  await db
+    .update(productVariants)
+    .set({ listedOn: updated, updatedAt: new Date() })
     .where(and(eq(productVariants.id, variantId), eq(productVariants.userId, session.user.id)));
 
   revalidatePath("/stock");

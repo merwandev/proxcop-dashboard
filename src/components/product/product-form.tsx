@@ -147,6 +147,7 @@ export function ProductForm() {
     return d.toISOString().split("T")[0];
   });
   const [globalStorageLocation, setGlobalStorageLocation] = useState("");
+  const [globalSupplierName, setGlobalSupplierName] = useState("");
   const [notes, setNotes] = useState("");
 
   // Manual mode state
@@ -341,6 +342,7 @@ export function ProductForm() {
         category: "sneakers", purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
         returnDeadline: globalReturnDeadline || undefined, notes: notes || undefined,
+        supplierName: globalSupplierName || undefined,
         variants: Array.from(selectedSizes.values()).map((v) => ({
           sizeVariant: v.sizeEU ? `US ${v.sizeUS} / EU ${v.sizeEU}` : `US ${v.sizeUS}`,
           purchasePrice: Number(v.purchasePrice), quantity: v.quantity,
@@ -352,7 +354,7 @@ export function ProductForm() {
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, notes, router]);
+  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
 
   const handleSubmitManual = useCallback(async () => {
     if (!manualName.trim()) { toast.error("Le nom du produit est requis"); return; }
@@ -365,6 +367,7 @@ export function ProductForm() {
         purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
         returnDeadline: globalReturnDeadline || undefined, notes: notes || undefined,
+        supplierName: globalSupplierName || undefined,
         variants: [{ sizeVariant: manualSize || undefined, purchasePrice: Number(manualPrice), quantity: manualQuantity, storageLocation: globalStorageLocation || undefined }],
       });
       toast.success("Produit ajoute au stock !");
@@ -372,7 +375,7 @@ export function ProductForm() {
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, notes, router]);
+  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
 
   // ─── Render: Search Step (with inline results) ─────────────────
 
@@ -617,6 +620,10 @@ export function ProductForm() {
             </div>
           </div>
           <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Fournisseur</Label>
+            <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Notes</Label>
             <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
           </div>
@@ -715,6 +722,11 @@ export function ProductForm() {
           <Label>Date retour</Label>
           <ReturnDeadlinePicker value={globalReturnDeadline} onChange={setGlobalReturnDeadline} />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Fournisseur</Label>
+        <Input placeholder="Nom du fournisseur..." value={globalSupplierName} onChange={(e) => setGlobalSupplierName(e.target.value)} />
       </div>
 
       <div className="space-y-1.5">

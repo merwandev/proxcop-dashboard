@@ -16,8 +16,9 @@ import { relations } from "drizzle-orm";
 export const userRoleEnum = pgEnum("user_role", ["member", "staff", "shop", "dev"]);
 export const categoryEnum = pgEnum("category", ["sneakers", "pokemon", "lego", "random"]);
 export const platformEnum = pgEnum("platform", [
-  "stockx", "vinted", "ebay", "laced", "hypeboost", "alias", "other",
+  "stockx", "vinted", "ebay", "laced", "hypeboost", "alias", "discord", "other",
 ]);
+export const paymentStatusEnum = pgEnum("payment_status", ["paid", "pending"]);
 export const productStatusEnum = pgEnum("product_status", [
   "en_stock", "liste", "reserve", "vendu", "en_litige", "return_waiting_rf", "hold",
 ]);
@@ -71,6 +72,8 @@ export const productVariants = pgTable("product_variants", {
   status: productStatusEnum("status").notNull().default("en_stock"),
   storageLocation: text("storage_location"),
   returnDeadline: date("return_deadline"),
+  supplierName: text("supplier_name"),
+  listedOn: jsonb("listed_on").$type<string[]>().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -87,6 +90,9 @@ export const sales = pgTable("sales", {
   shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }).default("0"),
   otherFees: decimal("other_fees", { precision: 10, scale: 2 }).default("0"),
   notes: text("notes"),
+  buyerUsername: text("buyer_username"),
+  paymentStatus: paymentStatusEnum("payment_status").default("paid"),
+  paymentCollectedAt: timestamp("payment_collected_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

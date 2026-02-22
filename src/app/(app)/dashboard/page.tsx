@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getDashboardKPIs, getProfitChartData } from "@/lib/queries/dashboard";
+import { getDashboardKPIs, getProfitChartData, getPendingDeals } from "@/lib/queries/dashboard";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ProfitChart } from "@/components/dashboard/profit-chart";
 import { ChartExport } from "@/components/dashboard/chart-export";
@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TimeBadge } from "@/components/product/time-badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
+import { PendingDealRow } from "@/components/dashboard/pending-deal-row";
 
 interface DashboardPageProps {
   searchParams: Promise<{ period?: string }>;
@@ -23,9 +24,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const period = params.period ?? "30j";
 
-  const [kpis, chartData] = await Promise.all([
+  const [kpis, chartData, pendingDeals] = await Promise.all([
     getDashboardKPIs(session.user.id, period),
     getProfitChartData(session.user.id, period),
+    getPendingDeals(session.user.id),
   ]);
 
   // Period label for display
@@ -100,6 +102,34 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         {/* Profit chart */}
         <ProfitChart data={chartData} periodLabel={periodLabel} />
       </div>
+
+      {/* Pending deals */}
+      {pendingDeals.length > 0 && (
+        <Card className="p-4 bg-card border-warning/30">
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+            Deals en attente
+            <Badge variant="outline" className="bg-warning/20 text-warning border-0 text-[10px]">
+              {pendingDeals.length}
+            </Badge>
+          </h3>
+          <div className="space-y-3">
+            {pendingDeals.map((deal) => (
+              <PendingDealRow
+                key={deal.saleId}
+                deal={{
+                  saleId: deal.saleId,
+                  salePrice: deal.salePrice,
+                  saleDate: deal.saleDate,
+                  buyerUsername: deal.buyerUsername,
+                  productName: deal.productName,
+                  productImage: deal.productImage,
+                  sizeVariant: deal.sizeVariant,
+                }}
+              />
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Top 5 */}
       {kpis.top5.length > 0 && (

@@ -328,3 +328,31 @@ export async function getProfitChartData(userId: string, period = "30j") {
 
   return chartData;
 }
+
+/**
+ * Get pending Discord deals (payment_status = "pending")
+ */
+export async function getPendingDeals(userId: string) {
+  const result = await db
+    .select({
+      saleId: sales.id,
+      salePrice: sales.salePrice,
+      saleDate: sales.saleDate,
+      buyerUsername: sales.buyerUsername,
+      productName: products.name,
+      productImage: products.imageUrl,
+      sizeVariant: productVariants.sizeVariant,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(
+      and(
+        eq(sales.userId, userId),
+        eq(sales.paymentStatus, "pending")
+      )
+    )
+    .orderBy(desc(sales.createdAt));
+
+  return result;
+}

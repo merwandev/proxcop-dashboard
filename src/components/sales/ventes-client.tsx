@@ -24,8 +24,8 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { PLATFORMS } from "@/lib/utils/constants";
-import { updateSale, deleteSale } from "@/lib/actions/sale-actions";
-import { Search, Package, X, Loader2, Trash2 } from "lucide-react";
+import { updateSale, deleteSale, markDealAsPaid } from "@/lib/actions/sale-actions";
+import { Search, Package, X, Loader2, Trash2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -38,6 +38,8 @@ interface SaleItem {
     platformFee: string | null;
     shippingCost: string | null;
     otherFees: string | null;
+    buyerUsername: string | null;
+    paymentStatus: string | null;
   };
   variant: {
     purchasePrice: string;
@@ -57,6 +59,8 @@ interface VentesClientProps {
 export function VentesClient({ salesData }: VentesClientProps) {
   const [search, setSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [editingSale, setEditingSale] = useState<SaleItem | null>(null);
 
   // Get unique platforms from actual sales data
@@ -68,22 +72,54 @@ export function VentesClient({ salesData }: VentesClientProps) {
     return PLATFORMS.filter((p) => platforms.has(p.value));
   }, [salesData]);
 
-  // Filter sales
-  const filtered = useMemo(() => {
+  // Search-filtered sales
+  const searchFiltered = useMemo(() => {
+    if (!search) return salesData;
+    const q = search.toLowerCase();
     return salesData.filter((s) => {
-      // Search filter
-      if (search) {
-        const q = search.toLowerCase();
-        const matchName = s.product.name.toLowerCase().includes(q);
-        const matchSku = s.product.sku?.toLowerCase().includes(q);
-        const matchSize = s.variant.sizeVariant?.toLowerCase().includes(q);
-        if (!matchName && !matchSku && !matchSize) return false;
-      }
-      // Platform filter
-      if (selectedPlatform && s.sale.platform !== selectedPlatform) return false;
+      const matchName = s.product.name.toLowerCase().includes(q);
+      const matchSku = s.product.sku?.toLowerCase().includes(q);
+      const matchSize = s.variant.sizeVariant?.toLowerCase().includes(q);
+      return matchName || matchSku || matchSize;
+    });
+  }, [salesData, search]);
+
+  // Intermediate: search + platform (for computing available sizes)
+  const platformFiltered = useMemo(() => {
+    if (!selectedPlatform) return searchFiltered;
+    return searchFiltered.filter((s) => s.sale.platform === selectedPlatform);
+  }, [searchFiltered, selectedPlatform]);
+
+  // Get unique sizes from search+platform filtered data (cascading filters)
+  const usedSizes = useMemo(() => {
+    const sizes = new Set<string>();
+    platformFiltered.forEach((s) => {
+      if (s.variant.sizeVariant) sizes.add(s.variant.sizeVariant);
+    });
+    return Array.from(sizes).sort((a, b) => {
+      const na = parseFloat(a);
+      const nb = parseFloat(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a.localeCompare(b);
+    });
+  }, [platformFiltered]);
+
+  // Full filter (search + platform + size)
+  const filtered = useMemo(() => {
+    return platformFiltered.filter((s) => {
+      if (selectedSize && s.variant.sizeVariant !== selectedSize) return false;
       return true;
     });
-  }, [salesData, search, selectedPlatform]);
+  }, [platformFiltered, selectedSize]);
+
+  const handleFilterChange = (
+    setter: React.Dispatch<React.SetStateAction<string | null>>,
+    value: string | null
+  ) => {
+    setter(value);
+    if (setter === setSelectedPlatform) setSelectedSize(null);
+    setPage(1);
+  };
 
   // Compute totals on filtered
   const totalRevenue = filtered.reduce(
@@ -126,12 +162,12 @@ export function VentesClient({ salesData }: VentesClientProps) {
         <Input
           placeholder="Rechercher un produit..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           className="pl-9 bg-card border-border h-9 text-sm"
         />
         {search && (
           <button
-            onClick={() => setSearch("")}
+            onClick={() => { setSearch(""); setPage(1); }}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -143,7 +179,7 @@ export function VentesClient({ salesData }: VentesClientProps) {
       {usedPlatforms.length > 0 && (
         <div className="flex gap-1.5 flex-wrap">
           <button
-            onClick={() => setSelectedPlatform(null)}
+            onClick={() => handleFilterChange(setSelectedPlatform, null)}
             className={cn(
               "text-xs px-2.5 py-1 rounded-full border transition-colors",
               !selectedPlatform
@@ -157,7 +193,8 @@ export function VentesClient({ salesData }: VentesClientProps) {
             <button
               key={p.value}
               onClick={() =>
-                setSelectedPlatform(
+                handleFilterChange(
+                  setSelectedPlatform,
                   selectedPlatform === p.value ? null : p.value
                 )
               }
@@ -174,10 +211,46 @@ export function VentesClient({ salesData }: VentesClientProps) {
         </div>
       )}
 
+      {/* Size filters */}
+      {usedSizes.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => handleFilterChange(setSelectedSize, null)}
+            className={cn(
+              "text-xs px-2.5 py-1 rounded-full border transition-colors",
+              !selectedSize
+                ? "bg-accent text-accent-foreground border-accent"
+                : "bg-card border-border text-muted-foreground hover:border-border-hover"
+            )}
+          >
+            Toutes tailles
+          </button>
+          {usedSizes.map((size) => (
+            <button
+              key={size}
+              onClick={() =>
+                handleFilterChange(
+                  setSelectedSize,
+                  selectedSize === size ? null : size
+                )
+              }
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                selectedSize === size
+                  ? "bg-accent text-accent-foreground border-accent"
+                  : "bg-card border-border text-muted-foreground hover:border-border-hover"
+              )}
+            >
+              {size}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Results count */}
-      {(search || selectedPlatform) && (
+      {(search || selectedPlatform || selectedSize) && (
         <p className="text-xs text-muted-foreground">
-          {filtered.length} résultat{filtered.length !== 1 ? "s" : ""}
+          {filtered.length} resultat{filtered.length !== 1 ? "s" : ""}
           {search && <span> pour &quot;{search}&quot;</span>}
           {selectedPlatform && (
             <span>
@@ -194,8 +267,8 @@ export function VentesClient({ salesData }: VentesClientProps) {
         {filtered.length === 0 ? (
           <p className="text-center py-12 text-sm text-muted-foreground">
             {salesData.length === 0
-              ? "Aucune vente enregistrée"
-              : "Aucun résultat"}
+              ? "Aucune vente enregistree"
+              : "Aucun resultat"}
           </p>
         ) : (
           filtered.map((item) => (
@@ -242,6 +315,7 @@ function SaleCard({
     Number(sale.salePrice) > 0
       ? (profit / Number(sale.salePrice)) * 100
       : 0;
+  const isPending = sale.paymentStatus === "pending";
 
   return (
     <div
@@ -251,7 +325,7 @@ function SaleCard({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } }}
       className="w-full text-left"
     >
-      <Card className="p-3 bg-card border-border hover:border-border-hover transition-colors cursor-pointer">
+      <Card className={cn("p-3 bg-card border-border hover:border-border-hover transition-colors cursor-pointer", isPending && "border-warning/40")}>
         <div className="flex gap-3">
           {/* Product image */}
           <div className="relative h-14 w-14 rounded-lg overflow-hidden bg-white flex-shrink-0">
@@ -283,7 +357,7 @@ function SaleCard({
                     </span>
                   )}
                 </h3>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-[11px] text-muted-foreground">
                     {formatDate(sale.saleDate)}
                   </span>
@@ -297,6 +371,17 @@ function SaleCard({
                     >
                       {sale.platform}
                     </Badge>
+                  )}
+                  {isPending && (
+                    <Badge className="text-[10px] bg-warning/20 text-warning border-warning/30 gap-0.5">
+                      <Clock className="h-2.5 w-2.5" />
+                      En attente
+                    </Badge>
+                  )}
+                  {sale.buyerUsername && (
+                    <span className="text-[10px] text-[#5865F2]">
+                      @{sale.buyerUsername}
+                    </span>
                   )}
                 </div>
               </div>
@@ -347,6 +432,10 @@ function EditSaleDialog({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [editPlatform, setEditPlatform] = useState(sale.platform ?? "");
+
+  const isPending = sale.paymentStatus === "pending";
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -360,8 +449,10 @@ function EditSaleDialog({
         platformFee: Number(form.get("platformFee") || 0),
         shippingCost: Number(form.get("shippingCost") || 0),
         otherFees: Number(form.get("otherFees") || 0),
+        buyerUsername: (form.get("buyerUsername") as string) || undefined,
+        paymentStatus: (form.get("paymentStatus") as string) || undefined,
       });
-      toast.success("Vente modifiée");
+      toast.success("Vente modifiee");
       onOpenChange(false);
       router.refresh();
     } catch {
@@ -375,7 +466,7 @@ function EditSaleDialog({
     setDeleting(true);
     try {
       await deleteSale(sale.id);
-      toast.success("Vente supprimée — produit remis en stock");
+      toast.success("Vente supprimee - produit remis en stock");
       onOpenChange(false);
       router.refresh();
     } catch {
@@ -383,6 +474,20 @@ function EditSaleDialog({
     } finally {
       setDeleting(false);
       setConfirmDelete(false);
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    setMarkingPaid(true);
+    try {
+      await markDealAsPaid(sale.id);
+      toast.success("Paiement recu !");
+      onOpenChange(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur");
+    } finally {
+      setMarkingPaid(false);
     }
   };
 
@@ -398,35 +503,39 @@ function EditSaleDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {/* Mark as paid button for pending deals */}
+        {isPending && (
+          <Button
+            onClick={handleMarkPaid}
+            disabled={markingPaid}
+            className="w-full bg-warning/20 text-warning hover:bg-warning/30 border border-warning/30 gap-1.5"
+            variant="outline"
+          >
+            {markingPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+            Paiement recu
+          </Button>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-salePrice">Prix de vente *</Label>
-              <Input
-                id="edit-salePrice"
-                name="salePrice"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={sale.salePrice}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-saleDate">Date de vente *</Label>
-              <Input
-                id="edit-saleDate"
-                name="saleDate"
-                type="date"
-                defaultValue={sale.saleDate}
-                required
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-salePrice">Prix de vente *</Label>
+            <Input
+              id="edit-salePrice"
+              name="salePrice"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={sale.salePrice}
+              required
+            />
           </div>
+
+          {/* Sale date is preserved but not editable */}
+          <input type="hidden" name="saleDate" value={sale.saleDate} />
 
           <div className="space-y-1.5">
             <Label>Plateforme</Label>
-            <Select name="platform" defaultValue={sale.platform ?? ""}>
+            <Select value={editPlatform} onValueChange={setEditPlatform}>
               <SelectTrigger>
                 <SelectValue placeholder="Choisir..." />
               </SelectTrigger>
@@ -438,7 +547,36 @@ function EditSaleDialog({
                 ))}
               </SelectContent>
             </Select>
+            <input type="hidden" name="platform" value={editPlatform} />
           </div>
+
+          {/* Discord-specific fields */}
+          {editPlatform === "discord" && (
+            <div className="space-y-3 rounded-lg border border-[#5865F2]/30 bg-[#5865F2]/5 p-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-buyerUsername">Acheteur Discord</Label>
+                <Input
+                  id="edit-buyerUsername"
+                  name="buyerUsername"
+                  placeholder="@username"
+                  defaultValue={sale.buyerUsername ?? ""}
+                  className="bg-card"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Statut du paiement</Label>
+                <Select name="paymentStatus" defaultValue={sale.paymentStatus ?? "paid"}>
+                  <SelectTrigger className="bg-card">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid">Deja paye</SelectItem>
+                    <SelectItem value="pending">Paiement a reception</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1.5">

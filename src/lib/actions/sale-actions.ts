@@ -26,6 +26,8 @@ export async function createSale(formData: FormData) {
     shippingCost: parsed.shippingCost.toString(),
     otherFees: parsed.otherFees.toString(),
     notes: parsed.notes,
+    buyerUsername: parsed.buyerUsername || null,
+    paymentStatus: parsed.paymentStatus || "paid",
   });
 
   // Update variant status to vendu
@@ -75,6 +77,8 @@ export async function updateSale(
     shippingCost?: number;
     otherFees?: number;
     notes?: string;
+    buyerUsername?: string;
+    paymentStatus?: string;
   }
 ) {
   const session = await auth();
@@ -93,11 +97,13 @@ export async function updateSale(
     .set({
       salePrice: data.salePrice.toString(),
       saleDate: data.saleDate,
-      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "other") || null,
+      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "discord" | "other") || null,
       platformFee: (data.platformFee ?? 0).toString(),
       shippingCost: (data.shippingCost ?? 0).toString(),
       otherFees: (data.otherFees ?? 0).toString(),
       notes: data.notes || null,
+      buyerUsername: data.buyerUsername || null,
+      paymentStatus: (data.paymentStatus as "paid" | "pending") || "paid",
     })
     .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)));
 
@@ -105,6 +111,30 @@ export async function updateSale(
   revalidatePath("/ventes");
   revalidatePath("/dashboard");
   revalidatePath("/stats");
+}
+
+export async function markDealAsPaid(saleId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  const sale = await db
+    .select()
+    .from(sales)
+    .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)))
+    .limit(1);
+
+  if (!sale[0]) throw new Error("Vente introuvable");
+
+  await db
+    .update(sales)
+    .set({
+      paymentStatus: "paid",
+      paymentCollectedAt: new Date(),
+    })
+    .where(and(eq(sales.id, saleId), eq(sales.userId, session.user.id)));
+
+  revalidatePath("/ventes");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteSale(saleId: string) {

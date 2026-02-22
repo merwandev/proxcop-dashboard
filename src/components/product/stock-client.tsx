@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Copy,
   Check,
+  ArrowUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ interface StockProduct {
   totalValue: number;
   oldestPurchaseDate: string | null;
   nearestReturnDeadline: string | null;
+  hasUnlistedVariants: boolean;
 }
 
 interface StockClientProps {
@@ -57,6 +59,8 @@ export function StockClient({ products }: StockClientProps) {
   const [wtsMessage, setWtsMessage] = useState("");
   const [wtsLoading, setWtsLoading] = useState(false);
   const [wtsCopied, setWtsCopied] = useState(false);
+  const [sortOldest, setSortOldest] = useState(false);
+  const [showUnlisted, setShowUnlisted] = useState(false);
 
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
@@ -67,7 +71,7 @@ export function StockClient({ products }: StockClientProps) {
 
   // Filter products
   const filtered = useMemo(() => {
-    return products.filter((p) => {
+    let result = products.filter((p) => {
       if (search) {
         const q = search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
@@ -75,9 +79,18 @@ export function StockClient({ products }: StockClientProps) {
         if (!matchName && !matchSku) return false;
       }
       if (selectedCategory && p.category !== selectedCategory) return false;
+      if (showUnlisted && !p.hasUnlistedVariants) return false;
       return true;
     });
-  }, [products, search, selectedCategory]);
+    if (sortOldest) {
+      result = [...result].sort((a, b) => {
+        const dateA = a.oldestPurchaseDate ?? "9999";
+        const dateB = b.oldestPurchaseDate ?? "9999";
+        return dateA.localeCompare(dateB);
+      });
+    }
+    return result;
+  }, [products, search, selectedCategory, showUnlisted, sortOldest]);
 
   const totalInStock = filtered.reduce(
     (sum, p) => sum + Number(p.inStockCount),
@@ -331,6 +344,33 @@ export function StockClient({ products }: StockClientProps) {
               ))}
             </div>
           )}
+
+          {/* Sort + extra filters */}
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSortOldest(!sortOldest)}
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1",
+                sortOldest
+                  ? "bg-accent text-accent-foreground border-accent"
+                  : "bg-card border-border text-muted-foreground hover:border-border-hover"
+              )}
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              Plus ancien
+            </button>
+            <button
+              onClick={() => setShowUnlisted(!showUnlisted)}
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                showUnlisted
+                  ? "bg-warning/20 text-warning border-warning/40"
+                  : "bg-card border-border text-muted-foreground hover:border-border-hover"
+              )}
+            >
+              Non publie
+            </button>
+          </div>
         </>
       )}
 

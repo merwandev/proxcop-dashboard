@@ -27,12 +27,13 @@ import { TimeBadge } from "./time-badge";
 import { SaleDialog } from "@/components/sales/sale-dialog";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
-import { CATEGORIES, STATUSES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
+import { CATEGORIES, STATUSES, STORAGE_LOCATIONS, PLATFORMS } from "@/lib/utils/constants";
 import {
   updateProduct,
   updateVariant,
   deleteVariant,
   addVariantToProduct,
+  toggleVariantListing,
 } from "@/lib/actions/product-actions";
 import {
   Package,
@@ -60,6 +61,8 @@ interface ProductVariant {
   status: string;
   storageLocation: string | null;
   returnDeadline: string | null;
+  supplierName: string | null;
+  listedOn: string[] | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -256,7 +259,20 @@ function VariantCard({
                 {STORAGE_LOCATIONS.find((s) => s.value === variant.storageLocation)?.label ?? variant.storageLocation}
               </span>
             )}
+            {variant.supplierName && (
+              <span className="text-muted-foreground">{variant.supplierName}</span>
+            )}
           </div>
+          {/* Listed platforms */}
+          {variant.status !== "vendu" && variant.listedOn && variant.listedOn.length > 0 && (
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              {variant.listedOn.map((p) => (
+                <Badge key={p} variant="secondary" className="text-[9px] h-4 px-1.5 bg-primary/10 text-primary">
+                  {PLATFORMS.find((pl) => pl.value === p)?.label ?? p}
+                </Badge>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-0.5">
               <Calendar className="h-2.5 w-2.5" />
@@ -484,7 +500,26 @@ function AddVariantDialog({ productId }: { productId: string }) {
 function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVariant; medianPrice?: MedianPrice | null }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [listedOn, setListedOn] = useState<string[]>(variant.listedOn ?? []);
+  const [togglingPlatform, setTogglingPlatform] = useState<string | null>(null);
   const router = useRouter();
+
+  const toggleListed = async (platform: string) => {
+    setTogglingPlatform(platform);
+    try {
+      await toggleVariantListing(variant.id, platform);
+      setListedOn((prev) =>
+        prev.includes(platform)
+          ? prev.filter((p) => p !== platform)
+          : [...prev, platform]
+      );
+      router.refresh();
+    } catch {
+      toast.error("Erreur");
+    } finally {
+      setTogglingPlatform(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -499,6 +534,8 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
         status: form.get("status") as string,
         storageLocation: (form.get("storageLocation") as string) || undefined,
         returnDeadline: (form.get("returnDeadline") as string) || undefined,
+        supplierName: (form.get("supplierName") as string) || undefined,
+        listedOn,
       });
       toast.success("Variant modifie");
       setOpen(false);
@@ -509,6 +546,11 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
       setSaving(false);
     }
   };
+
+  // Platforms available for listing (exclude discord and other)
+  const listingPlatforms = PLATFORMS.filter(
+    (p) => p.value !== "discord" && p.value !== "other"
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -610,6 +652,40 @@ function EditVariantDialog({ variant, medianPrice = null }: { variant: ProductVa
                 type="date"
                 defaultValue={variant.returnDeadline ?? ""}
               />
+            </div>
+          </div>
+          {/* Supplier */}
+          <div className="space-y-1.5">
+            <Label htmlFor="ev-supplier">Fournisseur</Label>
+            <Input
+              id="ev-supplier"
+              name="supplierName"
+              placeholder="Nom du fournisseur"
+              defaultValue={variant.supplierName ?? ""}
+            />
+          </div>
+          {/* Listed on platforms */}
+          <div className="space-y-1.5">
+            <Label>Publie sur</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {listingPlatforms.map((p) => {
+                const isActive = listedOn.includes(p.value);
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    disabled={togglingPlatform === p.value}
+                    onClick={() => toggleListed(p.value)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      isActive
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "bg-card border-border text-muted-foreground hover:border-border"
+                    }`}
+                  >
+                    {togglingPlatform === p.value ? "..." : p.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={saving}>

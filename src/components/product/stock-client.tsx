@@ -442,7 +442,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                   : "bg-card border-border text-muted-foreground hover:border-border-hover"
               )}
             >
-              Non marque
+              Non liste
             </button>
             {adviceSkus.length > 0 && (
               <button

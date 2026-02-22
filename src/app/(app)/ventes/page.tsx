@@ -66,6 +66,7 @@ export default async function VentesPage() {
       <VentesTabs
         userSales={serialized}
         communitySales={communitySales}
+        userName={session.user.discordUsername ?? session.user.name ?? undefined}
       />
     </div>
   );

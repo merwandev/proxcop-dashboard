@@ -43,9 +43,10 @@ interface CommunitySale {
 interface VentesTabsProps {
   userSales: SaleItem[];
   communitySales: CommunitySale[];
+  userName?: string;
 }
 
-export function VentesTabs({ userSales, communitySales }: VentesTabsProps) {
+export function VentesTabs({ userSales, communitySales, userName }: VentesTabsProps) {
   return (
     <Tabs defaultValue="me">
       <TabsList className="w-full">
@@ -70,7 +71,7 @@ export function VentesTabs({ userSales, communitySales }: VentesTabsProps) {
       </TabsList>
 
       <TabsContent value="me" className="mt-4 space-y-4">
-        <VentesClient salesData={userSales} />
+        <VentesClient salesData={userSales} userName={userName} />
       </TabsContent>
 
       <TabsContent value="community" className="mt-4 space-y-3">

@@ -28,6 +28,7 @@ import { updateSale, deleteSale, markDealAsPaid } from "@/lib/actions/sale-actio
 import { Search, Package, X, Loader2, Trash2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { SaleExport } from "./sale-export";
 
 interface SaleItem {
   sale: {
@@ -54,9 +55,10 @@ interface SaleItem {
 
 interface VentesClientProps {
   salesData: SaleItem[];
+  userName?: string;
 }
 
-export function VentesClient({ salesData }: VentesClientProps) {
+export function VentesClient({ salesData, userName }: VentesClientProps) {
   const [search, setSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -289,6 +291,7 @@ export function VentesClient({ salesData }: VentesClientProps) {
           onOpenChange={(open) => {
             if (!open) setEditingSale(null);
           }}
+          userName={userName}
         />
       )}
     </>
@@ -422,10 +425,12 @@ function EditSaleDialog({
   item,
   open,
   onOpenChange,
+  userName,
 }: {
   item: SaleItem;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userName?: string;
 }) {
   const { sale, variant, product } = item;
   const router = useRouter();
@@ -620,6 +625,14 @@ function EditSaleDialog({
             </Button>
           </div>
         </form>
+
+        {/* Export */}
+        <SaleExport
+          sale={sale}
+          variant={variant}
+          product={product}
+          userName={userName}
+        />
 
         {/* Delete section */}
         <div className="border-t border-border pt-3 mt-1">

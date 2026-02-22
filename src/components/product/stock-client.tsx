@@ -44,60 +44,12 @@ interface StockProduct {
   nearestReturnDeadline: string | null;
   hasUnlistedVariants: boolean;
   variantStatuses: string[];
-}
-
-interface MergedStockProduct extends StockProduct {
-  /** All product IDs grouped under this SKU (for bulk actions) */
   allProductIds: string[];
 }
 
 interface StockClientProps {
   products: StockProduct[];
   adviceSkus: string[];
-}
-
-/** Merge products that share the same non-null SKU */
-function mergeProductsBySku(products: StockProduct[]): MergedStockProduct[] {
-  const skuMap = new Map<string, MergedStockProduct>();
-  const result: MergedStockProduct[] = [];
-
-  for (const p of products) {
-    if (!p.sku) {
-      // No SKU → keep as-is
-      result.push({ ...p, allProductIds: [p.id] });
-      continue;
-    }
-
-    const key = p.sku.toUpperCase();
-    const existing = skuMap.get(key);
-    if (existing) {
-      // Merge into existing
-      existing.allProductIds.push(p.id);
-      existing.inStockCount += p.inStockCount;
-      existing.totalCount += p.totalCount;
-      existing.totalValue += Number(p.totalValue);
-      // Keep earliest purchase date
-      if (p.oldestPurchaseDate && (!existing.oldestPurchaseDate || p.oldestPurchaseDate < existing.oldestPurchaseDate)) {
-        existing.oldestPurchaseDate = p.oldestPurchaseDate;
-      }
-      // Keep nearest return deadline
-      if (p.nearestReturnDeadline && (!existing.nearestReturnDeadline || p.nearestReturnDeadline < existing.nearestReturnDeadline)) {
-        existing.nearestReturnDeadline = p.nearestReturnDeadline;
-      }
-      existing.hasUnlistedVariants = existing.hasUnlistedVariants || p.hasUnlistedVariants;
-      // Merge statuses (unique)
-      const statusSet = new Set([...existing.variantStatuses, ...p.variantStatuses]);
-      existing.variantStatuses = Array.from(statusSet);
-      // Keep best image (prefer non-null)
-      if (!existing.imageUrl && p.imageUrl) existing.imageUrl = p.imageUrl;
-    } else {
-      const merged: MergedStockProduct = { ...p, totalValue: Number(p.totalValue), allProductIds: [p.id] };
-      skuMap.set(key, merged);
-      result.push(merged);
-    }
-  }
-
-  return result;
 }
 
 export function StockClient({ products, adviceSkus }: StockClientProps) {
@@ -119,29 +71,26 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
   const [showListingDialog, setShowListingDialog] = useState(false);
   const [listingLoading, setListingLoading] = useState<string | null>(null);
 
-  // Merge products with same SKU
-  const mergedProducts = useMemo(() => mergeProductsBySku(products), [products]);
-
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
     const cats = new Set<string>();
-    mergedProducts.forEach((p) => cats.add(p.category));
+    products.forEach((p) => cats.add(p.category));
     return CATEGORIES.filter((c) => cats.has(c.value));
-  }, [mergedProducts]);
+  }, [products]);
 
   // Get statuses that actually exist in products
   const usedStatuses = useMemo(() => {
     const statusSet = new Set<string>();
-    mergedProducts.forEach((p) => {
+    products.forEach((p) => {
       const statuses = p.variantStatuses ?? [];
       statuses.forEach((s) => { if (s) statusSet.add(s); });
     });
     return STATUSES.filter((s) => statusSet.has(s.value) && s.value !== "vendu");
-  }, [mergedProducts]);
+  }, [products]);
 
   // Filter products
   const filtered = useMemo(() => {
-    let result = mergedProducts.filter((p) => {
+    let result = products.filter((p) => {
       if (search) {
         const q = search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
@@ -165,7 +114,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       });
     }
     return result;
-  }, [mergedProducts, search, selectedCategory, showUnlisted, showWithAdvice, selectedStatus, sortOldest, adviceSkus]);
+  }, [products, search, selectedCategory, showUnlisted, showWithAdvice, selectedStatus, sortOldest, adviceSkus]);
 
   const totalInStock = filtered.reduce(
     (sum, p) => sum + Number(p.inStockCount),
@@ -385,33 +334,6 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
         </div>
       ) : (
         <>
-          {/* Action buttons row */}
-          <div className="flex items-center justify-between gap-2">
-            <div />
-            <div className="flex items-center gap-1">
-              {mergedProducts.length > 0 && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                    onClick={handleExportCsv}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setSelectMode(true)}
-                  >
-                    <CheckSquare className="h-3.5 w-3.5" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -492,8 +414,8 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
             </div>
           )}
 
-          {/* Sort + extra filters */}
-          <div className="flex gap-1.5 flex-wrap">
+          {/* Sort + extra filters + action buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               onClick={() => setSortOldest(!sortOldest)}
               className={cn(
@@ -531,6 +453,26 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                 Message admin
               </button>
             )}
+            {products.length > 0 && (
+              <div className="flex items-center gap-0.5 ml-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                  onClick={handleExportCsv}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectMode(true)}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -548,7 +490,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <p className="text-center py-12 text-sm text-muted-foreground">
-            {mergedProducts.length === 0
+            {products.length === 0
               ? "Aucun produit en stock"
               : "Aucun resultat"}
           </p>

@@ -5,19 +5,19 @@ import { products, productVariants, sales, cashbacks } from "@/lib/db/schema";
 import { eq, and, desc, sql, ne, inArray } from "drizzle-orm";
 
 /**
- * Get all product parents grouped with variant counts for stock page.
- * Only returns products that have at least 1 non-sold variant.
+ * Get all products grouped by SKU (when available) with variant counts for stock page.
+ * Products with the same SKU are merged into a single row.
+ * Only returns groups that have at least 1 non-sold variant.
  */
 export async function getStockProductsGrouped(userId: string) {
   const result = await db
     .select({
-      id: products.id,
-      name: products.name,
+      id: sql<string>`min(${products.id})`,
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
       sku: products.sku,
-      category: products.category,
-      imageUrl: products.imageUrl,
-      notes: products.notes,
-      createdAt: products.createdAt,
+      category: sql<string>`(array_agg(${products.category}::text order by ${products.createdAt} desc))[1]`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
+      createdAt: sql<Date>`max(${products.createdAt})`,
       inStockCount: sql<number>`count(case when ${productVariants.status} != 'vendu' then 1 end)`,
       totalCount: sql<number>`count(*)`,
       totalValue: sql<number>`coalesce(sum(case when ${productVariants.status} != 'vendu' then cast(${productVariants.purchasePrice} as decimal) end), 0)`,
@@ -25,13 +25,14 @@ export async function getStockProductsGrouped(userId: string) {
       nearestReturnDeadline: sql<string | null>`min(case when ${productVariants.status} != 'vendu' and ${productVariants.returnDeadline} is not null then ${productVariants.returnDeadline} end)`,
       hasUnlistedVariants: sql<boolean>`bool_or(case when ${productVariants.status} != 'vendu' and (${productVariants.listedOn} is null or ${productVariants.listedOn}::text = '[]') then true else false end)`,
       variantStatuses: sql<string[]>`array_agg(distinct case when ${productVariants.status} != 'vendu' then ${productVariants.status}::text end)`,
+      allProductIds: sql<string[]>`array_agg(distinct ${products.id}::text)`,
     })
     .from(products)
     .innerJoin(productVariants, eq(products.id, productVariants.productId))
     .where(eq(products.userId, userId))
-    .groupBy(products.id)
+    .groupBy(sql`coalesce(${products.sku}, ${products.id}::text)`)
     .having(sql`count(case when ${productVariants.status} != 'vendu' then 1 end) > 0`)
-    .orderBy(desc(products.createdAt));
+    .orderBy(sql`max(${products.createdAt}) desc`);
 
   return result;
 }

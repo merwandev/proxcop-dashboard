@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -40,6 +45,7 @@ const RETURN_OPTIONS = [
 export function SupplierSettings({ suppliers: initialSuppliers }: SupplierSettingsProps) {
   const [suppliers, setSuppliers] = useState(initialSuppliers);
   const [isPending, startTransition] = useTransition();
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const [newName, setNewName] = useState("");
   const [newReturnDays, setNewReturnDays] = useState("none");
   const [customDays, setCustomDays] = useState("");
@@ -70,6 +76,7 @@ export function SupplierSettings({ suppliers: initialSuppliers }: SupplierSettin
         setNewName("");
         setNewReturnDays("none");
         setCustomDays("");
+        setShowAddDialog(false);
         toast.success("Fournisseur ajoute");
       } catch {
         toast.error("Erreur lors de l'ajout");
@@ -91,101 +98,119 @@ export function SupplierSettings({ suppliers: initialSuppliers }: SupplierSettin
   };
 
   const formatReturnDays = (days: string | null) => {
-    if (!days) return "Aucun retour";
-    return `${days}j de retour`;
+    if (!days) return "Pas de retour";
+    return `${days}j`;
   };
 
   return (
-    <Card className="p-4 bg-card border-border space-y-4">
-      <div className="flex items-center gap-2">
-        <Truck className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold">Fournisseurs</h2>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Fournisseurs</h2>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={() => setShowAddDialog(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Ajouter
+        </Button>
       </div>
 
       {/* Supplier list */}
       {suppliers.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          Aucun fournisseur configure. Ajoutez-en un ci-dessous.
+        <p className="text-sm text-muted-foreground text-center py-6">
+          Aucun fournisseur configure.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {suppliers.map((supplier) => (
             <div
               key={supplier.id}
-              className="flex items-center justify-between gap-2 p-3 rounded-lg bg-secondary/50"
+              className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-card border border-border"
             >
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 flex items-center gap-2">
                 <p className="text-sm font-medium truncate">{supplier.name}</p>
-                <p className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground flex-shrink-0">
                   {formatReturnDays(supplier.returnDays)}
-                </p>
+                </span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-danger flex-shrink-0"
+              <button
+                className="flex-shrink-0 p-1 text-muted-foreground hover:text-danger transition-colors"
                 onClick={() => handleDelete(supplier.id)}
                 disabled={isPending}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Add new supplier */}
-      <div className="border-t border-border pt-4 space-y-3">
-        <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-          Ajouter un fournisseur
-        </Label>
-        <div className="space-y-2">
-          <Input
-            placeholder="Nom du fournisseur..."
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="h-9 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAdd();
-              }
-            }}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Select value={newReturnDays} onValueChange={setNewReturnDays}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Delai retour" />
-              </SelectTrigger>
-              <SelectContent>
-                {RETURN_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {newReturnDays === "custom" && (
+      {/* Add supplier dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ajouter un fournisseur</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Nom</Label>
               <Input
-                type="number"
-                min="1"
-                placeholder="Nb jours"
-                value={customDays}
-                onChange={(e) => setCustomDays(e.target.value)}
+                placeholder="Nom du fournisseur..."
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
                 className="h-9 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAdd();
+                  }
+                }}
               />
-            )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Delai de retour</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={newReturnDays} onValueChange={setNewReturnDays}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Delai retour" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETURN_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {newReturnDays === "custom" && (
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Nb jours"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                )}
+              </div>
+            </div>
+            <Button
+              onClick={handleAdd}
+              disabled={isPending || !newName.trim()}
+              className="w-full h-10"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Ajouter
+            </Button>
           </div>
-        </div>
-        <Button
-          onClick={handleAdd}
-          disabled={isPending || !newName.trim()}
-          className="w-full h-9 text-sm"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Ajouter
-        </Button>
-      </div>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

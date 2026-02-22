@@ -11,8 +11,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProductGroupCard } from "./product-card";
-import { CATEGORIES } from "@/lib/utils/constants";
-import { deleteProducts, getProductsWithSizes } from "@/lib/actions/product-actions";
+import { CATEGORIES, STATUSES, PLATFORMS } from "@/lib/utils/constants";
+import { deleteProducts, getProductsWithSizes, bulkListProducts } from "@/lib/actions/product-actions";
 import {
   Search,
   X,
@@ -25,6 +25,8 @@ import {
   Copy,
   Check,
   ArrowUpDown,
+  Globe,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -41,16 +43,19 @@ interface StockProduct {
   oldestPurchaseDate: string | null;
   nearestReturnDeadline: string | null;
   hasUnlistedVariants: boolean;
+  variantStatuses: string[];
 }
 
 interface StockClientProps {
   products: StockProduct[];
+  adviceSkus: string[];
 }
 
-export function StockClient({ products }: StockClientProps) {
+export function StockClient({ products, adviceSkus }: StockClientProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -61,12 +66,25 @@ export function StockClient({ products }: StockClientProps) {
   const [wtsCopied, setWtsCopied] = useState(false);
   const [sortOldest, setSortOldest] = useState(false);
   const [showUnlisted, setShowUnlisted] = useState(false);
+  const [showWithAdvice, setShowWithAdvice] = useState(false);
+  const [showListingDialog, setShowListingDialog] = useState(false);
+  const [listingLoading, setListingLoading] = useState<string | null>(null);
 
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
     const cats = new Set<string>();
     products.forEach((p) => cats.add(p.category));
     return CATEGORIES.filter((c) => cats.has(c.value));
+  }, [products]);
+
+  // Get statuses that actually exist in products
+  const usedStatuses = useMemo(() => {
+    const statusSet = new Set<string>();
+    products.forEach((p) => {
+      const statuses = p.variantStatuses ?? [];
+      statuses.forEach((s) => { if (s) statusSet.add(s); });
+    });
+    return STATUSES.filter((s) => statusSet.has(s.value) && s.value !== "vendu");
   }, [products]);
 
   // Filter products
@@ -80,6 +98,11 @@ export function StockClient({ products }: StockClientProps) {
       }
       if (selectedCategory && p.category !== selectedCategory) return false;
       if (showUnlisted && !p.hasUnlistedVariants) return false;
+      if (showWithAdvice && (!p.sku || !adviceSkus.includes(p.sku.toUpperCase()))) return false;
+      if (selectedStatus) {
+        const statuses = p.variantStatuses ?? [];
+        if (!statuses.includes(selectedStatus)) return false;
+      }
       return true;
     });
     if (sortOldest) {
@@ -90,7 +113,7 @@ export function StockClient({ products }: StockClientProps) {
       });
     }
     return result;
-  }, [products, search, selectedCategory, showUnlisted, sortOldest]);
+  }, [products, search, selectedCategory, showUnlisted, showWithAdvice, selectedStatus, sortOldest, adviceSkus]);
 
   const totalInStock = filtered.reduce(
     (sum, p) => sum + Number(p.inStockCount),
@@ -124,7 +147,7 @@ export function StockClient({ products }: StockClientProps) {
     setDeleting(true);
     try {
       await deleteProducts(Array.from(selectedIds));
-      toast.success(`${selectedIds.size} produit${selectedIds.size > 1 ? "s" : ""} supprimé${selectedIds.size > 1 ? "s" : ""}`);
+      toast.success(`${selectedIds.size} produit${selectedIds.size > 1 ? "s" : ""} supprime${selectedIds.size > 1 ? "s" : ""}`);
       setShowDeleteConfirm(false);
       exitSelectMode();
       router.refresh();
@@ -135,16 +158,33 @@ export function StockClient({ products }: StockClientProps) {
     }
   };
 
+  const handleBulkList = async (platform: string) => {
+    if (selectedIds.size === 0) return;
+    setListingLoading(platform);
+    try {
+      await bulkListProducts(Array.from(selectedIds), platform);
+      const label = PLATFORMS.find((p) => p.value === platform)?.label ?? platform;
+      toast.success(`Publie sur ${label}`);
+      setShowListingDialog(false);
+      exitSelectMode();
+      router.refresh();
+    } catch {
+      toast.error("Erreur");
+    } finally {
+      setListingLoading(null);
+    }
+  };
+
   const handleGenerateWts = async () => {
     if (selectedIds.size === 0) return;
     setWtsLoading(true);
     try {
       const productsData = await getProductsWithSizes(Array.from(selectedIds));
 
-      let msg = "WTS 🔥\n";
+      let msg = "WTS\n";
       for (const product of productsData) {
         msg += "\n";
-        msg += `📦 ${product.name}\n`;
+        msg += `${product.name}\n`;
         if (product.sku) {
           msg += `SKU: ${product.sku}\n`;
         }
@@ -155,16 +195,16 @@ export function StockClient({ products }: StockClientProps) {
           sizeCounts.set(key, (sizeCounts.get(key) ?? 0) + 1);
         }
         for (const [size, count] of sizeCounts) {
-          msg += `  • ${size}${count > 1 ? ` (x${count})` : ""}\n`;
+          msg += `  - ${size}${count > 1 ? ` (x${count})` : ""}\n`;
         }
       }
-      msg += "\nDM pour prix 💬";
+      msg += "\nDM pour prix";
 
       setWtsMessage(msg);
       setShowWtsDialog(true);
       setWtsCopied(false);
     } catch {
-      toast.error("Erreur lors de la génération");
+      toast.error("Erreur lors de la generation");
     } finally {
       setWtsLoading(false);
     }
@@ -174,7 +214,7 @@ export function StockClient({ products }: StockClientProps) {
     try {
       await navigator.clipboard.writeText(wtsMessage);
       setWtsCopied(true);
-      toast.success("Message copié !");
+      toast.success("Message copie !");
       setTimeout(() => setWtsCopied(false), 2000);
     } catch {
       toast.error("Erreur lors de la copie");
@@ -192,7 +232,7 @@ export function StockClient({ products }: StockClientProps) {
       a.download = `proxstock-stock-${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("CSV exporté !");
+      toast.success("CSV exporte !");
     } catch {
       toast.error("Erreur lors de l'export CSV");
     }
@@ -201,6 +241,13 @@ export function StockClient({ products }: StockClientProps) {
   const selectedVariantCount = filtered
     .filter((p) => selectedIds.has(p.id))
     .reduce((sum, p) => sum + Number(p.totalCount), 0);
+
+  // Platforms for bulk listing (exclude discord + other)
+  const listingPlatforms = PLATFORMS.filter(
+    (p) => p.value !== "discord" && p.value !== "other"
+  );
+
+  const hasActiveFilters = search || selectedCategory || showUnlisted || showWithAdvice || selectedStatus;
 
   return (
     <>
@@ -222,7 +269,7 @@ export function StockClient({ products }: StockClientProps) {
               <span className="text-xs">Tout</span>
             </Button>
             <span className="text-xs text-muted-foreground">
-              {selectedIds.size} sélectionné{selectedIds.size > 1 ? "s" : ""}
+              {selectedIds.size} selectionne{selectedIds.size > 1 ? "s" : ""}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -241,6 +288,14 @@ export function StockClient({ products }: StockClientProps) {
                     <MessageSquare className="h-3.5 w-3.5" />
                   )}
                   WTS
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={() => setShowListingDialog(true)}
+                >
+                  <Globe className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="destructive"
@@ -345,6 +400,32 @@ export function StockClient({ products }: StockClientProps) {
             </div>
           )}
 
+          {/* Status filter chips */}
+          {usedStatuses.length > 1 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {usedStatuses.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() =>
+                    setSelectedStatus(
+                      selectedStatus === s.value ? null : s.value
+                    )
+                  }
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1",
+                    selectedStatus === s.value
+                      ? `${s.color}/20 border-current`
+                      : "bg-card border-border text-muted-foreground hover:border-border-hover"
+                  )}
+                  style={selectedStatus === s.value ? { color: `var(--${s.color.replace("bg-", "")})` } : undefined}
+                >
+                  <span className={cn("h-1.5 w-1.5 rounded-full", s.color)} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Sort + extra filters */}
           <div className="flex gap-1.5 flex-wrap">
             <button
@@ -370,15 +451,29 @@ export function StockClient({ products }: StockClientProps) {
             >
               Non publie
             </button>
+            {adviceSkus.length > 0 && (
+              <button
+                onClick={() => setShowWithAdvice(!showWithAdvice)}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1",
+                  showWithAdvice
+                    ? "bg-blue-500/20 text-blue-400 border-blue-500/40"
+                    : "bg-card border-border text-muted-foreground hover:border-border-hover"
+                )}
+              >
+                <Info className="h-3 w-3" />
+                Message admin
+              </button>
+            )}
           </div>
         </>
       )}
 
       {/* Results count when filtering */}
-      {(search || selectedCategory) && (
+      {hasActiveFilters && (
         <p className="text-xs text-muted-foreground">
           {filtered.length} produit{filtered.length !== 1 ? "s" : ""} &middot;{" "}
-          {totalInStock} unité{totalInStock !== 1 ? "s" : ""}
+          {totalInStock} unite{totalInStock !== 1 ? "s" : ""}
           {search && <span> pour &quot;{search}&quot;</span>}
         </p>
       )}
@@ -389,7 +484,7 @@ export function StockClient({ products }: StockClientProps) {
           <p className="text-center py-12 text-sm text-muted-foreground">
             {products.length === 0
               ? "Aucun produit en stock"
-              : "Aucun résultat"}
+              : "Aucun resultat"}
           </p>
         ) : (
           filtered.map((product) => (
@@ -425,7 +520,7 @@ export function StockClient({ products }: StockClientProps) {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Cette action supprimera {selectedIds.size} produit{selectedIds.size > 1 ? "s" : ""} et{" "}
-            {selectedVariantCount} variant{selectedVariantCount > 1 ? "s" : ""} (y compris les ventes associées). Cette action est irréversible.
+            {selectedVariantCount} variant{selectedVariantCount > 1 ? "s" : ""} (y compris les ventes associees). Cette action est irreversible.
           </p>
           <div className="flex gap-2 mt-2">
             <Button
@@ -444,6 +539,34 @@ export function StockClient({ products }: StockClientProps) {
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Supprimer"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk listing dialog */}
+      <Dialog open={showListingDialog} onOpenChange={setShowListingDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Publier sur...
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {listingPlatforms.map((p) => (
+              <button
+                key={p.value}
+                disabled={listingLoading !== null}
+                onClick={() => handleBulkList(p.value)}
+                className="text-sm px-4 py-2 rounded-lg border border-border bg-card hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
+              >
+                {listingLoading === p.value ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  p.label
+                )}
+              </button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -470,7 +593,7 @@ export function StockClient({ products }: StockClientProps) {
               {wtsCopied ? (
                 <>
                   <Check className="h-4 w-4" />
-                  Copié !
+                  Copie !
                 </>
               ) : (
                 <>

@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getStockProductsGrouped } from "@/lib/queries/products";
 import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
 import { StockClient } from "@/components/product/stock-client";
-import { AdviceBanner } from "@/components/product/advice-banner";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -14,11 +13,12 @@ export default async function StockPage() {
 
   const allProducts = await getStockProductsGrouped(session.user.id);
 
-  // Get active advice for user's products
+  // Get active advice for user's products (for filter chip, not display)
   const userSkus = allProducts
     .map((p) => p.sku)
     .filter((sku): sku is string => sku !== null && sku !== undefined);
   const advice = await getActiveAdviceForSkus(userSkus);
+  const adviceSkus = advice.map((a) => a.sku.toUpperCase());
 
   // Count total variants in stock
   const totalInStock = allProducts.reduce(
@@ -28,21 +28,6 @@ export default async function StockPage() {
 
   return (
     <div className="py-4 space-y-4">
-      {/* Admin advice banners */}
-      {advice.length > 0 && (
-        <div className="space-y-2">
-          {advice.map((a) => (
-            <AdviceBanner
-              key={a.id}
-              title={a.title}
-              message={a.message}
-              severity={a.severity}
-              sku={a.sku}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -60,7 +45,7 @@ export default async function StockPage() {
         </Link>
       </div>
 
-      <StockClient products={allProducts} />
+      <StockClient products={allProducts} adviceSkus={adviceSkus} />
     </div>
   );
 }

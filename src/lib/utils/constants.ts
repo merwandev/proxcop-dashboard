@@ -22,9 +22,11 @@ export const PAYMENT_STATUSES = [
 ] as const;
 
 export const STATUSES = [
+  { value: "en_attente", label: "En attente", color: "bg-orange-400" },
   { value: "en_stock", label: "En stock", color: "bg-blue-500" },
   { value: "liste", label: "Liste", color: "bg-purple-500" },
   { value: "reserve", label: "Reserve", color: "bg-yellow-500" },
+  { value: "expedie", label: "Expedie", color: "bg-cyan-500" },
   { value: "vendu", label: "Vendu", color: "bg-success" },
   { value: "en_litige", label: "En litige", color: "bg-danger" },
   { value: "return_waiting_rf", label: "Return / Waiting RF", color: "bg-warning" },

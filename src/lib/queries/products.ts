@@ -24,6 +24,7 @@ export async function getStockProductsGrouped(userId: string) {
       oldestPurchaseDate: sql<string>`min(case when ${productVariants.status} != 'vendu' then ${productVariants.purchaseDate} end)`,
       nearestReturnDeadline: sql<string | null>`min(case when ${productVariants.status} != 'vendu' and ${productVariants.returnDeadline} is not null then ${productVariants.returnDeadline} end)`,
       hasUnlistedVariants: sql<boolean>`bool_or(case when ${productVariants.status} != 'vendu' and (${productVariants.listedOn} is null or ${productVariants.listedOn}::text = '[]') then true else false end)`,
+      variantStatuses: sql<string[]>`array_agg(distinct case when ${productVariants.status} != 'vendu' then ${productVariants.status}::text end)`,
     })
     .from(products)
     .innerJoin(productVariants, eq(products.id, productVariants.productId))

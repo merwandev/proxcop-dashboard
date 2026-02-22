@@ -64,6 +64,7 @@ export async function createProductWithVariants(data: {
       purchasePrice: v.purchasePrice.toString(),
       purchaseDate: parsed.purchaseDate,
       targetPrice: parsed.targetPrice?.toString() ?? null,
+      status: "en_attente" as const,
       storageLocation: v.storageLocation ?? null,
       returnDeadline: parsed.returnDeadline || null,
       supplierName: parsed.supplierName ?? null,
@@ -350,4 +351,38 @@ export async function getProductsWithSizes(productIds: string[]) {
   }
 
   return results;
+}
+
+export async function bulkListProducts(productIds: string[], platform: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  if (productIds.length === 0) return;
+
+  for (const productId of productIds) {
+    // Get all non-sold variants for this product
+    const variants = await db
+      .select({ id: productVariants.id, listedOn: productVariants.listedOn })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.productId, productId),
+          eq(productVariants.userId, session.user.id),
+          sql`${productVariants.status} != 'vendu'`
+        )
+      );
+
+    for (const variant of variants) {
+      const current: string[] = (variant.listedOn as string[]) ?? [];
+      if (!current.includes(platform)) {
+        await db
+          .update(productVariants)
+          .set({ listedOn: [...current, platform], updatedAt: new Date() })
+          .where(eq(productVariants.id, variant.id));
+      }
+    }
+  }
+
+  revalidatePath("/stock");
+  revalidatePath("/dashboard");
 }

@@ -55,16 +55,11 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
     ? PLATFORMS.find((p) => p.value === topPlatform[0])?.label ?? topPlatform[0]
     : "N/A";
 
-  // Build cumulative profit chart data
-  const chartData: { label: string; profit: number }[] = [];
-  let cumProfit = 0;
-  for (const sale of sales) {
-    cumProfit += sale.profit;
-    chartData.push({
-      label: formatDateShort(sale.saleDate),
-      profit: Math.round(cumProfit * 100) / 100,
-    });
-  }
+  // Build per-sale profit chart data
+  const chartData = sales.map((sale) => ({
+    label: formatDateShort(sale.saleDate),
+    profit: Math.round(sale.profit * 100) / 100,
+  }));
 
   return (
     <div className="space-y-4">
@@ -91,12 +86,12 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
         />
       </div>
 
-      {/* Cumulative profit chart */}
+      {/* Per-sale profit chart */}
       {chartData.length >= 2 && (
         <Card className="p-4 bg-card border-border">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h3 className="text-sm font-medium">Profit cumule — {sku}</h3>
+              <h3 className="text-sm font-medium">Historique des ventes — {sku}</h3>
               <p className={`text-lg font-bold mt-0.5 ${totalProfit >= 0 ? "text-success" : "text-danger"}`}>
                 {totalProfit >= 0 ? "+" : ""}{formatCurrency(totalProfit)}
               </p>
@@ -134,7 +129,7 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
                 formatter={(value) => {
                   const v = Number(value ?? 0);
-                  return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, "Profit cumule"];
+                  return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, "Profit"];
                 }}
               />
               <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />

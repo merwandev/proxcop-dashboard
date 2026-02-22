@@ -17,17 +17,18 @@ import {
   Pie,
 } from "recharts";
 import { Card } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/utils/format";
+import { formatCurrency, formatDateShort } from "@/lib/utils/format";
 import { BarChart3, PieChart as PieChartIcon } from "lucide-react";
 
 interface StatsChartsProps {
   roiByCategory: { category: string; profit: number; roi: number; count: number }[];
   roiByPlatform: { platform: string; profit: number; roi: number; count: number }[];
   stockByCategory: { category: string; count: number; value: number }[];
+  stockEvolution: { date: string; stock: number }[];
   marginDistribution: number[];
 }
 
-const COLORS = ["#C9CEEE", "#8B92C8", "#4ADE80", "#FB923C", "#F87171"];
+const CATEGORY_COLORS = ["#C9CEEE", "#8B92C8", "#4ADE80", "#FB923C", "#F87171"];
 const PLATFORM_COLORS = ["#4ADE80", "#C9CEEE", "#FB923C", "#8B92C8", "#F87171", "#38BDF8", "#A78BFA", "#FBBF24"];
 
 const tooltipStyle = {
@@ -41,13 +42,19 @@ export function StatsCharts({
   roiByCategory,
   roiByPlatform,
   stockByCategory,
+  stockEvolution,
   marginDistribution,
 }: StatsChartsProps) {
   const [platformView, setPlatformView] = useState<"bar" | "pie">("bar");
 
-  // Profit par categorie — total profit
+  // Profit par categorie — total profit + pie data
   const totalProfit = roiByCategory.reduce((s, c) => s + c.profit, 0);
-  const profitColor = totalProfit >= 0 ? "#4ADE80" : "#F87171";
+  const categoryPieData = roiByCategory
+    .filter((c) => c.profit > 0)
+    .map((c, i) => ({
+      ...c,
+      fill: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
+    }));
 
   // Build histogram buckets for margin distribution
   const buckets = [
@@ -66,9 +73,15 @@ export function StatsCharts({
     ).length,
   }));
 
-  // Stock total
+  // Stock totals (current)
   const totalStock = stockByCategory.reduce((s, c) => s + c.count, 0);
   const totalStockValue = stockByCategory.reduce((s, c) => s + c.value, 0);
+
+  // Stock evolution chart data
+  const stockChartData = stockEvolution.map((point) => ({
+    label: formatDateShort(point.date),
+    stock: point.stock,
+  }));
 
   // Platform data for pie chart (only positive profits for pie)
   const platformPieData = roiByPlatform
@@ -80,7 +93,30 @@ export function StatsCharts({
 
   // Custom pie label
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderPieLabel = (props: any) => {
+  const renderCategoryPieLabel = (props: any) => {
+    const { cx, cy, midAngle, innerRadius, outerRadius, percent, category } = props;
+    if (percent < 0.05) return null;
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="#fff"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={10}
+        fontWeight={600}
+      >
+        {String(category).charAt(0).toUpperCase() + String(category).slice(1)}
+      </text>
+    );
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderPlatformPieLabel = (props: any) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent, platform } = props;
     if (percent < 0.05) return null;
     const RADIAN = Math.PI / 180;
@@ -104,7 +140,7 @@ export function StatsCharts({
 
   return (
     <>
-      {/* ── Profit par categorie (dashboard style) ── */}
+      {/* ── Profit par categorie (pie chart / camembert) ── */}
       {roiByCategory.length > 0 && (
         <Card className="p-4 bg-card border-border">
           <div className="flex items-start justify-between mb-3">
@@ -119,59 +155,65 @@ export function StatsCharts({
             </p>
           </div>
 
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={roiByCategory}>
-              <defs>
-                <linearGradient id="categoryGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={profitColor} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={profitColor} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis
-                dataKey="category"
-                tick={{ fontSize: 10, fill: "#919191" }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => v.charAt(0).toUpperCase() + v.slice(1)}
-              />
-              <YAxis
-                tick={{ fontSize: 9, fill: "#919191" }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => `${v}€`}
-                width={50}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: "#919191", marginBottom: 4 }}
-                formatter={(value) => {
-                  const v = Number(value ?? 0);
-                  return [`${v >= 0 ? "+" : ""}${formatCurrency(v)}`, "Profit"];
-                }}
-                labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
-              />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
-              <Area
-                type="monotone"
-                dataKey="profit"
-                stroke={profitColor}
-                strokeWidth={2}
-                fill="url(#categoryGradient)"
-                dot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: profitColor }}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: profitColor }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {categoryPieData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={categoryPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="profit"
+                    nameKey="category"
+                    label={renderCategoryPieLabel}
+                    labelLine={false}
+                  >
+                    {categoryPieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} stroke="transparent" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value) => [
+                      `+${formatCurrency(Number(value ?? 0))}`,
+                      "Profit",
+                    ]}
+                    labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Legend */}
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+                {roiByCategory.map((c, i) => (
+                  <div key={c.category} className="flex items-center gap-1.5">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }}
+                    />
+                    <span className="text-[10px] text-muted-foreground capitalize">
+                      {c.category} ({c.count})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              Pas encore de profit positif par categorie
+            </p>
+          )}
         </Card>
       )}
 
-      {/* ── Stock par categorie (dashboard style) ── */}
-      {stockByCategory.length > 0 && (
+      {/* ── Evolution du stock (timeline chart) ── */}
+      {stockEvolution.length >= 2 && (
         <Card className="p-4 bg-card border-border">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <h3 className="text-sm font-medium">Produits en stock</h3>
+              <h3 className="text-sm font-medium">Evolution du stock</h3>
               <p className="text-lg font-bold mt-0.5">
                 {totalStock} <span className="text-sm font-normal text-muted-foreground">unites</span>
               </p>
@@ -182,20 +224,20 @@ export function StatsCharts({
           </div>
 
           <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={stockByCategory}>
+            <ComposedChart data={stockChartData}>
               <defs>
-                <linearGradient id="stockGradient" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="stockEvoGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#C9CEEE" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#C9CEEE" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis
-                dataKey="category"
-                tick={{ fontSize: 10, fill: "#919191" }}
+                dataKey="label"
+                tick={{ fontSize: 9, fill: "#919191" }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => v.charAt(0).toUpperCase() + v.slice(1)}
+                interval="preserveStartEnd"
               />
               <YAxis
                 tick={{ fontSize: 9, fill: "#919191" }}
@@ -206,21 +248,20 @@ export function StatsCharts({
               <Tooltip
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#919191", marginBottom: 4 }}
-                formatter={(value, name) => {
+                formatter={(value) => {
                   const v = Number(value ?? 0);
-                  if (name === "count") return [`${v} unites`, "En stock"];
-                  return [`${formatCurrency(v)}`, "Valeur"];
+                  return [`${v} unites`, "En stock"];
                 }}
-                labelFormatter={(label) => String(label).charAt(0).toUpperCase() + String(label).slice(1)}
               />
               <Area
                 type="monotone"
-                dataKey="count"
+                dataKey="stock"
                 stroke="#C9CEEE"
                 strokeWidth={2}
-                fill="url(#stockGradient)"
-                dot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
+                fill="url(#stockEvoGradient)"
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#C9CEEE" }}
+                connectNulls
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -322,7 +363,7 @@ export function StatsCharts({
                     paddingAngle={3}
                     dataKey="profit"
                     nameKey="platform"
-                    label={renderPieLabel}
+                    label={renderPlatformPieLabel}
                     labelLine={false}
                   >
                     {platformPieData.map((entry, i) => (

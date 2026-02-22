@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { sales, productVariants, products } from "@/lib/db/schema";
-import { eq, sql, ne, and } from "drizzle-orm";
+import { eq, sql, ne, and, gte } from "drizzle-orm";
 
 export async function getStatsData(userId: string) {
   // ROI by category (category is on parent product)
@@ -96,6 +96,76 @@ export async function getStatsData(userId: string) {
     .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")))
     .groupBy(products.category);
 
+  // Stock evolution over time (purchases +1, sales -1)
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const oneYearAgoStr = oneYearAgo.toISOString().split("T")[0];
+
+  // Get all variant purchase dates
+  const purchaseEvents = await db
+    .select({
+      date: productVariants.purchaseDate,
+      delta: sql<number>`1`,
+    })
+    .from(productVariants)
+    .where(eq(productVariants.userId, userId));
+
+  // Get all sale dates
+  const saleEvents = await db
+    .select({
+      date: sales.saleDate,
+      delta: sql<number>`-1`,
+    })
+    .from(sales)
+    .where(eq(sales.userId, userId));
+
+  // Merge all events and sort by date
+  const allEvents = [...purchaseEvents, ...saleEvents].sort(
+    (a, b) => a.date.localeCompare(b.date)
+  );
+
+  // Build running stock level per date (cumulative)
+  const stockSnapshots: { date: string; stock: number }[] = [];
+  let runningStock = 0;
+  for (const event of allEvents) {
+    runningStock += Number(event.delta);
+    stockSnapshots.push({ date: event.date, stock: runningStock });
+  }
+
+  // Sample weekly over the last year
+  const stockEvolution: { date: string; stock: number }[] = [];
+  const today = new Date();
+  const cursor = new Date(oneYearAgoStr);
+  let snapshotIdx = 0;
+  // Advance to get stock level just before the window
+  let currentLevel = 0;
+  while (snapshotIdx < stockSnapshots.length && stockSnapshots[snapshotIdx].date < oneYearAgoStr) {
+    currentLevel = stockSnapshots[snapshotIdx].stock;
+    snapshotIdx++;
+  }
+
+  while (cursor <= today) {
+    const dateStr = cursor.toISOString().split("T")[0];
+    // Advance snapshots up to this date
+    while (snapshotIdx < stockSnapshots.length && stockSnapshots[snapshotIdx].date <= dateStr) {
+      currentLevel = stockSnapshots[snapshotIdx].stock;
+      snapshotIdx++;
+    }
+    stockEvolution.push({ date: dateStr, stock: Math.max(0, currentLevel) });
+    cursor.setDate(cursor.getDate() + 7);
+  }
+
+  // Always include today as the last point
+  const todayStr = today.toISOString().split("T")[0];
+  if (stockEvolution.length === 0 || stockEvolution[stockEvolution.length - 1].date !== todayStr) {
+    // Advance remaining snapshots
+    while (snapshotIdx < stockSnapshots.length) {
+      currentLevel = stockSnapshots[snapshotIdx].stock;
+      snapshotIdx++;
+    }
+    stockEvolution.push({ date: todayStr, stock: Math.max(0, currentLevel) });
+  }
+
   const total = Number(winRateData[0]?.total ?? 0);
   const wins = Number(winRateData[0]?.wins ?? 0);
 
@@ -120,6 +190,7 @@ export async function getStatsData(userId: string) {
       count: Number(s.count),
       value: Number(s.value),
     })),
+    stockEvolution,
     winRate: total > 0 ? (wins / total) * 100 : 0,
     avgMargin: Number(avgMarginData[0]?.avgMargin ?? 0),
   };

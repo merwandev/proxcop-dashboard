@@ -15,7 +15,8 @@ export default async function StatsPage() {
   const hasData =
     stats.roiByCategory.length > 0 ||
     stats.roiByPlatform.length > 0 ||
-    stats.stockByCategory.length > 0;
+    stats.stockByCategory.length > 0 ||
+    stats.stockEvolution.length > 0;
 
   return (
     <div className="py-4 space-y-4">
@@ -102,6 +103,7 @@ export default async function StatsPage() {
             roiByCategory={stats.roiByCategory}
             roiByPlatform={stats.roiByPlatform}
             stockByCategory={stats.stockByCategory}
+            stockEvolution={stats.stockEvolution}
             marginDistribution={stats.marginDistribution}
           />
         </>

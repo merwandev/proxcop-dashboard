@@ -40,13 +40,31 @@ interface CommunitySale {
   category: string;
 }
 
+export interface TopROIItem {
+  productName: string;
+  sku: string | null;
+  imageUrl: string | null;
+  avgRoi: number;
+  saleCount: number;
+}
+
+export interface TopVolumeItem {
+  productName: string;
+  sku: string | null;
+  imageUrl: string | null;
+  saleCount: number;
+  avgPrice: number;
+}
+
 interface VentesTabsProps {
   userSales: SaleItem[];
   communitySales: CommunitySale[];
+  topROI?: TopROIItem[];
+  topVolume?: TopVolumeItem[];
   userName?: string;
 }
 
-export function VentesTabs({ userSales, communitySales, userName }: VentesTabsProps) {
+export function VentesTabs({ userSales, communitySales, topROI, topVolume, userName }: VentesTabsProps) {
   return (
     <Tabs defaultValue="me">
       <TabsList className="w-full">
@@ -78,7 +96,7 @@ export function VentesTabs({ userSales, communitySales, userName }: VentesTabsPr
         <p className="text-xs text-muted-foreground">
           Ventes recentes de la communaute (anonymes)
         </p>
-        <CommunityFeed sales={communitySales} />
+        <CommunityFeed sales={communitySales} topROI={topROI} topVolume={topVolume} />
       </TabsContent>
     </Tabs>
   );

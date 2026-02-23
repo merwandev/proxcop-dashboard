@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { sales, productVariants, products, users } from "@/lib/db/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
 
 export async function getSalesByUser(userId: string) {
   return db
@@ -124,4 +124,91 @@ export async function getCommunitySales(limit = 50) {
     .where(eq(users.communityOptIn, true))
     .orderBy(desc(sales.saleDate), desc(sales.createdAt))
     .limit(limit);
+}
+
+/**
+ * Top products by ROI (profit %) in the last N days.
+ * Anonymous: only product name, SKU, image, avg ROI, sale count.
+ * Requires at least 2 sales to be meaningful.
+ */
+export async function getCommunityTopROI(daysBack = 7, limit = 5) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  const cutoffStr = cutoff.toISOString().split("T")[0];
+
+  const result = await db
+    .select({
+      productName: sql<string>`(array_agg(${products.name} order by ${sales.saleDate} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end))[1]`,
+      avgRoi: sql<number>`avg(
+        case when cast(${productVariants.purchasePrice} as decimal) > 0
+        then ((cast(${sales.salePrice} as decimal) - cast(${sales.platformFee} as decimal) - cast(${sales.shippingCost} as decimal) - cast(${sales.otherFees} as decimal) - cast(${productVariants.purchasePrice} as decimal)) / cast(${productVariants.purchasePrice} as decimal)) * 100
+        else 0 end
+      )`,
+      saleCount: sql<number>`count(*)`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .innerJoin(users, eq(sales.userId, users.id))
+    .where(and(
+      eq(users.communityOptIn, true),
+      gte(sales.saleDate, cutoffStr),
+    ))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.id}::text)`)
+    .having(sql`count(*) >= 2`)
+    .orderBy(sql`avg(
+      case when cast(${productVariants.purchasePrice} as decimal) > 0
+      then ((cast(${sales.salePrice} as decimal) - cast(${sales.platformFee} as decimal) - cast(${sales.shippingCost} as decimal) - cast(${sales.otherFees} as decimal) - cast(${productVariants.purchasePrice} as decimal)) / cast(${productVariants.purchasePrice} as decimal)) * 100
+      else 0 end
+    ) desc`)
+    .limit(limit);
+
+  return result.map((r) => ({
+    productName: r.productName,
+    sku: r.sku,
+    imageUrl: r.imageUrl,
+    avgRoi: Math.round(Number(r.avgRoi) * 10) / 10,
+    saleCount: Number(r.saleCount),
+  }));
+}
+
+/**
+ * Top products by sale volume (count) in the last N days.
+ * Anonymous: only product name, SKU, image, sale count, avg price.
+ */
+export async function getCommunityTopVolume(daysBack = 7, limit = 5) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  const cutoffStr = cutoff.toISOString().split("T")[0];
+
+  const result = await db
+    .select({
+      productName: sql<string>`(array_agg(${products.name} order by ${sales.saleDate} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end))[1]`,
+      saleCount: sql<number>`count(*)`,
+      avgPrice: sql<number>`avg(cast(${sales.salePrice} as decimal))`,
+    })
+    .from(sales)
+    .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .innerJoin(users, eq(sales.userId, users.id))
+    .where(and(
+      eq(users.communityOptIn, true),
+      gte(sales.saleDate, cutoffStr),
+    ))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.id}::text)`)
+    .having(sql`count(*) >= 2`)
+    .orderBy(sql`count(*) desc`)
+    .limit(limit);
+
+  return result.map((r) => ({
+    productName: r.productName,
+    sku: r.sku,
+    imageUrl: r.imageUrl,
+    saleCount: Number(r.saleCount),
+    avgPrice: Math.round(Number(r.avgPrice) * 100) / 100,
+  }));
 }

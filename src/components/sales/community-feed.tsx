@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { PLATFORMS, CATEGORIES } from "@/lib/utils/constants";
-import { Package, Search, X } from "lucide-react";
+import { Package, Search, X, TrendingUp, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { TopROIItem, TopVolumeItem } from "./ventes-tabs";
 
 interface CommunitySale {
   saleId: string;
@@ -24,9 +25,11 @@ interface CommunitySale {
 
 interface CommunityFeedProps {
   sales: CommunitySale[];
+  topROI?: TopROIItem[];
+  topVolume?: TopVolumeItem[];
 }
 
-export function CommunityFeed({ sales }: CommunityFeedProps) {
+export function CommunityFeed({ sales, topROI, topVolume }: CommunityFeedProps) {
   const [search, setSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -88,8 +91,100 @@ export function CommunityFeed({ sales }: CommunityFeedProps) {
     );
   }
 
+  const hasTopData = (topROI && topROI.length > 0) || (topVolume && topVolume.length > 0);
+
   return (
     <div className="space-y-3">
+      {/* Top ROI + Top Volume widgets */}
+      {hasTopData && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {topROI && topROI.length > 0 && (
+            <Card className="p-3 bg-card border-border">
+              <div className="flex items-center gap-1.5 mb-2">
+                <TrendingUp className="h-3.5 w-3.5 text-success" />
+                <h4 className="text-xs font-semibold">Top ROI — 7 jours</h4>
+              </div>
+              <div className="space-y-1.5">
+                {topROI.map((item, i) => (
+                  <div key={item.sku ?? i} className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground w-3 text-right flex-shrink-0">
+                      {i + 1}.
+                    </span>
+                    <div className="relative h-7 w-7 rounded overflow-hidden bg-white flex-shrink-0">
+                      {item.imageUrl ? (
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.productName}
+                          fill
+                          className="object-contain p-0.5"
+                          sizes="28px"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Package className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium leading-tight truncate">{item.productName}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className={cn(
+                        "text-xs font-bold",
+                        item.avgRoi >= 0 ? "text-success" : "text-danger"
+                      )}>
+                        {item.avgRoi >= 0 ? "+" : ""}{item.avgRoi}%
+                      </span>
+                      <p className="text-[9px] text-muted-foreground">{item.saleCount} ventes</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {topVolume && topVolume.length > 0 && (
+            <Card className="p-3 bg-card border-border">
+              <div className="flex items-center gap-1.5 mb-2">
+                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                <h4 className="text-xs font-semibold">Top volume — 7 jours</h4>
+              </div>
+              <div className="space-y-1.5">
+                {topVolume.map((item, i) => (
+                  <div key={item.sku ?? i} className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground w-3 text-right flex-shrink-0">
+                      {i + 1}.
+                    </span>
+                    <div className="relative h-7 w-7 rounded overflow-hidden bg-white flex-shrink-0">
+                      {item.imageUrl ? (
+                        <Image
+                          src={item.imageUrl}
+                          alt={item.productName}
+                          fill
+                          className="object-contain p-0.5"
+                          sizes="28px"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Package className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium leading-tight truncate">{item.productName}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs font-bold">{item.saleCount}</span>
+                      <p className="text-[9px] text-muted-foreground">{formatCurrency(item.avgPrice)} moy.</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getSalesByUser, getCommunitySales } from "@/lib/queries/sales";
+import { getSalesByUser, getCommunitySales, getCommunityTopROI, getCommunityTopVolume } from "@/lib/queries/sales";
 import { ExportCsvButton } from "@/components/sales/export-csv-button";
 import { VentesTabs } from "@/components/sales/ventes-tabs";
 
@@ -8,9 +8,11 @@ export default async function VentesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [salesData, communitySalesRaw] = await Promise.all([
+  const [salesData, communitySalesRaw, topROI, topVolume] = await Promise.all([
     getSalesByUser(session.user.id),
     getCommunitySales(50),
+    getCommunityTopROI(7, 5),
+    getCommunityTopVolume(7, 5),
   ]);
 
   // Serialize for client component (VentesClient format)
@@ -66,6 +68,8 @@ export default async function VentesPage() {
       <VentesTabs
         userSales={serialized}
         communitySales={communitySales}
+        topROI={topROI}
+        topVolume={topVolume}
         userName={session.user.discordUsername ?? session.user.name ?? undefined}
       />
     </div>

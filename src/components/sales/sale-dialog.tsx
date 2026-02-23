@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PLATFORMS } from "@/lib/utils/constants";
 import { createSale } from "@/lib/actions/sale-actions";
 import { BadgeCheck, Loader2 } from "lucide-react";
-import { SaleSuccessAnimation, type SaleSuccessData } from "./sale-success-animation";
+import { type SaleSuccessData } from "./sale-success-animation";
 
 interface SaleDialogProps {
   variantId: string;
@@ -37,14 +36,12 @@ interface SaleDialogProps {
   };
   userName?: string;
   showSuccessAnimation?: boolean;
+  onSaleSuccess?: (data: SaleSuccessData) => void;
 }
 
-export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimation = true }: SaleDialogProps) {
+export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimation = true, onSaleSuccess }: SaleDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("");
-  const [successData, setSuccessData] = useState<SaleSuccessData | null>(null);
-  const [needsRefresh, setNeedsRefresh] = useState(false);
-  const router = useRouter();
 
   const action = async (_prev: unknown, formData: FormData) => {
     formData.set("variantId", variantId);
@@ -52,7 +49,7 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
       await createSale(formData);
 
       // Build success data from form values + product info
-      if (showSuccessAnimation && productInfo) {
+      if (showSuccessAnimation && productInfo && onSaleSuccess) {
         const salePrice = Number(formData.get("salePrice")) || 0;
         const platformFee = Number(formData.get("platformFee")) || 0;
         const shippingCost = Number(formData.get("shippingCost")) || 0;
@@ -60,7 +57,7 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
         const platform = (formData.get("platform") as string) || null;
         const saleDate = (formData.get("saleDate") as string) || new Date().toISOString().split("T")[0];
 
-        setSuccessData({
+        onSaleSuccess({
           salePrice,
           purchasePrice: productInfo.purchasePrice,
           platformFee,
@@ -78,11 +75,6 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
 
       setOpen(false);
       setSelectedPlatform("");
-      if (!showSuccessAnimation || !productInfo) {
-        router.refresh();
-      } else {
-        setNeedsRefresh(true);
-      }
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -223,20 +215,6 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Success animation overlay */}
-      {successData && (
-        <SaleSuccessAnimation
-          data={successData}
-          onClose={() => {
-            setSuccessData(null);
-            if (needsRefresh) {
-              setNeedsRefresh(false);
-              router.refresh();
-            }
-          }}
-        />
-      )}
     </>
   );
 }

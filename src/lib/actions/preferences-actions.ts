@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { saveDashboardLayout, saveStatsLayout, saveTaxSettings, saveCommunityOptIn, type WidgetSize } from "@/lib/queries/user-preferences";
+import { saveDashboardLayout, saveStatsLayout, saveTaxSettings, saveCommunityOptIn, saveSaleSuccessAnimation, type WidgetSize } from "@/lib/queries/user-preferences";
 import { revalidatePath } from "next/cache";
 
 export async function saveDashboardLayoutAction(widgets: string[], sizes?: Record<string, WidgetSize>) {
@@ -37,4 +37,13 @@ export async function saveCommunityOptInAction(optIn: boolean) {
   await saveCommunityOptIn(session.user.id, optIn);
   revalidatePath("/settings");
   revalidatePath("/ventes");
+}
+
+export async function saveSaleSuccessAnimationAction(enabled: boolean) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  await saveSaleSuccessAnimation(session.user.id, enabled);
+  revalidatePath("/settings");
+  revalidatePath("/stock");
 }

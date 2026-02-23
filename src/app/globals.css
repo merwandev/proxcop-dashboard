@@ -153,3 +153,55 @@
 .recharts-wrapper:focus {
   outline: none;
 }
+
+/* ── Sale success animation ────────────────────────────────────────── */
+
+.sale-overlay-in {
+  animation: sale-overlay-in 0.3s ease-out both;
+}
+
+.sale-glow-pulse {
+  animation: sale-glow-pulse 1.2s ease-out both;
+}
+
+.sale-light-burst {
+  animation: sale-light-burst 1s ease-out 0.2s both;
+}
+
+.sale-card-reveal {
+  animation: sale-card-reveal 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+
+.sale-sparkle {
+  animation: sale-sparkle 1.4s ease-out both;
+}
+
+@keyframes sale-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sale-glow-pulse {
+  0% { transform: scale(0.3); opacity: 0; }
+  40% { transform: scale(1.3); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes sale-light-burst {
+  0% { transform: scale(0) rotate(0deg); opacity: 0.7; }
+  60% { transform: scale(1) rotate(15deg); opacity: 0.5; }
+  100% { transform: scale(1.3) rotate(20deg); opacity: 0; }
+}
+
+@keyframes sale-card-reveal {
+  0% { transform: scale(0) rotate(-3deg); opacity: 0; filter: brightness(2); }
+  50% { transform: scale(1.04) rotate(0.5deg); opacity: 1; filter: brightness(1.4); }
+  75% { transform: scale(0.98) rotate(-0.3deg); filter: brightness(1.1); }
+  100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+}
+
+@keyframes sale-sparkle {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.8; }
+  100% { transform: scale(0); opacity: 0; }
+}

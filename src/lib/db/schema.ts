@@ -44,6 +44,7 @@ export const users = pgTable("users", {
   tvaEnabled: boolean("tva_enabled").notNull().default(false),
   tvaRate: decimal("tva_rate", { precision: 5, scale: 2 }).default("20.00"),
   communityOptIn: boolean("community_opt_in").notNull().default(true),
+  saleSuccessAnimation: boolean("sale_success_animation").notNull().default(true),
   dashboardLayout: jsonb("dashboard_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
   statsLayout: jsonb("stats_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -93,9 +93,11 @@ interface ProductDetailClientProps {
   };
   medianPrices?: Record<string, MedianPrice>;
   suppliers?: Supplier[];
+  userName?: string;
+  showSuccessAnimation?: boolean;
 }
 
-export function ProductDetailClient({ product, medianPrices, suppliers = [] }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, medianPrices, suppliers = [], userName, showSuccessAnimation }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -261,6 +263,9 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [] }: P
                 variant={variant}
                 medianPrice={medianPrices?.[sizeKey] ?? null}
                 suppliers={suppliers}
+                productInfo={{ name: product.name, imageUrl: product.imageUrl, sku: product.sku }}
+                userName={userName}
+                showSuccessAnimation={showSuccessAnimation}
               />
             );
           })}
@@ -327,11 +332,17 @@ function VariantCard({
   soldView = false,
   medianPrice = null,
   suppliers = [],
+  productInfo,
+  userName,
+  showSuccessAnimation,
 }: {
   variant: ProductVariant;
   soldView?: boolean;
   medianPrice?: MedianPrice | null;
   suppliers?: Supplier[];
+  productInfo?: { name: string; imageUrl: string | null; sku: string | null };
+  userName?: string;
+  showSuccessAnimation?: boolean;
 }) {
   const returnStatus = !soldView ? getReturnDeadlineStatus(variant.returnDeadline) : null;
 
@@ -412,7 +423,16 @@ function VariantCard({
           <div className="flex items-center gap-1 flex-shrink-0">
             <EditVariantDialog variant={variant} medianPrice={medianPrice} suppliers={suppliers} />
             {variant.status !== "vendu" && (
-              <SaleDialog variantId={variant.id} />
+              <SaleDialog
+                variantId={variant.id}
+                productInfo={productInfo ? {
+                  ...productInfo,
+                  sizeVariant: variant.sizeVariant,
+                  purchasePrice: Number(variant.purchasePrice),
+                } : undefined}
+                userName={userName}
+                showSuccessAnimation={showSuccessAnimation}
+              />
             )}
             <DeleteVariantButton variantId={variant.id} />
           </div>

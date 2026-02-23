@@ -33,6 +33,7 @@ interface InboxListProps {
 
 function getAvatarUrl(discordId: string | null, avatar: string | null): string | null {
   if (!discordId || !avatar) return null;
+  if (avatar.startsWith("http")) return avatar;
   return `https://cdn.discordapp.com/avatars/${discordId}/${avatar}.png`;
 }
 

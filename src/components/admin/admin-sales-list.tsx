@@ -71,7 +71,7 @@ export function AdminSalesList({ sales }: AdminSalesListProps) {
         {items.map((sale) => {
           const profit = Number(sale.salePrice) - Number(sale.purchasePrice);
           const avatarUrl = sale.discordAvatar
-            ? `https://cdn.discordapp.com/avatars/${sale.discordId}/${sale.discordAvatar}.png`
+            ? (sale.discordAvatar.startsWith("http") ? sale.discordAvatar : `https://cdn.discordapp.com/avatars/${sale.discordId}/${sale.discordAvatar}.png`)
             : null;
 
           return (

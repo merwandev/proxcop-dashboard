@@ -251,7 +251,12 @@ export async function searchProductBySkuStockX(
     const variants: StockXVariant[] = variantArray
       .map((v: Record<string, unknown>) => {
         const variantId = (v.variantId ?? v.id ?? "") as string;
-        const sizeUS = (v.variantValue ?? "") as string;
+        let sizeUS = (v.variantValue ?? "") as string;
+
+        // For products with a single variant and no size (e.g., "OS", collectibles, etc.)
+        if (!sizeUS && variantArray.length === 1) {
+          sizeUS = "OS";
+        }
 
         // Extract EU size from sizeChart.availableConversions
         let sizeEU: string | null = null;
@@ -439,7 +444,12 @@ export async function getProductByIdStockX(
     const variants: StockXVariant[] = variantArray
       .map((v: Record<string, unknown>) => {
         const variantId = (v.variantId ?? v.id ?? "") as string;
-        const sizeUS = (v.variantValue ?? "") as string;
+        let sizeUS = (v.variantValue ?? "") as string;
+
+        // For products with a single variant and no size (e.g., "OS", collectibles, etc.)
+        if (!sizeUS && variantArray.length === 1) {
+          sizeUS = "OS";
+        }
 
         let sizeEU: string | null = null;
         const sizeChart = v.sizeChart as { availableConversions?: { size: string; type: string }[] } | undefined;

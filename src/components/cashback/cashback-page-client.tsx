@@ -82,29 +82,30 @@ export function CashbackPageClient({ cashbacks, summary, availableVariants }: Ca
 
   return (
     <div className="space-y-4">
-      {/* KPI cards + Add button */}
-      <div className="flex items-start gap-2">
-        <div className="grid grid-cols-2 gap-2 flex-1">
-          <Card className="p-2.5 bg-card gap-0">
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total recu</p>
-            <p className="text-sm font-bold text-success mt-0.5">{formatCurrency(summary.totalReceived)}</p>
-            <p className="text-[9px] text-muted-foreground">{summary.countReceived} cashback{summary.countReceived > 1 ? "s" : ""}</p>
-          </Card>
-          <Card className="p-2.5 bg-card gap-0">
-            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">En attente</p>
-            <p className="text-sm font-bold text-warning mt-0.5">{formatCurrency(summary.totalPending)}</p>
-            <p className="text-[9px] text-muted-foreground">{summary.countTotal - summary.countReceived} en cours</p>
-          </Card>
-        </div>
-        <Button
-          size="sm"
-          className="h-full min-h-[60px] px-3 gap-1"
-          onClick={() => setShowAddDialog(true)}
-        >
-          <Plus className="h-4 w-4" />
-          <span className="text-xs">Ajouter</span>
-        </Button>
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-2">
+        <Card className="p-2.5 bg-card gap-0">
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total recu</p>
+          <p className="text-sm font-bold text-success mt-0.5">{formatCurrency(summary.totalReceived)}</p>
+          <p className="text-[9px] text-muted-foreground">{summary.countReceived} cashback{summary.countReceived > 1 ? "s" : ""}</p>
+        </Card>
+        <Card className="p-2.5 bg-card gap-0">
+          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">En attente</p>
+          <p className="text-sm font-bold text-warning mt-0.5">{formatCurrency(summary.totalPending)}</p>
+          <p className="text-[9px] text-muted-foreground">{summary.countTotal - summary.countReceived} en cours</p>
+        </Card>
       </div>
+
+      {/* Add button */}
+      <Button
+        size="sm"
+        className="w-full h-9 gap-1.5"
+        variant="outline"
+        onClick={() => setShowAddDialog(true)}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        <span className="text-xs">Ajouter un cashback</span>
+      </Button>
 
       {/* Status filter */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">

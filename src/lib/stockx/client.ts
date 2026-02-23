@@ -457,6 +457,55 @@ export async function getProductByIdStockX(
   }
 }
 
+// ─── GTIN / Barcode Lookup ──────────────────────────────────────────
+
+/**
+ * Look up a product by GTIN (barcode / UPC / EAN).
+ * StockX API: GET /v2/catalog/products/variants/gtins/{gtin}
+ * Returns the product variant info → we use it to get productId → full lookup.
+ */
+export async function lookupByGtinStockX(
+  gtin: string
+): Promise<StockXProductResult | null> {
+  const accessToken = await getStockXAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.stockx.com/v2/catalog/products/variants/gtins/${encodeURIComponent(gtin)}`,
+      {
+        headers: stockxHeaders(accessToken),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (res.status === 429 || res.status === 404) return null;
+    if (!res.ok) return null;
+
+    const data = await res.json();
+
+    // The response contains the variant and parent product info
+    const productId = (data.productId ?? data.product?.id ?? "") as string;
+    if (!productId) return null;
+
+    // Now get full product details using existing function
+    const product = await getProductByIdStockX(productId);
+    if (!product) return null;
+
+    // Enrich with title/styleId from GTIN response if available
+    const title = (data.product?.title ?? product.title) as string;
+    const styleId = (data.product?.styleId ?? product.styleId) as string;
+
+    return {
+      ...product,
+      title,
+      styleId,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Shared helpers ─────────────────────────────────────────────────
 
 async function testImageUrls(variantSlug: string): Promise<string | null> {

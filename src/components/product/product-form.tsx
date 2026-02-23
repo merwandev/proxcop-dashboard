@@ -26,11 +26,12 @@ import {
 import { createProductWithVariants } from "@/lib/actions/product-actions";
 import { createSupplierAction } from "@/lib/actions/supplier-actions";
 import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2 } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2, Camera } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
 import { SkuSalesSection } from "@/components/product/sku-sales-section";
+import { BarcodeScanner } from "@/components/product/barcode-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -170,6 +171,8 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [adminResults, setAdminResults] = useState<AdminSearchResult[]>([]);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
 
   // Product state (after selection)
   const [productTitle, setProductTitle] = useState("");
@@ -426,6 +429,38 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
     }
   }, [searchInput, performSearch]);
 
+  // ─── Barcode scan handler ──────────────────────────────────────────
+
+  const handleBarcodeScan = useCallback(async (gtin: string) => {
+    setShowScanner(false);
+    setScanLoading(true);
+    setSearchStatus("loading");
+    setSearchInput(gtin);
+
+    try {
+      const res = await fetch(`/api/stockx/gtin/${encodeURIComponent(gtin)}`);
+      const data = await res.json();
+
+      if (data.status === "found" && data.variants?.length > 0) {
+        setProductTitle(data.title || "");
+        setProductSku(data.styleId || "");
+        setProductImageUrl(data.imageUrl || null);
+        setAvailableSizes(data.variants);
+        setSearchStatus("found");
+        setStep("sizes");
+        toast.success("Produit trouve via code-barres !");
+      } else {
+        setSearchStatus("not_found");
+        toast.error("Aucun produit trouve pour ce code-barres");
+      }
+    } catch {
+      setSearchStatus("error");
+      toast.error("Erreur lors de la recherche");
+    } finally {
+      setScanLoading(false);
+    }
+  }, []);
+
   // ─── Select a product from search results ─────────────────────────
 
   const handleSelectProduct = useCallback(async (product: SearchResult) => {
@@ -647,29 +682,41 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
           <Label htmlFor="product-search" className="text-base font-semibold">
             Rechercher un produit
           </Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="product-search"
-              placeholder="Nike Dunk Low, DD1391-100..."
-              value={searchInput}
-              onChange={(e) => handleSearchInputChange(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="pl-9 pr-10 h-11"
-              autoFocus
-            />
-            {searchStatus === "loading" && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
-            )}
-            {searchInput && searchStatus !== "loading" && (
-              <button
-                type="button"
-                onClick={() => { handleSearchInputChange(""); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="product-search"
+                placeholder="Nike Dunk Low, DD1391-100..."
+                value={searchInput}
+                onChange={(e) => handleSearchInputChange(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-9 pr-10 h-11"
+                autoFocus
+              />
+              {(searchStatus === "loading" || scanLoading) && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+              )}
+              {searchInput && searchStatus !== "loading" && !scanLoading && (
+                <button
+                  type="button"
+                  onClick={() => { handleSearchInputChange(""); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 flex-shrink-0"
+              onClick={() => setShowScanner(true)}
+              disabled={scanLoading}
+            >
+              <Camera className="h-4.5 w-4.5" />
+            </Button>
           </div>
           {searchStatus === "idle" && searchInput.length === 0 && (
             <p className="text-[11px] text-muted-foreground">
@@ -900,6 +947,12 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
           <Package className="h-4 w-4 mr-2" />
           Ajouter manuellement
         </Button>
+
+        <BarcodeScanner
+          open={showScanner}
+          onClose={() => setShowScanner(false)}
+          onScan={handleBarcodeScan}
+        />
       </div>
     );
   }

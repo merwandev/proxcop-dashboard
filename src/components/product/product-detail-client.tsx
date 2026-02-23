@@ -128,6 +128,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
 
   const allInStockVariants = product.variants.filter((v) => v.status !== "vendu");
   const soldVariants = product.variants.filter((v) => v.status === "vendu");
+  const totalVariants = product.variants.length;
   const categoryLabel = CATEGORIES.find((c) => c.value === product.category)?.label ?? product.category;
 
   // Get statuses present in in-stock variants
@@ -291,6 +292,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
                 onSaleSuccess={handleSaleSuccess}
+                isLastVariant={totalVariants === 1}
               />
             );
           })}
@@ -368,6 +370,7 @@ function VariantCard({
   userName,
   showSuccessAnimation,
   onSaleSuccess,
+  isLastVariant,
 }: {
   variant: ProductVariant;
   soldView?: boolean;
@@ -377,6 +380,7 @@ function VariantCard({
   userName?: string;
   showSuccessAnimation?: boolean;
   onSaleSuccess?: (data: SaleSuccessData) => void;
+  isLastVariant?: boolean;
 }) {
   const returnStatus = !soldView ? getReturnDeadlineStatus(variant.returnDeadline) : null;
 
@@ -469,7 +473,7 @@ function VariantCard({
                 onSaleSuccess={onSaleSuccess}
               />
             )}
-            <DeleteVariantButton variantId={variant.id} />
+            <DeleteVariantButton variantId={variant.id} isLastVariant={isLastVariant} />
           </div>
         )}
       </div>
@@ -873,7 +877,7 @@ function EditVariantDialog({ variant, medianPrice = null, suppliers = [] }: { va
 
 // --- Delete Variant Button ---
 
-function DeleteVariantButton({ variantId }: { variantId: string }) {
+function DeleteVariantButton({ variantId, isLastVariant }: { variantId: string; isLastVariant?: boolean }) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
@@ -884,7 +888,11 @@ function DeleteVariantButton({ variantId }: { variantId: string }) {
       await deleteVariant(variantId);
       toast.success("Variant supprime");
       setOpen(false);
-      router.refresh();
+      if (isLastVariant) {
+        router.push("/stock");
+      } else {
+        router.refresh();
+      }
     } catch {
       toast.error("Erreur lors de la suppression");
     } finally {

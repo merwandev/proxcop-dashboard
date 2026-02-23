@@ -7,7 +7,8 @@ import { AdviceForm } from "./advice-form";
 import { AdviceList } from "./advice-list";
 import { WebhookConfig } from "./webhook-config";
 import { AdminProducts } from "./admin-products";
-import { ImageIcon, Megaphone, Settings, Package } from "lucide-react";
+import { AdminSalesList, type AdminSaleItem } from "./admin-sales-list";
+import { ImageIcon, Megaphone, Settings, Package, ShoppingCart } from "lucide-react";
 
 interface SkuItem {
   id: string;
@@ -52,10 +53,11 @@ interface AdminTabsProps {
   productsNoImage: ProductNoImage[];
   adviceItems: AdviceItem[];
   adminProducts: AdminProductItem[];
+  adminSales: AdminSaleItem[];
   webhookUrl: string | null;
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, webhookUrl }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -80,6 +82,15 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, w
           {totalMissing > 0 && (
             <span className="ml-1 rounded-full bg-warning/20 text-warning px-1.5 text-[10px] font-bold">
               {totalMissing}
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="sales" className="gap-1.5">
+          <ShoppingCart className="h-3.5 w-3.5" />
+          Ventes
+          {adminSales.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+              {adminSales.length}
             </span>
           )}
         </TabsTrigger>
@@ -134,6 +145,10 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, w
             )}
           </>
         )}
+      </TabsContent>
+
+      <TabsContent value="sales" className="mt-4 space-y-4">
+        <AdminSalesList sales={adminSales} />
       </TabsContent>
 
       <TabsContent value="config" className="mt-4 space-y-6">

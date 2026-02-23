@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Package, Receipt, TrendingUp } from "lucide-react";
+import { BarChart3, Package, Receipt, TrendingUp, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const baseNavItems = [
@@ -10,6 +10,7 @@ const baseNavItems = [
   { href: "/stock", label: "Stock", icon: Package },
   { href: "/ventes", label: "Ventes", icon: Receipt },
   { href: "/stats", label: "Stats", icon: TrendingUp },
+  { href: "/community", label: "Communauté", icon: Users },
 ];
 
 interface BottomNavProps {
@@ -31,7 +32,7 @@ export function BottomNav({ hasStockNotification }: BottomNavProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 min-w-[64px] min-h-[44px] rounded-lg transition-colors",
+                "flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[44px] rounded-lg transition-colors",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"

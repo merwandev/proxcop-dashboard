@@ -37,3 +37,18 @@ export function timeInStockColor(days: number): "success" | "warning" | "danger"
   if (days < 60) return "warning";
   return "danger";
 }
+
+export function timeAgo(date: Date | string): string {
+  const now = new Date();
+  const d = new Date(date);
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / (1000 * 60));
+  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffD = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin}min`;
+  if (diffH < 24) return `il y a ${diffH}h`;
+  if (diffD < 30) return `il y a ${diffD}j`;
+  return formatDateShort(date);
+}

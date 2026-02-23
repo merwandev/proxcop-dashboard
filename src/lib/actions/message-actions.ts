@@ -8,6 +8,7 @@ import {
   markAllAsRead,
 } from "@/lib/queries/messages";
 import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 
 export async function sendMessageAction(data: {
   toUserId: string;
@@ -28,6 +29,13 @@ export async function sendMessageAction(data: {
     toUserId: data.toUserId,
     subject: data.subject.trim(),
     body: data.body.trim(),
+  });
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "send_message",
+    target: `user:${data.toUserId}`,
+    details: `Message envoye: "${data.subject.trim()}"`,
   });
 
   revalidatePath("/inbox");

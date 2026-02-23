@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 // Upload via server-side proxy (avoids R2 CORS issues)
 import { adminSetProductImage } from "@/lib/actions/product-actions";
-import { Loader2, Upload, Check, Image as ImageIcon, Package, User } from "lucide-react";
+import { Loader2, Upload, Check, Image as ImageIcon, Package, User, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProductNoImage {
@@ -23,6 +23,7 @@ interface MissingImageProductsProps {
 
 export function MissingImageProducts({ products }: MissingImageProductsProps) {
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
@@ -84,9 +85,16 @@ export function MissingImageProducts({ products }: MissingImageProductsProps) {
     }
   };
 
+  const visibleProducts = products.filter((p) => !dismissedIds.has(p.id));
+
   return (
     <div className="space-y-3">
-      {products.map((item) => {
+      {dismissedIds.size > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {dismissedIds.size} masque{dismissedIds.size > 1 ? "s" : ""}
+        </p>
+      )}
+      {visibleProducts.map((item) => {
         const isResolved = resolvedIds.has(item.id);
         const isLoading = loadingIds.has(item.id);
         const previewUrl = imageUrls[item.id];
@@ -127,12 +135,26 @@ export function MissingImageProducts({ products }: MissingImageProductsProps) {
                   </div>
                 </div>
               </div>
-              {isResolved && (
-                <div className="flex items-center gap-1 text-success flex-shrink-0">
-                  <Check className="h-4 w-4" />
-                  <span className="text-xs font-medium">Resolu</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isResolved && (
+                  <div className="flex items-center gap-1 text-success">
+                    <Check className="h-4 w-4" />
+                    <span className="text-xs font-medium">Resolu</span>
+                  </div>
+                )}
+                {!isResolved && (
+                  <button
+                    onClick={() => {
+                      setDismissedIds((prev) => new Set(prev).add(item.id));
+                      toast.info(`"${item.name}" masque`);
+                    }}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    title="Masquer ce produit"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {!isResolved && (

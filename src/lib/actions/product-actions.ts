@@ -7,6 +7,7 @@ import { isAdminRole } from "@/lib/auth-utils";
 import { createProductSchema, updateProductSchema, updateVariantSchema } from "@/lib/validators/product";
 import { eq, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 
 export async function createProductWithVariants(data: {
   name: string;
@@ -197,6 +198,13 @@ export async function adminSetProductImage(productId: string, imageUrl: string) 
     .update(products)
     .set({ imageUrl, updatedAt: new Date() })
     .where(eq(products.id, productId));
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "set_product_image",
+    target: `product:${productId}`,
+    details: `Image ajoutee a un produit`,
+  });
 
   revalidatePath("/stock");
   revalidatePath(`/stock/${productId}`);

@@ -228,6 +228,17 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Admin Logs (audit trail for all admin actions)
+export const adminLogs = pgTable("admin_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: uuid("admin_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  action: text("action").notNull(), // e.g. "delete_sale", "send_message", "create_advice"
+  target: text("target"), // e.g. "sale:uuid", "user:uuid", "sku:ABC-123"
+  details: text("details"), // human-readable description
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(), // extra structured data
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // App Config (key-value store for global settings like webhook URLs)
 export const appConfig = pgTable("app_config", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -260,6 +271,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sentMessages: many(messages, { relationName: "sentMessages" }),
   receivedMessages: many(messages, { relationName: "receivedMessages" }),
   calendarEvents: many(calendarEvents),
+  adminLogs: many(adminLogs),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -312,4 +324,8 @@ export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
 export const messagesRelations = relations(messages, ({ one }) => ({
   from: one(users, { fields: [messages.fromUserId], references: [users.id], relationName: "sentMessages" }),
   to: one(users, { fields: [messages.toUserId], references: [users.id], relationName: "receivedMessages" }),
+}));
+
+export const adminLogsRelations = relations(adminLogs, ({ one }) => ({
+  admin: one(users, { fields: [adminLogs.adminId], references: [users.id] }),
 }));

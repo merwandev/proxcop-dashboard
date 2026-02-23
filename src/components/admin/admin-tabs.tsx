@@ -9,7 +9,8 @@ import { WebhookConfig } from "./webhook-config";
 import { AdminProducts } from "./admin-products";
 import { AdminSalesList, type AdminSaleItem } from "./admin-sales-list";
 import { AdminSentMessages, type AdminSentMessage } from "./admin-sent-messages";
-import { ImageIcon, Megaphone, Settings, Package, ShoppingCart, Mail } from "lucide-react";
+import { AdminLogs, type AdminLogItem } from "./admin-logs";
+import { ImageIcon, Megaphone, Settings, Package, ShoppingCart, Mail, ScrollText } from "lucide-react";
 
 interface SkuItem {
   id: string;
@@ -56,10 +57,11 @@ interface AdminTabsProps {
   adminProducts: AdminProductItem[];
   adminSales: AdminSaleItem[];
   sentMessages: AdminSentMessage[];
+  adminLogs: AdminLogItem[];
   webhookUrl: string | null;
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, sentMessages, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, sentMessages, adminLogs, webhookUrl }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -104,6 +106,10 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, a
               {sentMessages.length}
             </span>
           )}
+        </TabsTrigger>
+        <TabsTrigger value="logs" className="gap-1.5">
+          <ScrollText className="h-3.5 w-3.5" />
+          Logs
         </TabsTrigger>
         <TabsTrigger value="config" className="gap-1.5">
           <Settings className="h-3.5 w-3.5" />
@@ -164,6 +170,13 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, a
 
       <TabsContent value="messages" className="mt-4 space-y-4">
         <AdminSentMessages messages={sentMessages} />
+      </TabsContent>
+
+      <TabsContent value="logs" className="mt-4 space-y-4">
+        <h2 className="text-base font-semibold mb-3">
+          Journal d&apos;activite ({adminLogs.length})
+        </h2>
+        <AdminLogs logs={adminLogs} />
       </TabsContent>
 
       <TabsContent value="config" className="mt-4 space-y-6">

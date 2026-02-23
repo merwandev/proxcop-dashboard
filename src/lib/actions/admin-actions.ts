@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { sales, productVariants } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 
 /**
  * Admin deletes a sale and puts the variant back to "en_stock"
@@ -33,6 +34,13 @@ export async function adminDeleteSaleAction(saleId: string) {
     .update(productVariants)
     .set({ status: "en_stock", updatedAt: new Date() })
     .where(eq(productVariants.id, sale.variantId));
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "delete_sale",
+    target: `sale:${saleId}`,
+    details: `Suppression vente et remise en stock du variant ${sale.variantId}`,
+  });
 
   revalidatePath("/admin");
   revalidatePath("/stock");

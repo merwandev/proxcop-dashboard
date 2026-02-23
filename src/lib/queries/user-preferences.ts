@@ -105,3 +105,22 @@ export async function saveCommunityOptIn(userId: string, optIn: boolean) {
     .set({ communityOptIn: optIn, updatedAt: new Date() })
     .where(eq(users.id, userId));
 }
+
+// ─── Sale Success Animation ─────────────────────────────────────────
+
+export async function getSaleSuccessAnimation(userId: string): Promise<boolean> {
+  const result = await db
+    .select({ saleSuccessAnimation: users.saleSuccessAnimation })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return result[0]?.saleSuccessAnimation ?? true;
+}
+
+export async function saveSaleSuccessAnimation(userId: string, enabled: boolean) {
+  await db
+    .update(users)
+    .set({ saleSuccessAnimation: enabled, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}

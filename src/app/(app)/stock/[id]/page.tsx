@@ -4,6 +4,7 @@ import { getProductWithVariants } from "@/lib/queries/products";
 import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
 import { getMedianSalePricesBatch, getSalesBySku } from "@/lib/queries/sales";
 import { getUserSuppliers } from "@/lib/queries/suppliers";
+import { getSaleSuccessAnimation } from "@/lib/queries/user-preferences";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
 import { ProductDetailClient } from "@/components/product/product-detail-client";
 import { SkuSalesSection } from "@/components/product/sku-sales-section";
@@ -23,12 +24,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   const product = await getProductWithVariants(id, session.user.id);
   if (!product) notFound();
 
-  // Get advice + median prices + sku sales + suppliers for this product's SKU
-  const [advice, medianPrices, skuSales, suppliers] = await Promise.all([
+  // Get advice + median prices + sku sales + suppliers + animation pref
+  const [advice, medianPrices, skuSales, suppliers, showSuccessAnimation] = await Promise.all([
     product.sku ? getActiveAdviceForSkus([product.sku]) : Promise.resolve([]),
     product.sku ? getMedianSalePricesBatch(product.sku) : Promise.resolve({}),
     product.sku ? getSalesBySku(product.sku) : Promise.resolve([]),
     getUserSuppliers(session.user.id),
+    getSaleSuccessAnimation(session.user.id),
   ]);
 
   return (
@@ -50,7 +52,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
       </div>
 
       {/* Client component for interactive variant management */}
-      <ProductDetailClient product={product} medianPrices={medianPrices} suppliers={suppliers} />
+      <ProductDetailClient
+        product={product}
+        medianPrices={medianPrices}
+        suppliers={suppliers}
+        userName={session.user.name ?? undefined}
+        showSuccessAnimation={showSuccessAnimation}
+      />
 
       {/* SKU sales history (community data) */}
       {skuSales.length > 0 && (

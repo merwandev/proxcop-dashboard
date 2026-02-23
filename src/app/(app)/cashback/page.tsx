@@ -1,15 +1,16 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getUserCashbacks, getCashbackSummary } from "@/lib/queries/cashback";
+import { getUserCashbacks, getCashbackSummary, getVariantsWithoutCashback } from "@/lib/queries/cashback";
 import { CashbackPageClient } from "@/components/cashback/cashback-page-client";
 
 export default async function CashbackPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [cashbacks, summary] = await Promise.all([
+  const [cashbacks, summary, availableVariants] = await Promise.all([
     getUserCashbacks(session.user.id),
     getCashbackSummary(session.user.id),
+    getVariantsWithoutCashback(session.user.id),
   ]);
 
   return (
@@ -45,6 +46,14 @@ export default async function CashbackPage() {
           countApproved: summary.countApproved,
           countReceived: summary.countReceived,
         }}
+        availableVariants={availableVariants.map((v) => ({
+          variantId: v.variantId,
+          productName: v.productName,
+          productImage: v.productImage,
+          productSku: v.productSku,
+          sizeVariant: v.sizeVariant,
+          purchasePrice: v.purchasePrice,
+        }))}
       />
     </div>
   );

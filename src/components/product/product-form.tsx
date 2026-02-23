@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CopyableSku } from "@/components/ui/copyable-sku";
-import { CATEGORIES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
+import { CATEGORIES, STORAGE_LOCATIONS, CASHBACK_APPS } from "@/lib/utils/constants";
 import {
   Dialog,
   DialogContent,
@@ -24,9 +24,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createProductWithVariants } from "@/lib/actions/product-actions";
+import { createCashback } from "@/lib/actions/cashback-actions";
 import { createSupplierAction } from "@/lib/actions/supplier-actions";
 // Upload via server-side proxy (avoids R2 CORS issues)
-import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2, Camera } from "lucide-react";
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2, Camera, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
@@ -199,6 +200,11 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
   const [manualQuantity, setManualQuantity] = useState(1);
   const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
   const [manualUploading, setManualUploading] = useState(false);
+
+  // Cashback state (global — applied to all variants)
+  const [cashbackEnabled, setCashbackEnabled] = useState(false);
+  const [cashbackAmount, setCashbackAmount] = useState("");
+  const [cashbackApp, setCashbackApp] = useState("igraal");
 
   // Median price state
   const [medianPrice, setMedianPrice] = useState<{ median: number; saleCount: number } | null>(null);
@@ -598,7 +604,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
     }
     setIsSubmitting(true);
     try {
-      await createProductWithVariants({
+      const result = await createProductWithVariants({
         name: productTitle, sku: productSku, imageUrl: productImageUrl || undefined,
         category: "sneakers", purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
@@ -610,19 +616,29 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
           storageLocation: v.storageLocation || globalStorageLocation || undefined,
         })),
       });
+
+      // Create cashbacks for all variants if enabled
+      if (cashbackEnabled && cashbackAmount && Number(cashbackAmount) > 0 && result.variantIds) {
+        await Promise.all(
+          result.variantIds.map((vid) =>
+            createCashback({ variantId: vid, amount: Number(cashbackAmount), source: cashbackApp, status: "to_request" })
+          )
+        );
+      }
+
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
+  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, cashbackEnabled, cashbackAmount, cashbackApp, router]);
 
   const handleSubmitManual = useCallback(async () => {
     if (!manualName.trim()) { toast.error("Le nom du produit est requis"); return; }
     if (!manualPrice || Number(manualPrice) <= 0) { toast.error("Le prix d'achat est requis"); return; }
     setIsSubmitting(true);
     try {
-      await createProductWithVariants({
+      const result = await createProductWithVariants({
         name: manualName.trim(), imageUrl: manualImageUrl || undefined,
         category: manualCategory as "sneakers" | "pokemon" | "lego" | "random",
         purchaseDate: globalPurchaseDate,
@@ -631,12 +647,22 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         supplierName: globalSupplierName || undefined,
         variants: [{ sizeVariant: manualSize || undefined, purchasePrice: Number(manualPrice), quantity: manualQuantity, storageLocation: globalStorageLocation || undefined }],
       });
+
+      // Create cashbacks for all variants if enabled
+      if (cashbackEnabled && cashbackAmount && Number(cashbackAmount) > 0 && result.variantIds) {
+        await Promise.all(
+          result.variantIds.map((vid) =>
+            createCashback({ variantId: vid, amount: Number(cashbackAmount), source: cashbackApp, status: "to_request" })
+          )
+        );
+      }
+
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
+  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, cashbackEnabled, cashbackAmount, cashbackApp, router]);
 
   // ─── Add Supplier Dialog (shared across steps) ─────────────────
 
@@ -1103,6 +1129,49 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
           </div>
         </div>
 
+        {/* Cashback section */}
+        <div className="space-y-2 pt-2 border-t border-border">
+          <button
+            type="button"
+            onClick={() => setCashbackEnabled(!cashbackEnabled)}
+            className={cn(
+              "flex items-center gap-2 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+              cashbackEnabled ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Coins className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm font-medium flex-1">Cashback</span>
+            <span className="text-[10px]">{cashbackEnabled ? "Actif" : "Ajouter"}</span>
+          </button>
+          {cashbackEnabled && (
+            <div className="grid grid-cols-2 gap-2 px-1">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Montant (EUR)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="5.00"
+                  value={cashbackAmount}
+                  onChange={(e) => setCashbackAmount(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Appli</Label>
+                <Select value={cashbackApp} onValueChange={setCashbackApp}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CASHBACK_APPS.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Community sales for this SKU */}
         {skuSales.length > 0 && (
           <div className="pt-2 border-t border-border">
@@ -1260,6 +1329,49 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       <div className="space-y-1.5">
         <Label>Notes</Label>
         <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+      </div>
+
+      {/* Cashback section */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setCashbackEnabled(!cashbackEnabled)}
+          className={cn(
+            "flex items-center gap-2 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+            cashbackEnabled ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Coins className="h-4 w-4 flex-shrink-0" />
+          <span className="text-sm font-medium flex-1">Cashback</span>
+          <span className="text-[10px]">{cashbackEnabled ? "Actif" : "Ajouter"}</span>
+        </button>
+        {cashbackEnabled && (
+          <div className="grid grid-cols-2 gap-2 px-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Montant (EUR)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="5.00"
+                value={cashbackAmount}
+                onChange={(e) => setCashbackAmount(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Appli</Label>
+              <Select value={cashbackApp} onValueChange={setCashbackApp}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CASHBACK_APPS.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       <Button onClick={handleSubmitManual} className="w-full h-12" disabled={isSubmitting}>

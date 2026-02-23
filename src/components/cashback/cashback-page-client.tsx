@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency } from "@/lib/utils/format";
 import { CASHBACK_STATUSES, CASHBACK_APPS } from "@/lib/utils/constants";
-import { Coins, Package, Filter } from "lucide-react";
+import { Coins, Package, Filter, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AddCashbackDialog } from "./add-cashback-dialog";
 
 interface CashbackItem {
   id: string;
@@ -36,9 +38,19 @@ interface CashbackSummary {
   countReceived: number;
 }
 
+interface VariantOption {
+  variantId: string;
+  productName: string;
+  productImage: string | null;
+  productSku: string | null;
+  sizeVariant: string | null;
+  purchasePrice: string;
+}
+
 interface CashbackPageClientProps {
   cashbacks: CashbackItem[];
   summary: CashbackSummary;
+  availableVariants: VariantOption[];
 }
 
 function getStatusInfo(status: string) {
@@ -59,8 +71,10 @@ function formatDate(iso: string): string {
 
 type StatusFilter = "all" | "to_request" | "requested" | "approved" | "received";
 
-export function CashbackPageClient({ cashbacks, summary }: CashbackPageClientProps) {
+export function CashbackPageClient({ cashbacks, summary, availableVariants }: CashbackPageClientProps) {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const filtered = statusFilter === "all"
     ? cashbacks
@@ -68,18 +82,28 @@ export function CashbackPageClient({ cashbacks, summary }: CashbackPageClientPro
 
   return (
     <div className="space-y-4">
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-2 lg:gap-3">
-        <Card className="p-3 lg:p-4 bg-card">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total recu</p>
-          <p className="text-lg font-bold text-success mt-0.5">{formatCurrency(summary.totalReceived)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{summary.countReceived} cashback{summary.countReceived > 1 ? "s" : ""}</p>
-        </Card>
-        <Card className="p-3 lg:p-4 bg-card">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">En attente</p>
-          <p className="text-lg font-bold text-warning mt-0.5">{formatCurrency(summary.totalPending)}</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">{summary.countTotal - summary.countReceived} en cours</p>
-        </Card>
+      {/* KPI cards + Add button */}
+      <div className="flex items-start gap-2">
+        <div className="grid grid-cols-2 gap-2 flex-1">
+          <Card className="p-2.5 bg-card gap-0">
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Total recu</p>
+            <p className="text-sm font-bold text-success mt-0.5">{formatCurrency(summary.totalReceived)}</p>
+            <p className="text-[9px] text-muted-foreground">{summary.countReceived} cashback{summary.countReceived > 1 ? "s" : ""}</p>
+          </Card>
+          <Card className="p-2.5 bg-card gap-0">
+            <p className="text-[9px] text-muted-foreground uppercase tracking-wider">En attente</p>
+            <p className="text-sm font-bold text-warning mt-0.5">{formatCurrency(summary.totalPending)}</p>
+            <p className="text-[9px] text-muted-foreground">{summary.countTotal - summary.countReceived} en cours</p>
+          </Card>
+        </div>
+        <Button
+          size="sm"
+          className="h-full min-h-[60px] px-3 gap-1"
+          onClick={() => setShowAddDialog(true)}
+        >
+          <Plus className="h-4 w-4" />
+          <span className="text-xs">Ajouter</span>
+        </Button>
       </div>
 
       {/* Status filter */}
@@ -199,6 +223,13 @@ export function CashbackPageClient({ cashbacks, summary }: CashbackPageClientPro
           })}
         </div>
       )}
+
+      <AddCashbackDialog
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        variants={availableVariants}
+        onCreated={() => router.refresh()}
+      />
     </div>
   );
 }

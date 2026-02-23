@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { cashbacks, productVariants, products } from "@/lib/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ne, notInArray } from "drizzle-orm";
 
 /**
  * Get all cashbacks for a user with product info, for the dedicated cashback page.
@@ -28,6 +28,42 @@ export async function getUserCashbacks(userId: string) {
     .innerJoin(products, eq(productVariants.productId, products.id))
     .where(eq(cashbacks.userId, userId))
     .orderBy(desc(cashbacks.createdAt));
+
+  return rows;
+}
+
+/**
+ * Get user's variants that don't have a cashback yet (for adding from /cashback page).
+ */
+export async function getVariantsWithoutCashback(userId: string) {
+  // Get variant IDs that already have cashbacks
+  const existingCashbackVariantIds = await db
+    .select({ variantId: cashbacks.variantId })
+    .from(cashbacks)
+    .where(eq(cashbacks.userId, userId));
+
+  const excludeIds = existingCashbackVariantIds.map((c) => c.variantId);
+
+  const rows = await db
+    .select({
+      variantId: productVariants.id,
+      productName: products.name,
+      productImage: products.imageUrl,
+      productSku: products.sku,
+      sizeVariant: productVariants.sizeVariant,
+      purchasePrice: productVariants.purchasePrice,
+    })
+    .from(productVariants)
+    .innerJoin(products, eq(productVariants.productId, products.id))
+    .where(
+      and(
+        eq(productVariants.userId, userId),
+        ne(productVariants.status, "vendu"),
+        ...(excludeIds.length > 0 ? [notInArray(productVariants.id, excludeIds)] : []),
+      )
+    )
+    .orderBy(desc(productVariants.createdAt))
+    .limit(100);
 
   return rows;
 }

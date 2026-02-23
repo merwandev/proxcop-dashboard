@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Package, Receipt, TrendingUp, Settings } from "lucide-react";
+import { BarChart3, Package, Receipt, TrendingUp, Settings, Coins, Calendar, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -10,6 +10,9 @@ const navItems = [
   { href: "/stock", label: "Stock", icon: Package },
   { href: "/ventes", label: "Ventes", icon: Receipt },
   { href: "/stats", label: "Analytics", icon: TrendingUp },
+  { href: "/cashback", label: "Cashback", icon: Coins },
+  { href: "/calendar", label: "Calendrier", icon: Calendar },
+  { href: "/inbox", label: "Inbox", icon: Mail },
 ];
 
 const bottomItems = [

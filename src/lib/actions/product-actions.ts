@@ -71,14 +71,16 @@ export async function createProductWithVariants(data: {
     }));
   });
 
+  let insertedVariantIds: string[] = [];
   if (variantRows.length > 0) {
-    await db.insert(productVariants).values(variantRows);
+    const inserted = await db.insert(productVariants).values(variantRows).returning({ id: productVariants.id, sizeVariant: productVariants.sizeVariant });
+    insertedVariantIds = inserted.map((v) => v.id);
   }
 
   revalidatePath("/stock");
   revalidatePath("/dashboard");
 
-  return { productId: parent.id };
+  return { productId: parent.id, variantIds: insertedVariantIds };
 }
 
 export async function updateProduct(productId: string, data: {

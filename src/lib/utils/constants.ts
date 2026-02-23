@@ -46,6 +46,8 @@ export const CASHBACK_APPS = [
   { value: "igraal", label: "iGraal" },
   { value: "poulpeo", label: "Poulpeo" },
   { value: "widilo", label: "Widilo" },
+  { value: "joko", label: "Joko" },
+  { value: "rnr", label: "R&R" },
   { value: "other", label: "Autre" },
 ] as const;
 

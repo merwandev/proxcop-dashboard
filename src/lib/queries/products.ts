@@ -34,6 +34,32 @@ export async function getStockProductsGrouped(userId: string) {
     .having(sql`count(case when ${productVariants.status} != 'vendu' then 1 end) > 0`)
     .orderBy(sql`max(${products.createdAt}) desc`);
 
+  // Fallback: for products with no image but a SKU, try to find an image from any product with the same SKU
+  const missingImageSkus = result
+    .filter((r) => !r.imageUrl && r.sku)
+    .map((r) => r.sku!);
+
+  if (missingImageSkus.length > 0) {
+    const fallbackImages = await db
+      .select({
+        sku: products.sku,
+        imageUrl: sql<string>`(array_agg(${products.imageUrl} order by ${products.createdAt} desc))[1]`,
+      })
+      .from(products)
+      .where(and(
+        inArray(products.sku, missingImageSkus),
+        sql`${products.imageUrl} is not null`,
+      ))
+      .groupBy(products.sku);
+
+    const fallbackMap = new Map(fallbackImages.map((f) => [f.sku, f.imageUrl]));
+    for (const row of result) {
+      if (!row.imageUrl && row.sku && fallbackMap.has(row.sku)) {
+        row.imageUrl = fallbackMap.get(row.sku)!;
+      }
+    }
+  }
+
   return result;
 }
 
@@ -77,6 +103,22 @@ export async function getProductWithVariants(productId: string, userId: string) 
 
   if (!product[0]) return null;
 
+  // Fallback: if product has no image but has a SKU, try to find an image from any product with the same SKU
+  let resolvedImageUrl = product[0].imageUrl;
+  if (!resolvedImageUrl && product[0].sku) {
+    const fallback = await db
+      .select({ imageUrl: products.imageUrl })
+      .from(products)
+      .where(and(
+        eq(products.sku, product[0].sku),
+        sql`${products.imageUrl} is not null`,
+      ))
+      .limit(1);
+    if (fallback[0]?.imageUrl) {
+      resolvedImageUrl = fallback[0].imageUrl;
+    }
+  }
+
   let variants;
   if (product[0].sku) {
     // Find all product IDs with the same SKU for this user
@@ -115,6 +157,7 @@ export async function getProductWithVariants(productId: string, userId: string) 
 
   return {
     ...product[0],
+    imageUrl: resolvedImageUrl,
     variants: variants.map((v) => ({
       ...v,
       cashbacks: cashbacksByVariant[v.id] ?? [],

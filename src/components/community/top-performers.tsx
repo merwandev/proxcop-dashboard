@@ -39,9 +39,9 @@ export function TopPerformers({ topROI, topVolume, daysBack }: TopPerformersProp
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {topROI.length > 0 && (
           <Card className="p-3 bg-card border-border">
-            <div className="flex items-center gap-1.5 mb-2">
-              <TrendingUp className="h-3.5 w-3.5 text-success" />
-              <h4 className="text-xs font-semibold">Meilleur ROI</h4>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <TrendingUp className="h-3 w-3 text-success" />
+              <h4 className="text-[11px] font-semibold text-muted-foreground">Meilleur ROI</h4>
             </div>
             <div className="space-y-1.5">
               {topROI.map((item, i) => (
@@ -84,9 +84,9 @@ export function TopPerformers({ topROI, topVolume, daysBack }: TopPerformersProp
 
         {topVolume.length > 0 && (
           <Card className="p-3 bg-card border-border">
-            <div className="flex items-center gap-1.5 mb-2">
-              <BarChart3 className="h-3.5 w-3.5 text-primary" />
-              <h4 className="text-xs font-semibold">Plus vendus</h4>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <BarChart3 className="h-3 w-3 text-primary" />
+              <h4 className="text-[11px] font-semibold text-muted-foreground">Plus vendus</h4>
             </div>
             <div className="space-y-1.5">
               {topVolume.map((item, i) => (

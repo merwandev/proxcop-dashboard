@@ -25,9 +25,9 @@ export function TrendingSection({ trending, daysBack }: TrendingSectionProps) {
         Tendances — {daysBack} jours
       </h2>
       <Card className="p-3 bg-card border-border">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Flame className="h-3.5 w-3.5 text-warning" />
-          <h4 className="text-xs font-semibold">Plus ajoutés au stock</h4>
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <Flame className="h-3 w-3 text-warning" />
+          <h4 className="text-[11px] font-semibold text-muted-foreground">Plus ajoutés au stock</h4>
         </div>
         <div className="space-y-1.5">
           {trending.map((item, i) => (

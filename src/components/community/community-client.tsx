@@ -109,7 +109,7 @@ export function CommunityClient({
   };
 
   return (
-    <div className="space-y-4 pb-24 lg:pb-8">
+    <div className="py-4 space-y-4 lg:py-6 lg:space-y-6 pb-24 lg:pb-8">
       {/* Header + Period selector */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold lg:text-2xl">Communauté</h1>

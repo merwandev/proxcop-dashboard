@@ -9,7 +9,6 @@ import { getConfigValue } from "@/lib/queries/config";
 import { getAllSentMessages } from "@/lib/queries/messages";
 import { getAdminLogs } from "@/lib/queries/admin-logs";
 import { AdminTabs } from "@/components/admin/admin-tabs";
-import { AdminAnalytics } from "@/components/admin/admin-analytics";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -37,9 +36,6 @@ export default async function AdminPage() {
           Gestion des images SKU et conseils pour la communaute.
         </p>
       </div>
-
-      {/* Analytics Vercel */}
-      <AdminAnalytics />
 
       <AdminTabs
         skus={notFoundSkus.map((s) => ({

@@ -144,6 +144,27 @@ export async function getVariantWithProduct(variantId: string, userId: string) {
 }
 
 /**
+ * Aggregated KPIs for stock page header.
+ */
+export async function getStockKPIs(userId: string) {
+  const result = await db
+    .select({
+      totalPairs: sql<number>`count(*)`,
+      totalValue: sql<number>`coalesce(sum(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+      avgPrice: sql<number>`coalesce(avg(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+      avgDaysInStock: sql<number>`coalesce(avg(extract(day from now() - ${productVariants.purchaseDate}::timestamp)), 0)`,
+    })
+    .from(productVariants)
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
+  return {
+    totalPairs: Number(result[0]?.totalPairs ?? 0),
+    totalValue: Math.round(Number(result[0]?.totalValue ?? 0) * 100) / 100,
+    avgPrice: Math.round(Number(result[0]?.avgPrice ?? 0) * 100) / 100,
+    avgDaysInStock: Math.round(Number(result[0]?.avgDaysInStock ?? 0)),
+  };
+}
+
+/**
  * Count of variants in stock (status != vendu).
  */
 export async function getStockCount(userId: string) {

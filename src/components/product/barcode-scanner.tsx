@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Camera, X } from "lucide-react";
+import { Loader2, Camera, X, Flashlight, FlashlightOff } from "lucide-react";
 
 interface BarcodeScannerProps {
   open: boolean;
@@ -21,6 +21,8 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
   const html5QrCodeRef = useRef<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   const hasScannedRef = useRef(false);
 
   const stopScanner = useCallback(async () => {
@@ -93,6 +95,19 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
             // QR code scan error — ignored (happens continuously while scanning)
           }
         );
+
+        // Check if torch/flash is supported
+        try {
+          const runningState = scanner.getState?.();
+          if (runningState === 2) { // SCANNING state
+            const caps = await scanner.getRunningTrackCameraCapabilities?.();
+            if (caps?.torchFeature?.()) {
+              if (mounted) setTorchSupported(true);
+            }
+          }
+        } catch {
+          // Torch detection not supported — ignore
+        }
       } catch (err) {
         if (!mounted) return;
         const message =
@@ -120,7 +135,23 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
 
   const handleClose = () => {
     stopScanner();
+    setTorchOn(false);
+    setTorchSupported(false);
     onClose();
+  };
+
+  const toggleTorch = async () => {
+    try {
+      const scanner = html5QrCodeRef.current as { getRunningTrackCameraCapabilities?: () => { torchFeature: () => { apply: (v: boolean) => Promise<void> } } } | null;
+      if (!scanner?.getRunningTrackCameraCapabilities) return;
+      const caps = scanner.getRunningTrackCameraCapabilities();
+      const torch = caps.torchFeature();
+      const newVal = !torchOn;
+      await torch.apply(newVal);
+      setTorchOn(newVal);
+    } catch {
+      // Torch toggle failed
+    }
   };
 
   return (
@@ -146,11 +177,26 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
           <div ref={scannerRef} className="w-full min-h-[300px]" />
 
           {scanning && !error && (
-            <div className="absolute bottom-4 left-0 right-0 text-center">
-              <p className="text-xs text-white/80 bg-black/50 inline-block px-3 py-1 rounded-full">
-                Placez le code-barres dans le cadre
-              </p>
-            </div>
+            <>
+              {torchSupported && (
+                <button
+                  type="button"
+                  onClick={toggleTorch}
+                  className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/60 hover:bg-black/80 transition-colors"
+                >
+                  {torchOn ? (
+                    <FlashlightOff className="h-5 w-5 text-yellow-400" />
+                  ) : (
+                    <Flashlight className="h-5 w-5 text-white/80" />
+                  )}
+                </button>
+              )}
+              <div className="absolute bottom-4 left-0 right-0 text-center">
+                <p className="text-xs text-white/80 bg-black/50 inline-block px-3 py-1 rounded-full">
+                  Placez le code-barres dans le cadre
+                </p>
+              </div>
+            </>
           )}
 
           {!scanning && !error && (

@@ -35,7 +35,7 @@ function timeAgo(date: string): string {
 
 function getAvatarUrl(discordId: string | null, avatar: string | null): string | null {
   if (!discordId || !avatar) return null;
-  return `https://cdn.discordapp.com/avatars/${discordId}/${avatar}.webp?size=32`;
+  return `https://cdn.discordapp.com/avatars/${discordId}/${avatar}.png?size=32`;
 }
 
 export function InboxPreviewWidget({ messages }: InboxPreviewWidgetProps) {
@@ -75,12 +75,14 @@ export function InboxPreviewWidget({ messages }: InboxPreviewWidgetProps) {
                 )}
               >
                 {/* Avatar */}
-                <div className="flex-shrink-0 h-7 w-7 rounded-full bg-card border border-border overflow-hidden flex items-center justify-center">
+                <div className="flex-shrink-0 h-7 w-7 rounded-full bg-primary/20 border border-border overflow-hidden flex items-center justify-center">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <Mail className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-[10px] font-bold text-primary">
+                      {(msg.fromUsername ?? "S")[0].toUpperCase()}
+                    </span>
                   )}
                 </div>
 

@@ -12,7 +12,7 @@ import {
   markMessageAsReadAction,
   markAllMessagesAsReadAction,
 } from "@/lib/actions/message-actions";
-import { Mail, MailOpen, CheckCheck, Inbox } from "lucide-react";
+import { Mail, MailOpen, CheckCheck, Inbox, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -53,9 +53,12 @@ function formatDate(iso: string): string {
 export function InboxList({ messages }: InboxListProps) {
   const [items, setItems] = useState(messages);
   const [selected, setSelected] = useState<InboxMessage | null>(null);
+  const [hideRead, setHideRead] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const unreadCount = items.filter((m) => !m.read).length;
+  const readCount = items.filter((m) => m.read).length;
+  const displayItems = hideRead ? items.filter((m) => !m.read) : items;
 
   const handleOpen = (msg: InboxMessage) => {
     setSelected(msg);
@@ -99,23 +102,51 @@ export function InboxList({ messages }: InboxListProps) {
 
   return (
     <>
-      {unreadCount > 0 && (
-        <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        {readCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setHideRead((v) => !v)}
+            className="gap-1.5 text-xs text-muted-foreground"
+          >
+            {hideRead ? (
+              <><Eye className="h-3.5 w-3.5" />Afficher les lus ({readCount})</>
+            ) : (
+              <><EyeOff className="h-3.5 w-3.5" />Masquer les lus</>
+            )}
+          </Button>
+        )}
+        {unreadCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={handleMarkAllRead}
             disabled={isPending}
-            className="gap-1.5 text-xs text-muted-foreground"
+            className="gap-1.5 text-xs text-muted-foreground ml-auto"
           >
             <CheckCheck className="h-3.5 w-3.5" />
             Tout marquer comme lu
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
+      {hideRead && displayItems.length === 0 ? (
+        <div className="rounded-xl bg-secondary p-8 text-center">
+          <MailOpen className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+          <p className="text-sm text-muted-foreground">Tous les messages sont lus</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setHideRead(false)}
+            className="mt-2 text-xs text-primary"
+          >
+            Afficher tous les messages
+          </Button>
+        </div>
+      ) : (
       <div className="space-y-1.5">
-        {items.map((msg) => {
+        {displayItems.map((msg) => {
           const avatarUrl = getAvatarUrl(msg.fromDiscordId, msg.fromAvatar);
           return (
             <button
@@ -165,6 +196,7 @@ export function InboxList({ messages }: InboxListProps) {
           );
         })}
       </div>
+      )}
 
       {/* Message detail dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>

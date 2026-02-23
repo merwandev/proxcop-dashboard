@@ -8,7 +8,8 @@ import { AdviceList } from "./advice-list";
 import { WebhookConfig } from "./webhook-config";
 import { AdminProducts } from "./admin-products";
 import { AdminSalesList, type AdminSaleItem } from "./admin-sales-list";
-import { ImageIcon, Megaphone, Settings, Package, ShoppingCart } from "lucide-react";
+import { AdminSentMessages, type AdminSentMessage } from "./admin-sent-messages";
+import { ImageIcon, Megaphone, Settings, Package, ShoppingCart, Mail } from "lucide-react";
 
 interface SkuItem {
   id: string;
@@ -54,10 +55,11 @@ interface AdminTabsProps {
   adviceItems: AdviceItem[];
   adminProducts: AdminProductItem[];
   adminSales: AdminSaleItem[];
+  sentMessages: AdminSentMessage[];
   webhookUrl: string | null;
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, sentMessages, webhookUrl }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -91,6 +93,15 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, a
           {adminSales.length > 0 && (
             <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
               {adminSales.length}
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="messages" className="gap-1.5">
+          <Mail className="h-3.5 w-3.5" />
+          Messages
+          {sentMessages.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+              {sentMessages.length}
             </span>
           )}
         </TabsTrigger>
@@ -149,6 +160,10 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, a
 
       <TabsContent value="sales" className="mt-4 space-y-4">
         <AdminSalesList sales={adminSales} />
+      </TabsContent>
+
+      <TabsContent value="messages" className="mt-4 space-y-4">
+        <AdminSentMessages messages={sentMessages} />
       </TabsContent>
 
       <TabsContent value="config" className="mt-4 space-y-6">

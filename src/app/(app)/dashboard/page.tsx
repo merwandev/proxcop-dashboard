@@ -5,6 +5,7 @@ import { getDashboardKPIs, getProfitChartData, getPendingDeals, getExpensesChart
 import { getDashboardLayout, getTaxSettings } from "@/lib/queries/user-preferences";
 import { getCalendarEvents } from "@/lib/queries/calendar";
 import { getInboxMessages } from "@/lib/queries/messages";
+import { getCashbackSummary } from "@/lib/queries/cashback";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ChartExport } from "@/components/dashboard/chart-export";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
@@ -27,7 +28,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const today = new Date().toISOString().split("T")[0];
   const in7Days = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
 
-  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout, taxSettings, calendarEvents, inboxMessages] = await Promise.all([
+  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout, taxSettings, calendarEvents, inboxMessages, cashbackSummary] = await Promise.all([
     getDashboardKPIs(session.user.id, period),
     getProfitChartData(session.user.id, period),
     getPendingDeals(session.user.id),
@@ -37,6 +38,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     getTaxSettings(session.user.id),
     getCalendarEvents(session.user.id, today, in7Days),
     getInboxMessages(session.user.id),
+    getCashbackSummary(session.user.id),
   ]);
 
   // Apply AE cotisations if enabled
@@ -145,6 +147,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           fromAvatar: m.fromAvatar,
           fromDiscordId: m.fromDiscordId,
         }))}
+        cashbackSummary={{
+          totalReceived: Number(cashbackSummary.totalReceived),
+          totalPending: Number(cashbackSummary.totalPending),
+          countTotal: cashbackSummary.countTotal,
+          countToRequest: cashbackSummary.countToRequest,
+          countRequested: cashbackSummary.countRequested,
+          countApproved: cashbackSummary.countApproved,
+          countReceived: cashbackSummary.countReceived,
+        }}
       />
     </div>
   );

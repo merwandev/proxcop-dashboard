@@ -132,7 +132,7 @@ function ReturnDeadlinePicker({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn("h-9 text-sm max-w-full", isCustom && "border-primary")}
+        className={cn("h-9 text-sm w-full", isCustom && "border-primary")}
       />
     </div>
   );
@@ -448,7 +448,8 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         setAvailableSizes(data.variants);
         setSearchStatus("found");
         setStep("sizes");
-        toast.success("Produit trouve via code-barres !");
+        const displayName = data.variantName || data.title || "Produit";
+        toast.success(`Trouve : ${displayName}`);
       } else {
         setSearchStatus("not_found");
         toast.error("Aucun produit trouve pour ce code-barres");
@@ -1043,12 +1044,12 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
 
         <div className="space-y-3 pt-2 border-t border-border">
           <Label className="text-sm font-semibold">Infos globales</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1 min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1 min-w-0 overflow-hidden">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
-              <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm max-w-full" />
+              <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm w-full" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
               <Input type="number" step="0.01" min="0" placeholder={medianPrice ? `~${Math.round(medianPrice.median)}` : "180.00"} value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="h-9 text-sm" />
               {medianPrice && (
@@ -1062,15 +1063,15 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Stockage</Label>
               <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
                 <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 min-w-0">
+            <div className="space-y-1 min-w-0 overflow-hidden">
               <Label className="text-[11px] text-muted-foreground">Date retour</Label>
               <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
             </div>
@@ -1209,18 +1210,18 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5 min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5 min-w-0 overflow-hidden">
           <Label>Date d&apos;achat *</Label>
-          <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="max-w-full" />
+          <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="w-full" />
         </div>
         <div className="space-y-1.5 min-w-0">
           <Label>Prix cible</Label>
-          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="max-w-full" />
+          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="w-full" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5 min-w-0">
           <Label>Stockage</Label>
           <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
@@ -1228,7 +1229,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
             <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5 min-w-0">
+        <div className="space-y-1.5 min-w-0 overflow-hidden">
           <Label>Date retour</Label>
           <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
         </div>

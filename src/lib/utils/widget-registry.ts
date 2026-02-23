@@ -12,6 +12,7 @@ import {
   Layers,
   Calendar,
   Mail,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const DASHBOARD_WIDGETS: WidgetDefinition[] = [
   { id: "sleeping", label: "Produits dormants", icon: Moon, page: "dashboard", defaultEnabled: true, conditional: true },
   { id: "calendar-preview", label: "Calendrier", icon: Calendar, page: "dashboard", defaultEnabled: false, conditional: true },
   { id: "inbox-preview", label: "Inbox", icon: Mail, page: "dashboard", defaultEnabled: false, conditional: true },
+  { id: "cashback-preview", label: "Cashback", icon: Coins, page: "dashboard", defaultEnabled: false, conditional: true },
 ];
 
 export const STATS_WIDGETS: WidgetDefinition[] = [

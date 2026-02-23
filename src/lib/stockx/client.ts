@@ -187,6 +187,8 @@ export interface StockXProductResult {
   imageUrl: string | null;
   variants: StockXVariant[];
   status: "found" | "not_found";
+  /** Raw variant name from GTIN lookup (e.g. "Nike-Dunk-Low-Panda:10") */
+  variantName?: string;
 }
 
 /**
@@ -496,10 +498,14 @@ export async function lookupByGtinStockX(
     const title = (data.product?.title ?? product.title) as string;
     const styleId = (data.product?.styleId ?? product.styleId) as string;
 
+    // Extract and parse variantName from GTIN response
+    const rawVariantName = (data.variantName ?? "") as string;
+
     return {
       ...product,
       title,
       styleId,
+      variantName: rawVariantName,
     };
   } catch {
     return null;

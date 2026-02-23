@@ -6,6 +6,7 @@ import { getAllAdvice } from "@/lib/queries/product-advice";
 import { getAllAdminProducts } from "@/lib/queries/admin-products";
 import { getAllSalesWithUsers } from "@/lib/queries/admin-sales";
 import { getConfigValue } from "@/lib/queries/config";
+import { getAllSentMessages } from "@/lib/queries/messages";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 
 export default async function AdminPage() {
@@ -14,12 +15,13 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [notFoundSkus, adviceItems, productsNoImage, adminProductsRaw, adminSalesRaw, webhookUrl] = await Promise.all([
+  const [notFoundSkus, adviceItems, productsNoImage, adminProductsRaw, adminSalesRaw, sentMessagesRaw, webhookUrl] = await Promise.all([
     getNotFoundSkuImages(),
     getAllAdvice(),
     getProductsWithoutImages(),
     getAllAdminProducts(),
     getAllSalesWithUsers(200),
+    getAllSentMessages(200),
     getConfigValue("discord_webhook_url"),
   ]);
 
@@ -81,6 +83,17 @@ export default async function AdminPage() {
           discordUsername: s.discordUsername,
           discordAvatar: s.discordAvatar,
           discordId: s.discordId,
+        }))}
+        sentMessages={sentMessagesRaw.map((m) => ({
+          id: m.id,
+          subject: m.subject,
+          body: m.body,
+          read: m.read,
+          createdAt: m.createdAt.toISOString(),
+          fromUsername: m.fromUsername,
+          fromAvatar: m.fromAvatar,
+          fromDiscordId: m.fromDiscordId,
+          toUsername: m.toUsername,
         }))}
         webhookUrl={webhookUrl}
       />

@@ -50,6 +50,36 @@ export async function markAllAsRead(userId: string) {
     .where(and(eq(messages.toUserId, userId), eq(messages.read, false)));
 }
 
+/**
+ * Admin: get ALL sent messages across the platform (for moderation).
+ * Shows who sent what, to whom, and read status.
+ */
+export async function getAllSentMessages(limit = 200) {
+  const toUser = alias(users, "to_user");
+
+  const rows = await db
+    .select({
+      id: messages.id,
+      subject: messages.subject,
+      body: messages.body,
+      read: messages.read,
+      createdAt: messages.createdAt,
+      fromUserId: messages.fromUserId,
+      fromUsername: fromUser.discordUsername,
+      fromAvatar: fromUser.discordAvatar,
+      fromDiscordId: fromUser.discordId,
+      toUserId: messages.toUserId,
+      toUsername: toUser.discordUsername,
+    })
+    .from(messages)
+    .leftJoin(fromUser, eq(messages.fromUserId, fromUser.id))
+    .leftJoin(toUser, eq(messages.toUserId, toUser.id))
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+
+  return rows;
+}
+
 export async function sendMessage(data: {
   fromUserId: string;
   toUserId: string;

@@ -21,12 +21,21 @@ export async function GET(
       return NextResponse.json({ status: "not_found" });
     }
 
+    // Parse variantName: split by ":" to get name part, replace "-" with spaces
+    const rawVariantName = (result as { variantName?: string }).variantName ?? "";
+    let parsedName = "";
+    if (rawVariantName) {
+      const namePart = rawVariantName.includes(":") ? rawVariantName.split(":")[0] : rawVariantName;
+      parsedName = namePart.replace(/-/g, " ").trim();
+    }
+
     return NextResponse.json({
       status: result.status,
       title: result.title,
       styleId: result.styleId,
       imageUrl: result.imageUrl,
       variants: result.variants,
+      variantName: parsedName || undefined,
     });
   } catch {
     return NextResponse.json(

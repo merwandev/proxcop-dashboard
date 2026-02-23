@@ -8,6 +8,7 @@ import { StatusBreakdownChart } from "@/components/dashboard/status-breakdown-ch
 import { PendingDealRow } from "@/components/dashboard/pending-deal-row";
 import { CalendarPreviewWidget } from "@/components/dashboard/calendar-preview";
 import { InboxPreviewWidget } from "@/components/dashboard/inbox-preview";
+import { CashbackPreviewWidget } from "@/components/dashboard/cashback-preview";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
@@ -87,6 +88,15 @@ interface DashboardWidgetsProps {
     fromAvatar: string | null;
     fromDiscordId: string | null;
   }[];
+  cashbackSummary?: {
+    totalReceived: number;
+    totalPending: number;
+    countTotal: number;
+    countToRequest: number;
+    countRequested: number;
+    countApproved: number;
+    countReceived: number;
+  };
 }
 
 export function DashboardWidgets({
@@ -101,6 +111,7 @@ export function DashboardWidgets({
   kpis,
   calendarEvents = [],
   inboxMessages = [],
+  cashbackSummary,
 }: DashboardWidgetsProps) {
   const hasExpenses = kpis.expenses.total > 0;
 
@@ -275,6 +286,9 @@ export function DashboardWidgets({
 
       case "inbox-preview":
         return <InboxPreviewWidget messages={inboxMessages} />;
+
+      case "cashback-preview":
+        return cashbackSummary ? <CashbackPreviewWidget summary={cashbackSummary} /> : null;
 
       default:
         return null;

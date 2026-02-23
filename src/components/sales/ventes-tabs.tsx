@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { CommunityFeed } from "./community-feed";
 import { VentesClient } from "./ventes-client";
-import { Users, User } from "lucide-react";
+import { CSVImportSalesDialog } from "./csv-import-sales-dialog";
+import { Users, User, Upload } from "lucide-react";
 
 interface SaleItem {
   sale: {
@@ -65,39 +68,59 @@ interface VentesTabsProps {
 }
 
 export function VentesTabs({ userSales, communitySales, topROI, topVolume, userName }: VentesTabsProps) {
+  const [showImportCSV, setShowImportCSV] = useState(false);
+
   return (
-    <Tabs defaultValue="me">
-      <TabsList className="w-full">
-        <TabsTrigger value="me" className="gap-1.5">
-          <User className="h-3.5 w-3.5" />
-          Mes ventes
-          {userSales.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
-              {userSales.length}
-            </span>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="community" className="gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          Communaute
-          {communitySales.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
-              {communitySales.length}
-            </span>
-          )}
-        </TabsTrigger>
-      </TabsList>
+    <>
+      <Tabs defaultValue="me">
+        <div className="flex items-center gap-2">
+          <TabsList className="flex-1">
+            <TabsTrigger value="me" className="gap-1.5">
+              <User className="h-3.5 w-3.5" />
+              Mes ventes
+              {userSales.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+                  {userSales.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="community" className="gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              Communaute
+              {communitySales.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+                  {communitySales.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowImportCSV(true)}
+            title="Importer CSV"
+          >
+            <Upload className="h-3.5 w-3.5" />
+          </Button>
+        </div>
 
-      <TabsContent value="me" className="mt-4 space-y-4">
-        <VentesClient salesData={userSales} userName={userName} />
-      </TabsContent>
+        <TabsContent value="me" className="mt-4 space-y-4">
+          <VentesClient salesData={userSales} userName={userName} />
+        </TabsContent>
 
-      <TabsContent value="community" className="mt-4 space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Ventes recentes de la communaute (anonymes)
-        </p>
-        <CommunityFeed sales={communitySales} topROI={topROI} topVolume={topVolume} />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="community" className="mt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Ventes recentes de la communaute (anonymes)
+          </p>
+          <CommunityFeed sales={communitySales} topROI={topROI} topVolume={topVolume} />
+        </TabsContent>
+      </Tabs>
+
+      <CSVImportSalesDialog
+        open={showImportCSV}
+        onClose={() => setShowImportCSV(false)}
+      />
+    </>
   );
 }

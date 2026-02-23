@@ -21,6 +21,7 @@ import {
   Square,
   Loader2,
   Download,
+  Upload,
   MessageSquare,
   Copy,
   Check,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CSVImportStockDialog } from "./csv-import-dialog";
 
 interface StockProduct {
   id: string;
@@ -70,6 +72,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
   const [showWithAdvice, setShowWithAdvice] = useState(false);
   const [showListingDialog, setShowListingDialog] = useState(false);
   const [listingLoading, setListingLoading] = useState<string | null>(null);
+  const [showImportCSV, setShowImportCSV] = useState(false);
 
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
@@ -464,7 +467,17 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowImportCSV(true)}
+                  title="Importer CSV"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
                   onClick={handleExportCsv}
+                  title="Exporter CSV"
                 >
                   <Download className="h-3.5 w-3.5" />
                 </Button>
@@ -587,6 +600,12 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* CSV Import dialog */}
+      <CSVImportStockDialog
+        open={showImportCSV}
+        onClose={() => setShowImportCSV(false)}
+      />
 
       {/* WTS Message dialog */}
       <Dialog open={showWtsDialog} onOpenChange={setShowWtsDialog}>

@@ -9,9 +9,24 @@ import { getCommunitySales, getCommunityTopROI, getCommunityTopVolume } from "@/
 import { getTrendingProducts } from "@/lib/queries/products";
 import { CommunityClient } from "@/components/community/community-client";
 
-export default async function CommunityPage() {
+interface CommunityPageProps {
+  searchParams: Promise<{ period?: string }>;
+}
+
+function parsePeriod(period: string): number {
+  if (period === "7j") return 7;
+  if (period === "30j") return 30;
+  if (period === "90j") return 90;
+  return 30;
+}
+
+export default async function CommunityPage({ searchParams }: CommunityPageProps) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  const params = await searchParams;
+  const period = params.period ?? "30j";
+  const daysBack = parsePeriod(period);
 
   const [
     stats,
@@ -22,13 +37,13 @@ export default async function CommunityPage() {
     platformDist,
     categoryBreakdown,
   ] = await Promise.all([
-    getCommunityStats(),
-    getCommunityTopROI(7, 5),
-    getCommunityTopVolume(7, 5),
-    getTrendingProducts(7, 5),
+    getCommunityStats(daysBack),
+    getCommunityTopROI(daysBack, 5),
+    getCommunityTopVolume(daysBack, 5),
+    getTrendingProducts(daysBack, 5),
     getCommunitySales(100),
-    getCommunityPlatformDistribution(30),
-    getCommunityCategoryBreakdown(30),
+    getCommunityPlatformDistribution(daysBack),
+    getCommunityCategoryBreakdown(daysBack),
   ]);
 
   // Serialize dates for client component
@@ -45,6 +60,8 @@ export default async function CommunityPage() {
 
   return (
     <CommunityClient
+      period={period}
+      daysBack={daysBack}
       stats={stats}
       topROI={topROI}
       topVolume={topVolume}

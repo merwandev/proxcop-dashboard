@@ -30,6 +30,7 @@ interface CategoryBreakdown {
 interface DistributionChartsProps {
   platformDistribution: PlatformDist[];
   categoryBreakdown: CategoryBreakdown[];
+  daysBack: number;
 }
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -55,12 +56,13 @@ const tooltipStyle = {
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "#E4E4E7",
+  color: "#C9CEEE",
 };
 
 export function DistributionCharts({
   platformDistribution,
   categoryBreakdown,
+  daysBack,
 }: DistributionChartsProps) {
   const platformData = platformDistribution.map((d) => ({
     name: PLATFORMS.find((p) => p.value === d.platform)?.label ?? d.platform,
@@ -78,22 +80,22 @@ export function DistributionCharts({
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
-        Répartition — 30 jours
+      <h2 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
+        Répartition — {daysBack} jours
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* Platform pie chart */}
         {platformData.length > 0 && (
-          <Card className="p-4 bg-card border-border">
-            <h3 className="text-sm font-medium mb-3">Par plateforme</h3>
-            <ResponsiveContainer width="100%" height={200}>
+          <Card className="p-3 bg-card border-border">
+            <h3 className="text-sm font-medium mb-2">Par plateforme</h3>
+            <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
                   data={platformData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
+                  innerRadius={45}
+                  outerRadius={70}
                   paddingAngle={2}
                   dataKey="value"
                 >
@@ -103,6 +105,8 @@ export function DistributionCharts({
                 </Pie>
                 <Tooltip
                   contentStyle={tooltipStyle}
+                  labelStyle={{ color: "#919191" }}
+                  itemStyle={{ color: "#C9CEEE" }}
                   formatter={(value, name) => [
                     `${value} ventes`,
                     name,
@@ -111,7 +115,7 @@ export function DistributionCharts({
               </PieChart>
             </ResponsiveContainer>
             {/* Legend */}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 justify-center">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 justify-center">
               {platformData.map((d) => (
                 <div key={d.name} className="flex items-center gap-1">
                   <div
@@ -129,9 +133,9 @@ export function DistributionCharts({
 
         {/* Category bar chart */}
         {categoryData.length > 0 && (
-          <Card className="p-4 bg-card border-border">
-            <h3 className="text-sm font-medium mb-3">Par catégorie</h3>
-            <ResponsiveContainer width="100%" height={200}>
+          <Card className="p-3 bg-card border-border">
+            <h3 className="text-sm font-medium mb-2">Par catégorie</h3>
+            <ResponsiveContainer width="100%" height={180}>
               <BarChart data={categoryData} layout="vertical" margin={{ left: 0, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                 <XAxis
@@ -151,12 +155,14 @@ export function DistributionCharts({
                 <Tooltip
                   cursor={{ fill: "rgba(255,255,255,0.03)" }}
                   contentStyle={tooltipStyle}
+                  labelStyle={{ color: "#919191" }}
+                  itemStyle={{ color: "#C9CEEE" }}
                   formatter={(value, _name, props) => [
                     `${value} ventes (${props.payload?.percentage}%)`,
                     "Catégorie",
                   ]}
                 />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={22}>
                   {categoryData.map((entry, i) => (
                     <Cell key={i} fill={entry.fill} />
                   ))}

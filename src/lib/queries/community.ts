@@ -8,9 +8,9 @@ import { eq, and, sql, gte } from "drizzle-orm";
  * Community KPIs for the last 30 days.
  * Privacy-safe: only aggregate data, no user identity exposed.
  */
-export async function getCommunityStats() {
+export async function getCommunityStats(daysBack = 30) {
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 30);
+  cutoff.setDate(cutoff.getDate() - daysBack);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
   const result = await db

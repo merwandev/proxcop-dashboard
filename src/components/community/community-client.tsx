@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { CommunityFeed } from "@/components/sales/community-feed";
 import { MarketExplorer } from "./market-explorer";
@@ -8,7 +9,13 @@ import { TopPerformers } from "./top-performers";
 import { TrendingSection } from "./trending-section";
 import { formatCurrency } from "@/lib/utils/format";
 import { PLATFORMS } from "@/lib/utils/constants";
-import { Users } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const PERIODS = [
+  { value: "7j", label: "7j" },
+  { value: "30j", label: "30j" },
+  { value: "90j", label: "90j" },
+] as const;
 
 interface CommunityStats {
   totalSales: number;
@@ -65,6 +72,8 @@ interface CategoryBreakdown {
 }
 
 interface CommunityClientProps {
+  period: string;
+  daysBack: number;
   stats: CommunityStats;
   topROI: TopROIItem[];
   topVolume: TopVolumeItem[];
@@ -75,6 +84,8 @@ interface CommunityClientProps {
 }
 
 export function CommunityClient({
+  period,
+  daysBack,
   stats,
   topROI,
   topVolume,
@@ -83,47 +94,68 @@ export function CommunityClient({
   platformDistribution,
   categoryBreakdown,
 }: CommunityClientProps) {
+  const router = useRouter();
+
   const topPlatformLabel = stats.topPlatform
     ? PLATFORMS.find((p) => p.value === stats.topPlatform)?.label ?? stats.topPlatform
     : "—";
 
+  const handlePeriodChange = (p: string) => {
+    if (p === "30j") {
+      router.push("/community");
+    } else {
+      router.push(`/community?period=${p}`);
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-24 lg:pb-8">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Users className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-bold">Communauté</h1>
+    <div className="space-y-4 pb-24 lg:pb-8">
+      {/* Header + Period selector */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold lg:text-2xl">Communauté</h1>
+        <div className="flex items-center gap-1">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => handlePeriodChange(p.value)}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg font-medium transition-colors min-h-[32px]",
+                period === p.value
+                  ? "bg-accent text-accent-foreground"
+                  : "bg-secondary text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Section 1 — KPIs globaux */}
       <div className="grid grid-cols-2 gap-2">
         <KpiCard
-          label="Ventes — 30j"
+          label={`Ventes — ${daysBack}j`}
           value={String(stats.totalSales)}
-          sub="communauté"
         />
         <KpiCard
           label="Vendeurs actifs"
           value={String(stats.activeSellers)}
-          sub="30 derniers jours"
         />
         <KpiCard
           label="Prix moyen"
           value={formatCurrency(stats.avgPrice)}
-          sub="de vente"
         />
         <KpiCard
           label="Plateforme #1"
           value={topPlatformLabel}
-          sub="plus utilisée"
         />
       </div>
 
       {/* Section 2 — Top Performers */}
-      <TopPerformers topROI={topROI} topVolume={topVolume} />
+      <TopPerformers topROI={topROI} topVolume={topVolume} daysBack={daysBack} />
 
       {/* Section 3 — Trending */}
-      {trending.length > 0 && <TrendingSection trending={trending} />}
+      {trending.length > 0 && <TrendingSection trending={trending} daysBack={daysBack} />}
 
       {/* Section 4 — Market Explorer */}
       <MarketExplorer />
@@ -133,12 +165,13 @@ export function CommunityClient({
         <DistributionCharts
           platformDistribution={platformDistribution}
           categoryBreakdown={categoryBreakdown}
+          daysBack={daysBack}
         />
       )}
 
       {/* Section 6 — Live Feed */}
       <div>
-        <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
+        <h2 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
           Dernières ventes
         </h2>
         <CommunityFeed sales={communitySales} />

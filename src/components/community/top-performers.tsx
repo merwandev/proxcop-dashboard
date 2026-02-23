@@ -25,15 +25,16 @@ interface TopVolumeItem {
 interface TopPerformersProps {
   topROI: TopROIItem[];
   topVolume: TopVolumeItem[];
+  daysBack: number;
 }
 
-export function TopPerformers({ topROI, topVolume }: TopPerformersProps) {
+export function TopPerformers({ topROI, topVolume, daysBack }: TopPerformersProps) {
   if (topROI.length === 0 && topVolume.length === 0) return null;
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
-        Top 7 jours
+      <h2 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
+        Top {daysBack} jours
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {topROI.length > 0 && (

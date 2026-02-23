@@ -13,15 +13,16 @@ interface TrendingItem {
 
 interface TrendingSectionProps {
   trending: TrendingItem[];
+  daysBack: number;
 }
 
-export function TrendingSection({ trending }: TrendingSectionProps) {
+export function TrendingSection({ trending, daysBack }: TrendingSectionProps) {
   if (trending.length === 0) return null;
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
-        Tendances — 7 jours
+      <h2 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
+        Tendances — {daysBack} jours
       </h2>
       <Card className="p-3 bg-card border-border">
         <div className="flex items-center gap-1.5 mb-2">

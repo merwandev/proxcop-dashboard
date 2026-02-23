@@ -39,7 +39,7 @@ const tooltipStyle = {
   border: "1px solid rgba(255,255,255,0.1)",
   borderRadius: "8px",
   fontSize: "12px",
-  color: "#E4E4E7",
+  color: "#C9CEEE",
 };
 
 export function MarketExplorer() {
@@ -95,7 +95,15 @@ export function MarketExplorer() {
   // KPI calculations
   const totalSales = data?.sales.length ?? 0;
   const lastSale = data?.sales[data.sales.length - 1];
-  const medianPrice = data?.overallMedian?.median ?? 0;
+
+  // Compute median from sales data client-side (fallback when < 3 sales for DB median)
+  const computedMedian = (() => {
+    if (data?.overallMedian) return data.overallMedian.median;
+    if (!data?.sales || data.sales.length === 0) return 0;
+    const sorted = [...data.sales].map((s) => s.salePrice).sort((a, b) => a - b);
+    if (sorted.length % 2 === 1) return sorted[Math.floor(sorted.length / 2)];
+    return (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  })();
 
   // Most used platform
   const platformCounts: Record<string, number> = {};
@@ -112,18 +120,18 @@ export function MarketExplorer() {
 
   return (
     <div>
-      <h2 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
+      <h2 className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
         Market Explorer
       </h2>
 
       {/* Search input */}
-      <div className="relative mb-3">
+      <div className="relative mb-2">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Rechercher un SKU (ex: DD1391-100)..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="pl-9 bg-card border-border h-10 text-sm"
+          className="pl-9 bg-card border-border h-9 text-sm"
         />
         {query && (
           <button
@@ -141,7 +149,7 @@ export function MarketExplorer() {
 
       {/* Loading state */}
       {isPending && (
-        <Card className="p-8 bg-card border-border flex items-center justify-center gap-2">
+        <Card className="p-6 bg-card border-border flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <span className="text-sm text-muted-foreground">Recherche en cours...</span>
         </Card>
@@ -149,33 +157,27 @@ export function MarketExplorer() {
 
       {/* Empty state */}
       {!isPending && !data && !searchedSku && (
-        <Card className="p-8 bg-card border-border text-center">
-          <Search className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+        <Card className="p-6 bg-card border-border text-center">
+          <Search className="h-6 w-6 text-muted-foreground mx-auto mb-1.5 opacity-40" />
           <p className="text-sm text-muted-foreground">
             Recherche un SKU pour explorer le marché
-          </p>
-          <p className="text-[11px] text-muted-foreground/60 mt-1">
-            Historique des prix, médiane par taille, plateforme préférée
           </p>
         </Card>
       )}
 
       {/* No results */}
       {!isPending && data && data.sales.length === 0 && searchedSku && (
-        <Card className="p-8 bg-card border-border text-center">
-          <SearchX className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+        <Card className="p-6 bg-card border-border text-center">
+          <SearchX className="h-6 w-6 text-muted-foreground mx-auto mb-1.5 opacity-40" />
           <p className="text-sm text-muted-foreground">
-            Aucune vente trouvée pour <span className="font-mono font-medium text-foreground">{searchedSku}</span>
-          </p>
-          <p className="text-[11px] text-muted-foreground/60 mt-1">
-            Essaie un autre SKU ou vérifie l&apos;orthographe
+            Aucune vente pour <span className="font-mono font-medium text-foreground">{searchedSku}</span>
           </p>
         </Card>
       )}
 
       {/* Results */}
       {!isPending && data && data.sales.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* KPIs */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <KpiCard
@@ -185,8 +187,8 @@ export function MarketExplorer() {
             />
             <KpiCard
               label="Prix médian"
-              value={formatCurrency(medianPrice)}
-              sub={`${data.overallMedian?.saleCount ?? 0} ventes`}
+              value={formatCurrency(computedMedian)}
+              sub={`${totalSales} ventes`}
             />
             <KpiCard
               label="Dernière vente"
@@ -202,12 +204,12 @@ export function MarketExplorer() {
 
           {/* Price chart */}
           {chartData.length >= 2 && (
-            <Card className="p-4 bg-card border-border">
-              <div className="flex items-start justify-between mb-3">
+            <Card className="p-3 bg-card border-border">
+              <div className="flex items-start justify-between mb-2">
                 <div>
                   <h3 className="text-sm font-medium">Prix de vente — {searchedSku}</h3>
                   <p className="text-lg font-bold mt-0.5">
-                    {formatCurrency(medianPrice)}{" "}
+                    {formatCurrency(computedMedian)}{" "}
                     <span className="text-sm font-normal text-muted-foreground">médian</span>
                   </p>
                 </div>
@@ -216,7 +218,7 @@ export function MarketExplorer() {
                 </p>
               </div>
 
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={180}>
                 <ComposedChart data={chartData}>
                   <defs>
                     <linearGradient id="marketPriceGradient" x1="0" y1="0" x2="0" y2="1">
@@ -266,9 +268,9 @@ export function MarketExplorer() {
 
           {/* Median by size bar chart */}
           {sizeData.length > 0 && (
-            <Card className="p-4 bg-card border-border">
-              <h3 className="text-sm font-medium mb-3">Prix médian par taille</h3>
-              <ResponsiveContainer width="100%" height={Math.max(180, sizeData.length * 32)}>
+            <Card className="p-3 bg-card border-border">
+              <h3 className="text-sm font-medium mb-2">Prix médian par taille</h3>
+              <ResponsiveContainer width="100%" height={Math.max(150, sizeData.length * 28)}>
                 <BarChart data={sizeData} layout="vertical" margin={{ left: 10, right: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                   <XAxis
@@ -289,6 +291,8 @@ export function MarketExplorer() {
                   <Tooltip
                     cursor={{ fill: "rgba(255,255,255,0.03)" }}
                     contentStyle={tooltipStyle}
+                    labelStyle={{ color: "#919191", marginBottom: 4 }}
+                    itemStyle={{ color: "#C9CEEE" }}
                     formatter={(value, _name, props) => {
                       const v = Number(value ?? 0);
                       const count = props.payload?.count ?? 0;
@@ -302,7 +306,7 @@ export function MarketExplorer() {
                     dataKey="median"
                     fill="#C9CEEE"
                     radius={[0, 4, 4, 0]}
-                    barSize={18}
+                    barSize={16}
                   />
                 </BarChart>
               </ResponsiveContainer>

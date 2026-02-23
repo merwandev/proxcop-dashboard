@@ -400,15 +400,31 @@ export async function getProductByIdStockX(
   if (!accessToken) return null;
 
   try {
-    // Get variants
-    const variantsUrl = `https://api.stockx.com/v2/catalog/products/${productId}/variants`;
-    const variantsRes = await fetch(variantsUrl, {
-      headers: stockxHeaders(accessToken),
-      signal: AbortSignal.timeout(10000),
-    });
+    const hdrs = stockxHeaders(accessToken);
+
+    // Fetch product info + variants in parallel
+    const [productRes, variantsRes] = await Promise.all([
+      fetch(`https://api.stockx.com/v2/catalog/products/${productId}`, {
+        headers: hdrs,
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`https://api.stockx.com/v2/catalog/products/${productId}/variants`, {
+        headers: hdrs,
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
 
     if (variantsRes.status === 429) return null;
     if (!variantsRes.ok) return null;
+
+    // Extract product title + styleId
+    let productTitle = "";
+    let productStyleId = "";
+    if (productRes.ok) {
+      const productData = await productRes.json();
+      productTitle = (productData.title ?? "") as string;
+      productStyleId = (productData.styleId ?? "") as string;
+    }
 
     const variantsData = await variantsRes.json();
     const variantArray = Array.isArray(variantsData)
@@ -416,7 +432,7 @@ export async function getProductByIdStockX(
       : variantsData?.variants ?? [];
 
     if (variantArray.length === 0) {
-      return { productId, title: "", styleId: "", imageUrl: null, variants: [], status: "not_found" };
+      return { productId, title: productTitle, styleId: productStyleId, imageUrl: null, variants: [], status: "not_found" };
     }
 
     // Parse variants
@@ -448,8 +464,8 @@ export async function getProductByIdStockX(
 
     return {
       productId,
-      title: "",
-      styleId: "",
+      title: productTitle,
+      styleId: productStyleId,
       imageUrl,
       variants,
       status: "found",

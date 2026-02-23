@@ -98,6 +98,7 @@ export async function getProductsWithoutImages(limit = 50) {
 
 /**
  * Get unique user-uploaded product images grouped by SKU (or name if no SKU).
+ * Only includes manually uploaded images (R2), excludes StockX auto-fetched images.
  * Staff can decide to use these for all users via sku_images table.
  */
 export async function getUserUploadedImages(limit = 50) {
@@ -112,7 +113,13 @@ export async function getUserUploadedImages(limit = 50) {
     })
     .from(products)
     .innerJoin(users, eq(products.userId, users.id))
-    .where(isNotNull(products.imageUrl))
+    .where(
+      and(
+        isNotNull(products.imageUrl),
+        // Exclude StockX auto-fetched images — only keep manually uploaded (R2)
+        sql`${products.imageUrl} NOT LIKE '%images.stockx.com%'`,
+      )
+    )
     .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
     .orderBy(desc(sql`max(${products.createdAt})`))
     .limit(limit);

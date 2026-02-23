@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { calendarEvents, productVariants, products } from "@/lib/db/schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { calendarEvents, productVariants, products, users } from "@/lib/db/schema";
+import { eq, and, gte, lte, sql, or, inArray } from "drizzle-orm";
 
 export interface CalendarEvent {
   id: string;
@@ -11,18 +11,26 @@ export interface CalendarEvent {
   notes: string | null;
   variantId: string | null;
   isAuto?: boolean; // For auto-generated return deadlines
+  isAdminEvent?: boolean; // Created by an admin (staff/dev)
 }
 
 /**
  * Get calendar events for a user within a date range.
- * Includes manual events + auto-generated return deadlines from variants.
+ * Includes: user's own manual events + admin-created events (visible to all) + auto-generated return deadlines.
  */
 export async function getCalendarEvents(
   userId: string,
   startDate: string,
   endDate: string
 ): Promise<CalendarEvent[]> {
-  // 1. Manual events
+  // 1. Get all admin user IDs
+  const adminUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.role, ["staff", "dev"]));
+  const adminUserIds = adminUsers.map((u) => u.id);
+
+  // 2. Manual events: user's own events + all admin-created events
   const manualEvents = await db
     .select({
       id: calendarEvents.id,
@@ -32,13 +40,19 @@ export async function getCalendarEvents(
       color: calendarEvents.color,
       notes: calendarEvents.notes,
       variantId: calendarEvents.variantId,
+      userId: calendarEvents.userId,
     })
     .from(calendarEvents)
     .where(
       and(
-        eq(calendarEvents.userId, userId),
         gte(calendarEvents.date, startDate),
-        lte(calendarEvents.date, endDate)
+        lte(calendarEvents.date, endDate),
+        adminUserIds.length > 0
+          ? or(
+              eq(calendarEvents.userId, userId),
+              inArray(calendarEvents.userId, adminUserIds)
+            )
+          : eq(calendarEvents.userId, userId)
       )
     );
 
@@ -46,6 +60,7 @@ export async function getCalendarEvents(
     ...e,
     type: e.type as CalendarEvent["type"],
     isAuto: false,
+    isAdminEvent: adminUserIds.includes(e.userId) && e.userId !== userId,
   }));
 
   // 2. Auto return deadlines from variants in stock
@@ -110,8 +125,17 @@ export async function createCalendarEvent(data: {
   return row;
 }
 
-export async function deleteCalendarEvent(eventId: string, userId: string) {
-  await db
-    .delete(calendarEvents)
-    .where(and(eq(calendarEvents.id, eventId), eq(calendarEvents.userId, userId)));
+export async function deleteCalendarEvent(eventId: string, userId: string, isAdmin: boolean) {
+  if (isAdmin) {
+    // Admins can delete their own events (including admin events they created)
+    await db
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.id, eventId), eq(calendarEvents.userId, userId)));
+  } else {
+    // Regular users can only delete their own events — never admin events
+    // The userId filter already prevents deleting admin events (different userId)
+    await db
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.id, eventId), eq(calendarEvents.userId, userId)));
+  }
 }

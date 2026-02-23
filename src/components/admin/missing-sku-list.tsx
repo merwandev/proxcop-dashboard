@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
+// Upload via server-side proxy (avoids R2 CORS issues)
 import { Loader2, Upload, Check, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,13 +35,12 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
         useWebWorker: true,
       });
 
-      // Upload to R2
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
+      // Upload via server-side proxy to avoid R2 CORS issues
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { publicUrl } = await uploadRes.json();
 
       // Save as staff-provided image
       await fetch("/api/admin/sku-images", {

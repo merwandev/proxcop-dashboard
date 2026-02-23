@@ -2,7 +2,8 @@
 
 import { useState, useTransition, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Plus, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddEventDialog } from "./add-event-dialog";
 import { deleteCalendarEventAction } from "@/lib/actions/calendar-actions";
@@ -22,6 +23,7 @@ interface CalendarEventItem {
   color: string | null;
   notes: string | null;
   isAuto: boolean;
+  isAdminEvent: boolean;
 }
 
 interface CalendarViewProps {
@@ -132,8 +134,8 @@ export function CalendarView({ initialEvents, initialYear, initialMonth }: Calen
     setSelectedDay(null);
   };
 
-  const handleEventAdded = useCallback((event: CalendarEventItem) => {
-    setEvents((prev) => [...prev, event]);
+  const handleEventAdded = useCallback((event: Omit<CalendarEventItem, "isAdminEvent">) => {
+    setEvents((prev) => [...prev, { ...event, isAdminEvent: false }]);
     setShowAddDialog(false);
     setAddDate(null);
   }, []);
@@ -223,11 +225,12 @@ export function CalendarView({ initialEvents, initialYear, initialMonth }: Calen
                       key={evt.id}
                       className={cn(
                         "text-[8px] lg:text-[9px] leading-tight truncate rounded px-1 py-0.5 text-white font-medium",
-                        evt.color ? "" : EVENT_COLORS[evt.type] || "bg-primary"
+                        evt.color ? "" : EVENT_COLORS[evt.type] || "bg-primary",
+                        evt.isAdminEvent && "ring-1 ring-purple-400/50"
                       )}
                       style={evt.color ? { backgroundColor: evt.color } : undefined}
                     >
-                      {evt.title}
+                      {evt.isAdminEvent && "⚡ "}{evt.title}
                     </div>
                   ))}
                   {dayEvts.length > 2 && (
@@ -288,13 +291,21 @@ export function CalendarView({ initialEvents, initialYear, initialMonth }: Calen
                   style={evt.color ? { backgroundColor: evt.color } : undefined}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{evt.title}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">{evt.title}</p>
+                    {evt.isAdminEvent && (
+                      <Badge variant="outline" className="bg-purple-500/20 text-purple-400 border-0 text-[9px] h-4 px-1 gap-0.5 flex-shrink-0">
+                        <Shield className="h-2.5 w-2.5" />
+                        Admin
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-[10px] text-muted-foreground capitalize">{evt.type}{evt.isAuto ? " (auto)" : ""}</p>
                   {evt.notes && (
                     <p className="text-xs text-muted-foreground mt-0.5">{evt.notes}</p>
                   )}
                 </div>
-                {!evt.isAuto && (
+                {!evt.isAuto && !evt.isAdminEvent && (
                   <button
                     type="button"
                     onClick={() => handleDeleteEvent(evt.id)}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
+// Upload via server-side proxy (avoids R2 CORS issues)
 import { adminSetProductImage } from "@/lib/actions/product-actions";
 import { Loader2, Upload, Check, Image as ImageIcon, Package, User } from "lucide-react";
 import { toast } from "sonner";
@@ -37,12 +37,11 @@ export function MissingImageProducts({ products }: MissingImageProductsProps) {
         useWebWorker: true,
       });
 
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { publicUrl } = await uploadRes.json();
 
       await adminSetProductImage(productId, publicUrl);
 

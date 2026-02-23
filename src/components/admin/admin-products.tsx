@@ -25,8 +25,7 @@ import {
   updateAdminProductAction,
   deleteAdminProductAction,
 } from "@/lib/actions/admin-product-actions";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Plus, Package, Trash2, Pencil, Upload, X } from "lucide-react";
+import { Loader2, Plus, Package, Trash2, Pencil, Upload, X, Link2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface AdminProductItem {
@@ -189,12 +188,15 @@ function AdminProductDialog({
         maxSizeMB: 0.2,
         useWebWorker: true,
       });
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
+      // Upload via server-side proxy to avoid R2 CORS issues
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Upload failed");
+      }
+      const { publicUrl } = await res.json();
       setImageUrl(publicUrl);
       toast.success("Image ajoutee");
     } catch {
@@ -306,25 +308,63 @@ function AdminProductDialog({
                 </button>
               </div>
             ) : (
-              <label className="cursor-pointer block">
-                <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-4 text-center">
-                  {uploading ? (
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
-                  ) : (
-                    <>
-                      <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-xs text-muted-foreground">Photo</p>
-                    </>
-                  )}
+              <div className="space-y-2">
+                {/* File upload */}
+                <label className="cursor-pointer block">
+                  <div className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors p-4 text-center">
+                    {uploading ? (
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : (
+                      <>
+                        <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                        <p className="text-xs text-muted-foreground">Importer une photo</p>
+                      </>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                  />
+                </label>
+
+                {/* Divider */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="text-[10px] text-muted-foreground">ou</span>
+                  <div className="flex-1 border-t border-border" />
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                  disabled={uploading}
-                />
-              </label>
+
+                {/* URL input */}
+                <div className="flex gap-1.5">
+                  <div className="relative flex-1">
+                    <Link2 className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="https://... (URL image)"
+                      className="h-9 text-sm pl-8"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val && (val.startsWith("http://") || val.startsWith("https://"))) {
+                            setImageUrl(val);
+                          } else if (val) {
+                            toast.error("URL invalide");
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (val && (val.startsWith("http://") || val.startsWith("https://"))) {
+                          setImageUrl(val);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

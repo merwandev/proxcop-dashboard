@@ -26,6 +26,7 @@ export default async function CalendarPage() {
     color: e.color,
     notes: e.notes,
     isAuto: e.isAuto ?? false,
+    isAdminEvent: e.isAdminEvent ?? false,
   }));
 
   return (

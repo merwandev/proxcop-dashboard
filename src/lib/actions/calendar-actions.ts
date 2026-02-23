@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { createCalendarEvent, deleteCalendarEvent } from "@/lib/queries/calendar";
+import { isAdminRole } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
 
 export async function createCalendarEventAction(data: {
@@ -34,6 +35,6 @@ export async function deleteCalendarEventAction(eventId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Non authentifie");
 
-  await deleteCalendarEvent(eventId, session.user.id);
+  await deleteCalendarEvent(eventId, session.user.id, isAdminRole(session.user.role));
   revalidatePath("/calendar");
 }

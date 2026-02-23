@@ -201,6 +201,17 @@ export const adminProducts = pgTable("admin_products", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Messages (staff → user inbox system)
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  fromUserId: uuid("from_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  toUserId: uuid("to_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // App Config (key-value store for global settings like webhook URLs)
 export const appConfig = pgTable("app_config", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -230,6 +241,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   createdAdvice: many(productAdvice),
   suppliers: many(suppliers),
   adminProducts: many(adminProducts),
+  sentMessages: many(messages, { relationName: "sentMessages" }),
+  receivedMessages: many(messages, { relationName: "receivedMessages" }),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -272,4 +285,9 @@ export const suppliersRelations = relations(suppliers, ({ one }) => ({
 
 export const adminProductsRelations = relations(adminProducts, ({ one }) => ({
   creator: one(users, { fields: [adminProducts.createdBy], references: [users.id] }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  from: one(users, { fields: [messages.fromUserId], references: [users.id], relationName: "sentMessages" }),
+  to: one(users, { fields: [messages.toUserId], references: [users.id], relationName: "receivedMessages" }),
 }));

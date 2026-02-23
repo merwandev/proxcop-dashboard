@@ -88,7 +88,7 @@ export function DashboardHeader({ userName, avatarUrl }: DashboardHeaderProps) {
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-xl font-bold lg:text-2xl truncate">
+          <h1 className="text-base font-bold sm:text-xl lg:text-2xl truncate">
             {greeting} {displayName} 👋
           </h1>
         </div>

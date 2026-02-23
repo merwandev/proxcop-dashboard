@@ -528,11 +528,11 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           filtered.map((product) => (
             <div
               key={product.id}
-              className={cn("flex items-center gap-2", selectMode && "cursor-pointer")}
+              className={cn("flex items-stretch gap-2", selectMode && "cursor-pointer")}
               onClick={selectMode ? () => toggleSelect(product.id) : undefined}
             >
               {selectMode && (
-                <div className="flex-shrink-0 p-1">
+                <div className="flex-shrink-0 p-1 flex items-center">
                   {selectedIds.has(product.id) ? (
                     <CheckSquare className="h-5 w-5 text-primary" />
                   ) : (
@@ -540,7 +540,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                   )}
                 </div>
               )}
-              <div className={cn("flex-1 min-w-0", selectMode && selectedIds.has(product.id) && "opacity-75")}>
+              <div className={cn("flex-1 min-w-0 flex", selectMode && selectedIds.has(product.id) && "opacity-75")}>
                 <ProductGroupCard
                   product={product}
                   hasAdvice={!!product.sku && adviceSkus.includes(product.sku.toUpperCase())}

@@ -45,7 +45,7 @@ export function ProductGroupCard({ product, hasAdvice, disableLink, onClick }: P
   const returnStatus = getReturnDeadlineStatus(product.nearestReturnDeadline);
 
   const cardContent = (
-    <Card className="flex flex-row gap-3 p-3 hover:border-border-hover transition-colors bg-card border-border h-full">
+    <Card className="flex flex-row gap-3 p-3 hover:border-border-hover transition-colors bg-card border-border flex-1">
       {/* Image */}
       <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-white flex-shrink-0">
         {product.imageUrl ? (
@@ -117,14 +117,14 @@ export function ProductGroupCard({ product, hasAdvice, disableLink, onClick }: P
 
   if (disableLink) {
     return (
-      <div onClick={onClick} className="cursor-pointer">
+      <div onClick={onClick} className="cursor-pointer flex flex-1">
         {cardContent}
       </div>
     );
   }
 
   return (
-    <Link href={`/stock/${product.id}`}>
+    <Link href={`/stock/${product.id}`} className="flex flex-1">
       {cardContent}
     </Link>
   );

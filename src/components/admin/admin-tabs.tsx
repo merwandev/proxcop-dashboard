@@ -6,6 +6,7 @@ import { MissingImageProducts } from "./missing-image-products";
 import { AdviceForm } from "./advice-form";
 import { AdviceList } from "./advice-list";
 import { WebhookConfig } from "./webhook-config";
+import { RoleManager } from "./role-manager";
 import { ImageIcon, Megaphone, Settings } from "lucide-react";
 
 interface SkuItem {
@@ -35,14 +36,23 @@ interface AdviceItem {
   creatorUsername: string | null;
 }
 
+interface AllowedRole {
+  id: string;
+  roleId: string;
+  roleName: string;
+  roleColor: string;
+  createdAt: string;
+}
+
 interface AdminTabsProps {
   skus: SkuItem[];
   productsNoImage: ProductNoImage[];
   adviceItems: AdviceItem[];
   webhookUrl: string | null;
+  allowedRoles: AllowedRole[];
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl, allowedRoles }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -111,6 +121,10 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl }: Ad
       </TabsContent>
 
       <TabsContent value="config" className="mt-4 space-y-6">
+        <div>
+          <h2 className="text-base font-semibold mb-3">Acces au dashboard</h2>
+          <RoleManager allowedRoles={allowedRoles} />
+        </div>
         <div>
           <h2 className="text-base font-semibold mb-3">Configuration</h2>
           <WebhookConfig currentUrl={webhookUrl} />

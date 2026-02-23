@@ -195,6 +195,16 @@ export const appConfig = pgTable("app_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Allowed Discord Roles (which roles can access the dashboard)
+export const allowedDiscordRoles = pgTable("allowed_discord_roles", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  roleId: text("role_id").notNull().unique(),
+  roleName: text("role_name").notNull(),
+  roleColor: text("role_color").notNull().default("#99AAB5"),
+  addedBy: uuid("added_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Suppliers (per-user, with optional return days)
 export const suppliers = pgTable("suppliers", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -253,4 +263,8 @@ export const productAdviceRelations = relations(productAdvice, ({ one }) => ({
 
 export const suppliersRelations = relations(suppliers, ({ one }) => ({
   user: one(users, { fields: [suppliers.userId], references: [users.id] }),
+}));
+
+export const allowedDiscordRolesRelations = relations(allowedDiscordRoles, ({ one }) => ({
+  addedByUser: one(users, { fields: [allowedDiscordRoles.addedBy], references: [users.id] }),
 }));

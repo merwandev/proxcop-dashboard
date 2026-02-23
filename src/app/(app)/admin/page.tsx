@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getNotFoundSkuImages, getProductsWithoutImages } from "@/lib/queries/sku-images";
 import { getAllAdvice } from "@/lib/queries/product-advice";
 import { getConfigValue } from "@/lib/queries/config";
+import { getAllowedDiscordRoles } from "@/lib/queries/discord-roles";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 
 export default async function AdminPage() {
@@ -12,11 +13,12 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [notFoundSkus, adviceItems, productsNoImage, webhookUrl] = await Promise.all([
+  const [notFoundSkus, adviceItems, productsNoImage, webhookUrl, allowedRoles] = await Promise.all([
     getNotFoundSkuImages(),
     getAllAdvice(),
     getProductsWithoutImages(),
     getConfigValue("discord_webhook_url"),
+    getAllowedDiscordRoles(),
   ]);
 
   return (
@@ -54,6 +56,13 @@ export default async function AdminPage() {
           creatorUsername: a.creatorUsername,
         }))}
         webhookUrl={webhookUrl}
+        allowedRoles={allowedRoles.map((r) => ({
+          id: r.id,
+          roleId: r.roleId,
+          roleName: r.roleName,
+          roleColor: r.roleColor,
+          createdAt: r.createdAt.toISOString(),
+        }))}
       />
     </div>
   );

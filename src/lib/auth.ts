@@ -3,12 +3,59 @@ import Discord from "next-auth/providers/discord";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getAllowedRoleIds } from "@/lib/queries/discord-roles";
 
 interface DiscordGuild {
   id: string;
   name: string;
   owner: boolean;
   permissions: string;
+}
+
+interface DiscordGuildMember {
+  roles: string[];
+}
+
+/**
+ * Check if a user has at least one of the allowed Discord roles.
+ * Uses the Discord Bot Token to fetch member data from the guild.
+ * Returns true if no roles are configured (open access) or if the user
+ * is an admin (staff/dev always bypass).
+ */
+async function hasAllowedDiscordRole(
+  discordId: string,
+  isAdmin: boolean
+): Promise<boolean> {
+  // Admins always have access
+  if (isAdmin) return true;
+
+  const allowedRoleIds = await getAllowedRoleIds();
+
+  // If no roles configured, everyone in the guild can access
+  if (allowedRoleIds.length === 0) return true;
+
+  const botToken = process.env.DISCORD_BOT_TOKEN;
+  const guildId = process.env.DISCORD_GUILD_ID;
+
+  if (!botToken || !guildId) {
+    // No bot token configured — fall back to open access
+    return true;
+  }
+
+  try {
+    const res = await fetch(
+      `https://discord.com/api/v10/guilds/${guildId}/members/${discordId}`,
+      { headers: { Authorization: `Bot ${botToken}` } }
+    );
+
+    if (!res.ok) return false;
+
+    const member: DiscordGuildMember = await res.json();
+    return member.roles.some((roleId) => allowedRoleIds.includes(roleId));
+  } catch {
+    // If the Discord API call fails, deny access for safety
+    return false;
+  }
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -52,8 +99,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const isAdmin = proxcopGuild.owner || (permissions & BigInt(0x8)) !== BigInt(0);
         const detectedRole = isAdmin ? "staff" : "member";
 
-        // Upsert user in database
+        // Check if user has an allowed Discord role
         const discordId = profile.id as string;
+        const hasRole = await hasAllowedDiscordRole(discordId, isAdmin);
+        if (!hasRole) return false;
+
+        // Upsert user in database
         const existingUser = await db
           .select()
           .from(users)

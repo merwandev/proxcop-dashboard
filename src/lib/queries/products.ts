@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { products, productVariants, sales, cashbacks } from "@/lib/db/schema";
-import { eq, and, desc, sql, ne, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, ne, inArray, gte } from "drizzle-orm";
 
 /**
  * Get all products grouped by SKU (when available) with variant counts for stock page.
@@ -202,4 +202,51 @@ export async function getStockValue(userId: string) {
     .from(productVariants)
     .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
   return Number(result[0]?.total ?? 0);
+}
+
+/**
+ * Get user's most recently added products (unique by SKU or name).
+ */
+export async function getRecentProducts(userId: string, limit = 5) {
+  const result = await db
+    .select({
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
+      category: sql<string>`(array_agg(${products.category}::text order by ${products.createdAt} desc))[1]`,
+      lastAdded: sql<Date>`max(${products.createdAt})`,
+    })
+    .from(products)
+    .where(eq(products.userId, userId))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
+    .orderBy(sql`max(${products.createdAt}) desc`)
+    .limit(limit);
+
+  return result;
+}
+
+/**
+ * Get trending products across all users (most added in last N days).
+ * Anonymous: only product name, SKU, image, add count.
+ */
+export async function getTrendingProducts(daysBack = 7, limit = 5) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+
+  const result = await db
+    .select({
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
+      addCount: sql<number>`count(distinct ${productVariants.id})`,
+    })
+    .from(products)
+    .innerJoin(productVariants, eq(products.id, productVariants.productId))
+    .where(gte(productVariants.createdAt, cutoff))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
+    .having(sql`count(distinct ${productVariants.id}) >= 2`)
+    .orderBy(sql`count(distinct ${productVariants.id}) desc`)
+    .limit(limit);
+
+  return result;
 }

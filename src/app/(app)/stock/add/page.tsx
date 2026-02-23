@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ProductForm } from "@/components/product/product-form";
 import { getUserSuppliers } from "@/lib/queries/suppliers";
+import { getRecentProducts, getTrendingProducts } from "@/lib/queries/products";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -9,7 +10,11 @@ export default async function AddProductPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const suppliers = await getUserSuppliers(session.user.id);
+  const [suppliers, recentProducts, trendingProducts] = await Promise.all([
+    getUserSuppliers(session.user.id),
+    getRecentProducts(session.user.id, 5),
+    getTrendingProducts(7, 5),
+  ]);
 
   return (
     <div className="py-4 space-y-4">
@@ -19,7 +24,11 @@ export default async function AddProductPage() {
         </Link>
         <h1 className="text-xl font-bold">Ajouter un produit</h1>
       </div>
-      <ProductForm suppliers={suppliers} />
+      <ProductForm
+        suppliers={suppliers}
+        recentProducts={recentProducts}
+        trendingProducts={trendingProducts}
+      />
     </div>
   );
 }

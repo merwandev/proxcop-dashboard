@@ -136,7 +136,21 @@ interface SupplierOption {
   returnDays: string | null;
 }
 
-export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }) {
+interface QuickProduct {
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category?: string;
+  addCount?: number;
+}
+
+interface ProductFormProps {
+  suppliers?: SupplierOption[];
+  recentProducts?: QuickProduct[];
+  trendingProducts?: QuickProduct[];
+}
+
+export function ProductForm({ suppliers = [], recentProducts = [], trendingProducts = [] }: ProductFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>("search");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -584,6 +598,86 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             </p>
           )}
         </div>
+
+        {/* Recent + Trending (shown only when search is idle) */}
+        {searchStatus === "idle" && searchInput.length === 0 && (
+          <>
+            {recentProducts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Ajoutes recemment</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {recentProducts.map((p, i) => (
+                    <button
+                      key={p.sku ?? i}
+                      type="button"
+                      onClick={() => {
+                        if (p.sku) {
+                          handleSearchInputChange(p.sku);
+                          setTimeout(() => performSearch(p.sku!), 0);
+                        } else {
+                          handleSearchInputChange(p.name);
+                          setTimeout(() => performSearch(p.name), 0);
+                        }
+                      }}
+                      className="flex-shrink-0 flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors max-w-[200px]"
+                    >
+                      <div className="relative h-10 w-10 rounded overflow-hidden bg-white flex-shrink-0">
+                        {p.imageUrl ? (
+                          <Image src={p.imageUrl} alt={p.name} fill className="object-contain p-0.5" sizes="40px" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full"><Package className="h-4 w-4 text-muted-foreground" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[11px] font-medium leading-tight truncate">{p.name}</p>
+                        {p.sku && <p className="text-[9px] text-muted-foreground font-mono truncate">{p.sku}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {trendingProducts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Tendances (7 jours)</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {trendingProducts.map((p, i) => (
+                    <button
+                      key={p.sku ?? i}
+                      type="button"
+                      onClick={() => {
+                        if (p.sku) {
+                          handleSearchInputChange(p.sku);
+                          setTimeout(() => performSearch(p.sku!), 0);
+                        } else {
+                          handleSearchInputChange(p.name);
+                          setTimeout(() => performSearch(p.name), 0);
+                        }
+                      }}
+                      className="flex-shrink-0 flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors max-w-[200px]"
+                    >
+                      <div className="relative h-10 w-10 rounded overflow-hidden bg-white flex-shrink-0">
+                        {p.imageUrl ? (
+                          <Image src={p.imageUrl} alt={p.name} fill className="object-contain p-0.5" sizes="40px" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full"><Package className="h-4 w-4 text-muted-foreground" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[11px] font-medium leading-tight truncate">{p.name}</p>
+                        <p className="text-[9px] text-muted-foreground">
+                          {p.addCount} ajout{Number(p.addCount) > 1 ? "s" : ""}
+                          {p.sku && <span className="font-mono ml-1">{p.sku}</span>}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Loading skeleton */}
         {searchStatus === "loading" && (

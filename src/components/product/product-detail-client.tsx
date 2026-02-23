@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+// Module-level variable: survives component remounts caused by RSC re-renders
+let _pendingSaleData: SaleSuccessData | null = null;
 
 interface ProductVariant {
   id: string;
@@ -102,7 +105,26 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
   const [showSold, setShowSold] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
-  const [saleSuccessData, setSaleSuccessData] = useState<SaleSuccessData | null>(null);
+  const [saleSuccessData, setSaleSuccessData] = useState<SaleSuccessData | null>(
+    () => _pendingSaleData // Restore from module-level on mount/remount
+  );
+
+  // If state was reset by an RSC re-render but module-level still has data, restore it
+  useEffect(() => {
+    if (_pendingSaleData && !saleSuccessData) {
+      setSaleSuccessData(_pendingSaleData);
+    }
+  });
+
+  const handleSaleSuccess = useCallback((data: SaleSuccessData) => {
+    _pendingSaleData = data;
+    setSaleSuccessData(data);
+  }, []);
+
+  const handleAnimationClose = useCallback(() => {
+    _pendingSaleData = null;
+    setSaleSuccessData(null);
+  }, []);
 
   const allInStockVariants = product.variants.filter((v) => v.status !== "vendu");
   const soldVariants = product.variants.filter((v) => v.status === "vendu");
@@ -268,7 +290,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
                 productInfo={{ name: product.name, imageUrl: product.imageUrl, sku: product.sku }}
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
-                onSaleSuccess={setSaleSuccessData}
+                onSaleSuccess={handleSaleSuccess}
               />
             );
           })}
@@ -315,7 +337,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
       {saleSuccessData && (
         <SaleSuccessAnimation
           data={saleSuccessData}
-          onClose={() => setSaleSuccessData(null)}
+          onClose={handleAnimationClose}
         />
       )}
     </div>

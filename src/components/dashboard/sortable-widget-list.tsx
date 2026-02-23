@@ -8,13 +8,13 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Move } from "lucide-react";
 import { type WidgetSize } from "@/lib/queries/user-preferences";
 
 /* ── Constants ── */
 const LONG_PRESS_MS = 500;
 const SCROLL_THRESHOLD = 10;
-const GAP = 16; // gap-4 = 16px
+const GAP = 16; // gap-4
 
 interface SortableWidgetListProps {
   widgetIds: string[];
@@ -60,6 +60,8 @@ export function SortableWidgetList({
   const touchDragRef = useRef<TouchDragState | null>(null);
   // Snapshot of item rects at drag start (keyed by rendered index)
   const itemRectsRef = useRef<Map<number, DOMRect>>(new Map());
+  // Container rect snapshot
+  const containerRectRef = useRef<DOMRect | null>(null);
 
   // Sync from parent if widgetIds change
   if (JSON.stringify(widgetIds) !== JSON.stringify(order)) {
@@ -168,7 +170,7 @@ export function SortableWidgetList({
 
     cancelLongPress();
     longPressTimer.current = setTimeout(() => {
-      // Snapshot all item rects
+      // Snapshot all item rects + container
       const rects = new Map<number, DOMRect>();
       let startIdx = -1;
       let dragHeight = 0;
@@ -187,6 +189,8 @@ export function SortableWidgetList({
 
       if (startIdx === -1) return;
       itemRectsRef.current = rects;
+      containerRectRef.current =
+        containerRef.current?.getBoundingClientRect() ?? null;
 
       const state: TouchDragState = {
         id,
@@ -198,17 +202,19 @@ export function SortableWidgetList({
       touchDragRef.current = state;
       setTouchDrag(state);
 
-      // Apply initial drag style to the element directly (no re-render delay)
+      // Apply initial drag style directly (no re-render delay)
       const el = itemRefs.current.get(id);
       if (el) {
-        el.style.transform = "scale(1.03)";
+        el.style.transform = "scale(1.04)";
         el.style.zIndex = "50";
-        el.style.boxShadow = "0 25px 50px -12px rgba(0,0,0,0.5)";
+        el.style.boxShadow =
+          "0 0 0 2px rgba(201,206,238,0.6), 0 25px 50px -12px rgba(0,0,0,0.6)";
         el.style.position = "relative";
+        el.style.borderRadius = "0.75rem";
       }
 
       if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(30);
+        navigator.vibrate(50);
       }
     }, LONG_PRESS_MS);
   };
@@ -237,7 +243,7 @@ export function SortableWidgetList({
       // Move dragged widget directly (smooth, no re-render)
       const draggedEl = itemRefs.current.get(drag.id);
       if (draggedEl) {
-        draggedEl.style.transform = `translateY(${deltaY}px) scale(1.03)`;
+        draggedEl.style.transform = `translateY(${deltaY}px) scale(1.04)`;
       }
 
       // Compute target index from finger position vs snapshot centers
@@ -265,10 +271,32 @@ export function SortableWidgetList({
         const updated = { ...drag, currentTargetIndex: targetIdx };
         touchDragRef.current = updated;
         setTouchDrag(updated);
+        // Haptic tick on target change
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(10);
+        }
       }
     },
     [cancelLongPress],
   );
+
+  const clearDragStyles = useCallback(() => {
+    const drag = touchDragRef.current;
+    if (drag) {
+      const el = itemRefs.current.get(drag.id);
+      if (el) {
+        el.style.transform = "";
+        el.style.zIndex = "";
+        el.style.boxShadow = "";
+        el.style.position = "";
+        el.style.borderRadius = "";
+      }
+    }
+    itemRefs.current.forEach((el) => {
+      el.style.transform = "";
+      el.style.transition = "";
+    });
+  }, []);
 
   const finalizeDrag = useCallback(() => {
     cancelLongPress();
@@ -296,28 +324,12 @@ export function SortableWidgetList({
       }
     }
 
-    // Clear direct DOM styles from the dragged element
-    if (drag) {
-      const el = itemRefs.current.get(drag.id);
-      if (el) {
-        el.style.transform = "";
-        el.style.zIndex = "";
-        el.style.boxShadow = "";
-        el.style.position = "";
-      }
-    }
-
-    // Clear all shifted item styles
-    itemRefs.current.forEach((el) => {
-      el.style.transform = "";
-      el.style.transition = "";
-    });
-
+    clearDragStyles();
     touchDragRef.current = null;
     setTouchDrag(null);
     touchOrigin.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cancelLongPress, order, widgetIds, widgetSizes, onReorder]);
+  }, [cancelLongPress, clearDragStyles, order, widgetIds, widgetSizes, onReorder]);
 
   const handleTouchEnd = useCallback(() => {
     finalizeDrag();
@@ -325,27 +337,11 @@ export function SortableWidgetList({
 
   const handleTouchCancel = useCallback(() => {
     cancelLongPress();
-
-    // Reset styles without reordering
-    const drag = touchDragRef.current;
-    if (drag) {
-      const el = itemRefs.current.get(drag.id);
-      if (el) {
-        el.style.transform = "";
-        el.style.zIndex = "";
-        el.style.boxShadow = "";
-        el.style.position = "";
-      }
-    }
-    itemRefs.current.forEach((el) => {
-      el.style.transform = "";
-      el.style.transition = "";
-    });
-
+    clearDragStyles();
     touchDragRef.current = null;
     setTouchDrag(null);
     touchOrigin.current = null;
-  }, [cancelLongPress]);
+  }, [cancelLongPress, clearDragStyles]);
 
   // Compute shift transforms for non-dragged items
   const getShiftStyle = (
@@ -357,7 +353,6 @@ export function SortableWidgetList({
     if (renderedIdx === startIndex) return undefined; // dragged item styled via DOM
 
     if (startIndex < currentTargetIndex) {
-      // Dragged downward: items between start+1 and target shift UP
       if (renderedIdx > startIndex && renderedIdx <= currentTargetIndex) {
         return {
           transform: `translateY(-${itemHeight}px)`,
@@ -365,7 +360,6 @@ export function SortableWidgetList({
         };
       }
     } else if (startIndex > currentTargetIndex) {
-      // Dragged upward: items between target and start-1 shift DOWN
       if (renderedIdx >= currentTargetIndex && renderedIdx < startIndex) {
         return {
           transform: `translateY(${itemHeight}px)`,
@@ -380,11 +374,47 @@ export function SortableWidgetList({
     };
   };
 
+  // Compute drop indicator line position
+  const getDropLineTop = (): number | null => {
+    if (
+      !touchDrag ||
+      touchDrag.currentTargetIndex === touchDrag.startIndex ||
+      !containerRectRef.current
+    )
+      return null;
+
+    const { currentTargetIndex, startIndex, itemHeight } = touchDrag;
+    const targetRect = itemRectsRef.current.get(currentTargetIndex);
+    if (!targetRect) return null;
+
+    const cTop = containerRectRef.current.top;
+
+    if (currentTargetIndex > startIndex) {
+      // Dragging down — line after shifted target
+      return targetRect.bottom - itemHeight - cTop + GAP / 2;
+    } else {
+      // Dragging up — line before shifted target
+      return targetRect.top + itemHeight - cTop - GAP / 2;
+    }
+  };
+
+  const dropLineTop = getDropLineTop();
+
   return (
     <>
-      {/* Overlay to lock interactions during drag */}
+      {/* Full-screen overlay — locks everything, dark dim */}
       {touchDrag && (
-        <div className="fixed inset-0 z-40 bg-black/20 pointer-events-auto" />
+        <div className="fixed inset-0 z-40 bg-black/40 pointer-events-auto">
+          {/* Drag mode banner */}
+          <div className="absolute top-0 left-0 right-0 safe-area-top">
+            <div className="flex items-center justify-center gap-2 py-2 bg-primary/10 backdrop-blur-sm">
+              <Move className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-medium text-primary">
+                Deplace ton widget puis relache
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div
@@ -393,6 +423,21 @@ export function SortableWidgetList({
           touchDrag ? "relative z-[45]" : ""
         }`}
       >
+        {/* Drop indicator line */}
+        {dropLineTop !== null && (
+          <div
+            className="absolute left-2 right-2 z-[52] pointer-events-none flex items-center col-span-full"
+            style={{
+              top: dropLineTop,
+              transition: "top 150ms ease",
+            }}
+          >
+            <div className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
+            <div className="h-[2px] flex-1 bg-primary rounded-full shadow-[0_0_8px_rgba(201,206,238,0.6)]" />
+            <div className="h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
+          </div>
+        )}
+
         {renderedItems.map(({ id, content, size }, idx) => (
           <div
             key={id}
@@ -417,6 +462,8 @@ export function SortableWidgetList({
               dragOverId === id && draggedId !== id
                 ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-background rounded-xl"
                 : ""
+            } ${
+              touchDrag && touchDrag.id !== id ? "opacity-50" : ""
             }`}
           >
             {/* Drag handle — visible on hover (desktop) */}

@@ -9,7 +9,21 @@ import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { PLATFORMS, CATEGORIES } from "@/lib/utils/constants";
 import { Package, Search, X, TrendingUp, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { TopROIItem, TopVolumeItem } from "./ventes-tabs";
+export interface TopROIItem {
+  productName: string;
+  sku: string | null;
+  imageUrl: string | null;
+  avgRoi: number;
+  saleCount: number;
+}
+
+export interface TopVolumeItem {
+  productName: string;
+  sku: string | null;
+  imageUrl: string | null;
+  saleCount: number;
+  avgPrice: number;
+}
 
 interface CommunitySale {
   saleId: string;

@@ -86,7 +86,7 @@ export function DistributionCharts({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {/* Platform pie chart */}
         {platformData.length > 0 && (
-          <Card className="p-3 bg-card border-border">
+          <Card className="p-3 gap-0 bg-card border-border">
             <h3 className="text-sm font-medium mb-2">Par plateforme</h3>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -133,7 +133,7 @@ export function DistributionCharts({
 
         {/* Category bar chart */}
         {categoryData.length > 0 && (
-          <Card className="p-3 bg-card border-border">
+          <Card className="p-3 gap-0 bg-card border-border">
             <h3 className="text-sm font-medium mb-2">Par catégorie</h3>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={categoryData} layout="vertical" margin={{ left: 0, right: 10 }}>

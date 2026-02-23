@@ -38,7 +38,7 @@ export function TopPerformers({ topROI, topVolume, daysBack }: TopPerformersProp
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {topROI.length > 0 && (
-          <Card className="p-3 bg-card border-border">
+          <Card className="p-3 gap-0 bg-card border-border">
             <div className="flex items-center gap-1.5 mb-1.5">
               <TrendingUp className="h-3 w-3 text-success" />
               <h4 className="text-[11px] font-semibold text-muted-foreground">Meilleur ROI</h4>
@@ -83,7 +83,7 @@ export function TopPerformers({ topROI, topVolume, daysBack }: TopPerformersProp
         )}
 
         {topVolume.length > 0 && (
-          <Card className="p-3 bg-card border-border">
+          <Card className="p-3 gap-0 bg-card border-border">
             <div className="flex items-center gap-1.5 mb-1.5">
               <BarChart3 className="h-3 w-3 text-primary" />
               <h4 className="text-[11px] font-semibold text-muted-foreground">Plus vendus</h4>

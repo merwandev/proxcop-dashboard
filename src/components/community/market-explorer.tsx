@@ -204,7 +204,7 @@ export function MarketExplorer() {
 
           {/* Price chart */}
           {chartData.length >= 2 && (
-            <Card className="p-3 bg-card border-border">
+            <Card className="p-3 gap-0 bg-card border-border">
               <div className="flex items-start justify-between mb-2">
                 <div>
                   <h3 className="text-sm font-medium">Prix de vente — {searchedSku}</h3>
@@ -268,7 +268,7 @@ export function MarketExplorer() {
 
           {/* Median by size bar chart */}
           {sizeData.length > 0 && (
-            <Card className="p-3 bg-card border-border">
+            <Card className="p-3 gap-0 bg-card border-border">
               <h3 className="text-sm font-medium mb-2">Prix médian par taille</h3>
               <ResponsiveContainer width="100%" height={Math.max(150, sizeData.length * 28)}>
                 <BarChart data={sizeData} layout="vertical" margin={{ left: 10, right: 10 }}>

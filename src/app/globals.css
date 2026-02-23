@@ -115,6 +115,14 @@
   }
 }
 
+/* PWA standalone safe-area support */
+@media (display-mode: standalone) {
+  html {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
 /* Glassmorphism utility */
 .glass {
   background: rgba(36, 38, 45, 0.8);

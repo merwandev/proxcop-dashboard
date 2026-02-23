@@ -455,7 +455,12 @@ export function SortableWidgetList({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchCancel}
-            style={getShiftStyle(idx)}
+            style={{
+              ...getShiftStyle(idx),
+              WebkitUserSelect: "none",
+              userSelect: "none",
+              WebkitTouchCallout: "none",
+            } as React.CSSProperties}
             className={`relative group ${
               !touchDrag ? "transition-all" : ""
             } ${size === "horizontal" ? "lg:col-span-2" : "lg:col-span-1"} ${

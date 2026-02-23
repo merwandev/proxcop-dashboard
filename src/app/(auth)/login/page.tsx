@@ -26,7 +26,7 @@ export default function LoginPage() {
         <form
           action={async () => {
             "use server";
-            await signIn("discord", { redirectTo: "/welcome" });
+            await signIn("discord", { redirectTo: "/dashboard" });
           }}
         >
           <button

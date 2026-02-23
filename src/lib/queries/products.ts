@@ -100,9 +100,25 @@ export async function getProductWithVariants(productId: string, userId: string) 
       .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
   }
 
+  // Get cashbacks for all variants
+  const variantIds = variants.map((v) => v.id);
+  const allCashbacks = variantIds.length > 0
+    ? await db.select().from(cashbacks).where(inArray(cashbacks.variantId, variantIds))
+    : [];
+
+  // Group cashbacks by variant ID
+  const cashbacksByVariant: Record<string, typeof allCashbacks> = {};
+  for (const cb of allCashbacks) {
+    if (!cashbacksByVariant[cb.variantId]) cashbacksByVariant[cb.variantId] = [];
+    cashbacksByVariant[cb.variantId].push(cb);
+  }
+
   return {
     ...product[0],
-    variants,
+    variants: variants.map((v) => ({
+      ...v,
+      cashbacks: cashbacksByVariant[v.id] ?? [],
+    })),
   };
 }
 

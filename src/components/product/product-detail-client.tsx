@@ -26,6 +26,7 @@ import { StatusBadge } from "./status-badge";
 import { TimeBadge } from "./time-badge";
 import { SaleDialog } from "@/components/sales/sale-dialog";
 import { SaleSuccessAnimation, type SaleSuccessData } from "@/components/sales/sale-success-animation";
+import { CashbackIndicator, CashbackSection } from "./cashback-dialog";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CATEGORIES, STATUSES, STORAGE_LOCATIONS, PLATFORMS } from "@/lib/utils/constants";
@@ -55,6 +56,15 @@ import { cn } from "@/lib/utils";
 // Module-level variable: survives component remounts caused by RSC re-renders
 let _pendingSaleData: SaleSuccessData | null = null;
 
+interface CashbackItem {
+  id: string;
+  amount: string;
+  source: string;
+  status: string;
+  requestedAt: Date;
+  receivedAt: Date | null;
+}
+
 interface ProductVariant {
   id: string;
   productId: string;
@@ -68,6 +78,7 @@ interface ProductVariant {
   returnDeadline: string | null;
   supplierName: string | null;
   listedOn: string[] | null;
+  cashbacks?: CashbackItem[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -423,6 +434,9 @@ function VariantCard({
             {variant.supplierName && (
               <span className="text-muted-foreground">{variant.supplierName}</span>
             )}
+            {variant.cashbacks && variant.cashbacks.length > 0 && (
+              <CashbackIndicator cashbacks={variant.cashbacks} />
+            )}
           </div>
           {/* Listed platforms */}
           {variant.status !== "vendu" && variant.listedOn && variant.listedOn.length > 0 && (
@@ -454,6 +468,10 @@ function VariantCard({
               </span>
             )}
           </div>
+          {/* Cashback management */}
+          {!soldView && (
+            <CashbackSection variantId={variant.id} cashbacks={variant.cashbacks ?? []} />
+          )}
         </div>
 
         {/* Actions */}

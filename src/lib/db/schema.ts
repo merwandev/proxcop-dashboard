@@ -23,7 +23,7 @@ export const productStatusEnum = pgEnum("product_status", [
   "en_attente", "en_stock", "liste", "reserve", "expedie", "vendu", "en_litige", "return_waiting_rf", "hold", "reship", "consign",
 ]);
 export const cashbackStatusEnum = pgEnum("cashback_status", [
-  "requested", "approved", "received",
+  "to_request", "requested", "approved", "received",
 ]);
 export const expenseCategoryEnum = pgEnum("expense_category", [
   "bot", "proxy", "shipping_materials", "subscription", "other",

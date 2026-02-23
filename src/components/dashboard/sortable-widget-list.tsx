@@ -1,8 +1,19 @@
 "use client";
 
-import { useState, useRef, useTransition, type ReactNode } from "react";
+import {
+  useState,
+  useRef,
+  useTransition,
+  useCallback,
+  useEffect,
+  type ReactNode,
+} from "react";
 import { GripVertical } from "lucide-react";
 import { type WidgetSize } from "@/lib/queries/user-preferences";
+
+/* ── Long-press constants ── */
+const LONG_PRESS_MS = 500;
+const SCROLL_THRESHOLD = 10; // px — cancel long-press if finger drifts more
 
 interface SortableWidgetListProps {
   /** Ordered widget IDs */
@@ -12,7 +23,10 @@ interface SortableWidgetListProps {
   /** Render function for each widget — returns null if widget should be hidden */
   renderWidget: (id: string) => ReactNode;
   /** Server action to persist the new order */
-  onReorder: (newOrder: string[], sizes?: Record<string, WidgetSize>) => Promise<void>;
+  onReorder: (
+    newOrder: string[],
+    sizes?: Record<string, WidgetSize>,
+  ) => Promise<void>;
   /** Optional CSS class for the container */
   className?: string;
 }
@@ -27,8 +41,14 @@ export function SortableWidgetList({
   const [order, setOrder] = useState(widgetIds);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [touchDragId, setTouchDragId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const dragNodeRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Long-press refs
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchOrigin = useRef<{ x: number; y: number } | null>(null);
 
   // Sync from parent if widgetIds change
   if (JSON.stringify(widgetIds) !== JSON.stringify(order)) {
@@ -40,6 +60,35 @@ export function SortableWidgetList({
   }
 
   const getSize = (id: string): WidgetSize => widgetSizes[id] ?? "horizontal";
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, []);
+
+  // Block page scroll while touch-dragging (needs non-passive listener)
+  useEffect(() => {
+    if (!touchDragId || !containerRef.current) return;
+
+    const el = containerRef.current;
+    const prevent = (e: TouchEvent) => e.preventDefault();
+    el.addEventListener("touchmove", prevent, { passive: false });
+
+    return () => {
+      el.removeEventListener("touchmove", prevent);
+    };
+  }, [touchDragId]);
+
+  /* ── Desktop HTML5 Drag & Drop ── */
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
@@ -99,47 +148,84 @@ export function SortableWidgetList({
     });
   };
 
-  // Touch support
-  const touchStartRef = useRef<{ id: string; y: number } | null>(null);
+  /* ── Touch: long-press gate → swipe to reorder ── */
 
   const handleTouchStart = (id: string, e: React.TouchEvent) => {
-    touchStartRef.current = { id, y: e.touches[0].clientY };
+    const t = e.touches[0];
+    touchOrigin.current = { x: t.clientX, y: t.clientY };
+
+    cancelLongPress();
+    longPressTimer.current = setTimeout(() => {
+      setTouchDragId(id);
+      // Haptic feedback
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(30);
+      }
+    }, LONG_PRESS_MS);
   };
 
-  const handleTouchEnd = (targetId: string, e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
+  const handleTouchMove = useCallback(
+    (_e: React.TouchEvent) => {
+      // Already in drag mode — scroll is blocked via non-passive listener
+      if (touchDragId) return;
 
-    const startY = touchStartRef.current.y;
-    const endY = e.changedTouches[0].clientY;
-    const diff = endY - startY;
-
-    if (Math.abs(diff) > 50) {
-      const draggedId = touchStartRef.current.id;
-      const currentIndex = order.indexOf(draggedId);
-      const direction = diff > 0 ? 1 : -1;
-      const targetIndex = currentIndex + direction;
-
-      if (targetIndex >= 0 && targetIndex < order.length) {
-        const newOrder = [...order];
-        newOrder.splice(currentIndex, 1);
-        newOrder.splice(targetIndex, 0, draggedId);
-        setOrder(newOrder);
-
-        startTransition(async () => {
-          try {
-            await onReorder(newOrder, widgetSizes);
-          } catch {
-            setOrder(widgetIds);
-          }
-        });
+      // Not yet dragging — cancel long-press if finger scrolled
+      if (touchOrigin.current) {
+        const t = _e.touches[0];
+        const dx = Math.abs(t.clientX - touchOrigin.current.x);
+        const dy = Math.abs(t.clientY - touchOrigin.current.y);
+        if (dx > SCROLL_THRESHOLD || dy > SCROLL_THRESHOLD) {
+          cancelLongPress();
+        }
       }
+    },
+    [touchDragId, cancelLongPress],
+  );
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    cancelLongPress();
+
+    if (touchDragId) {
+      const startY = touchOrigin.current?.y ?? 0;
+      const endY = e.changedTouches[0].clientY;
+      const diff = endY - startY;
+
+      if (Math.abs(diff) > 50) {
+        const currentIndex = order.indexOf(touchDragId);
+        const direction = diff > 0 ? 1 : -1;
+        const targetIndex = currentIndex + direction;
+
+        if (targetIndex >= 0 && targetIndex < order.length) {
+          const newOrder = [...order];
+          newOrder.splice(currentIndex, 1);
+          newOrder.splice(targetIndex, 0, touchDragId);
+          setOrder(newOrder);
+
+          startTransition(async () => {
+            try {
+              await onReorder(newOrder, widgetSizes);
+            } catch {
+              setOrder(widgetIds);
+            }
+          });
+        }
+      }
+
+      setTouchDragId(null);
     }
 
-    touchStartRef.current = null;
+    touchOrigin.current = null;
+  };
+
+  const handleTouchCancel = () => {
+    cancelLongPress();
+    setTouchDragId(null);
+    touchOrigin.current = null;
   };
 
   // Filter out null-rendering widgets and build items
-  const renderedItems: { id: string; content: ReactNode; size: WidgetSize }[] = [];
+  const renderedItems: { id: string; content: ReactNode; size: WidgetSize }[] =
+    [];
   for (const id of order) {
     const content = renderWidget(id);
     if (content) {
@@ -148,7 +234,10 @@ export function SortableWidgetList({
   }
 
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 ${className}`}>
+    <div
+      ref={containerRef}
+      className={`grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 ${className}`}
+    >
       {renderedItems.map(({ id, content, size }) => (
         <div
           key={id}
@@ -159,12 +248,18 @@ export function SortableWidgetList({
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, id)}
           onTouchStart={(e) => handleTouchStart(id, e)}
-          onTouchEnd={(e) => handleTouchEnd(id, e)}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
           className={`relative group transition-all ${
             size === "horizontal" ? "lg:col-span-2" : "lg:col-span-1"
           } ${
             dragOverId === id && draggedId !== id
               ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-background rounded-xl"
+              : ""
+          } ${
+            touchDragId === id
+              ? "scale-[0.97] opacity-80 ring-2 ring-primary/60 rounded-xl"
               : ""
           }`}
         >

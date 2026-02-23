@@ -461,36 +461,38 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                 Message admin
               </button>
             )}
-            {products.length > 0 && (
-              <div className="flex items-center gap-0.5 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowImportCSV(true)}
-                  title="Importer CSV"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                  onClick={handleExportCsv}
-                  title="Exporter CSV"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setSelectMode(true)}
-                >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-0.5 ml-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowImportCSV(true)}
+                title="Importer CSV"
+              >
+                <Upload className="h-3.5 w-3.5" />
+              </Button>
+              {products.length > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={handleExportCsv}
+                    title="Exporter CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setSelectMode(true)}
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -507,11 +509,21 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       {/* Product list — stack on mobile, 2-col grid on desktop */}
       <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
         {filtered.length === 0 ? (
-          <p className="text-center py-12 text-sm text-muted-foreground lg:col-span-2">
-            {products.length === 0
-              ? "Aucun produit en stock"
-              : "Aucun resultat"}
-          </p>
+          <div className="text-center py-12 lg:col-span-2">
+            <p className="text-sm text-muted-foreground">
+              {products.length === 0
+                ? "Aucun produit en stock"
+                : "Aucun resultat"}
+            </p>
+            {products.length === 0 && (
+              <button
+                onClick={() => setShowImportCSV(true)}
+                className="mt-2 text-xs text-primary hover:underline"
+              >
+                Importer depuis un CSV
+              </button>
+            )}
+          </div>
         ) : (
           filtered.map((product) => (
             <div

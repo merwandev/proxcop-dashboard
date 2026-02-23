@@ -259,7 +259,8 @@ export async function deleteVariant(variantId: string) {
     .where(eq(productVariants.productId, variant.productId));
 
   // If no variants left, delete the parent product too
-  if (Number(remaining[0]?.count ?? 0) === 0) {
+  const productDeleted = Number(remaining[0]?.count ?? 0) === 0;
+  if (productDeleted) {
     await db
       .delete(products)
       .where(eq(products.id, variant.productId));
@@ -268,6 +269,8 @@ export async function deleteVariant(variantId: string) {
   revalidatePath("/stock");
   revalidatePath("/dashboard");
   revalidatePath("/ventes");
+
+  return { productDeleted };
 }
 
 export async function addVariantToProduct(productId: string, data: {

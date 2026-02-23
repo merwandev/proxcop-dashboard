@@ -904,10 +904,14 @@ function DeleteVariantButton({ variantId }: { variantId: string }) {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await deleteVariant(variantId);
+      const { productDeleted } = await deleteVariant(variantId);
       toast.success("Variant supprime");
       setOpen(false);
-      router.refresh();
+      if (productDeleted) {
+        router.push("/stock");
+      } else {
+        router.refresh();
+      }
     } catch {
       toast.error("Erreur lors de la suppression");
     } finally {

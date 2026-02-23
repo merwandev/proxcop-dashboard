@@ -31,6 +31,9 @@ export const expenseCategoryEnum = pgEnum("expense_category", [
 export const skuImageStatusEnum = pgEnum("sku_image_status", [
   "found", "not_found", "manual",
 ]);
+export const calendarEventTypeEnum = pgEnum("calendar_event_type", [
+  "drop", "ship", "return", "custom",
+]);
 
 // Users
 export const users = pgTable("users", {
@@ -201,6 +204,19 @@ export const adminProducts = pgTable("admin_products", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Calendar Events (per-user: drops, shipments, returns, custom events)
+export const calendarEvents = pgTable("calendar_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  date: date("date").notNull(),
+  type: calendarEventTypeEnum("type").notNull().default("custom"),
+  variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
+  color: text("color"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Messages (staff → user inbox system)
 export const messages = pgTable("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -243,6 +259,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   adminProducts: many(adminProducts),
   sentMessages: many(messages, { relationName: "sentMessages" }),
   receivedMessages: many(messages, { relationName: "receivedMessages" }),
+  calendarEvents: many(calendarEvents),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -285,6 +302,11 @@ export const suppliersRelations = relations(suppliers, ({ one }) => ({
 
 export const adminProductsRelations = relations(adminProducts, ({ one }) => ({
   creator: one(users, { fields: [adminProducts.createdBy], references: [users.id] }),
+}));
+
+export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
+  user: one(users, { fields: [calendarEvents.userId], references: [users.id] }),
+  variant: one(productVariants, { fields: [calendarEvents.variantId], references: [productVariants.id] }),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({

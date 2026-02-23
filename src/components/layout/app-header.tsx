@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { getUnreadCount } from "@/lib/queries/messages";
 import { UserMenu } from "./logout-button";
-import { Shield, Settings, Mail } from "lucide-react";
+import { Shield, Settings, Mail, Calendar } from "lucide-react";
 import Link from "next/link";
 
 export async function AppHeader() {
@@ -28,6 +28,13 @@ export async function AppHeader() {
         <div className="hidden lg:block" />
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/calendar"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Calendrier"
+          >
+            <Calendar className="h-4.5 w-4.5" />
+          </Link>
           <Link
             href="/inbox"
             className="relative text-muted-foreground hover:text-foreground transition-colors"

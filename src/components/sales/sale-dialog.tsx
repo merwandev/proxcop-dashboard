@@ -43,6 +43,7 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
   const [open, setOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [successData, setSuccessData] = useState<SaleSuccessData | null>(null);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const router = useRouter();
 
   const action = async (_prev: unknown, formData: FormData) => {
@@ -77,7 +78,11 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
 
       setOpen(false);
       setSelectedPlatform("");
-      router.refresh();
+      if (!showSuccessAnimation || !productInfo) {
+        router.refresh();
+      } else {
+        setNeedsRefresh(true);
+      }
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -223,7 +228,13 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
       {successData && (
         <SaleSuccessAnimation
           data={successData}
-          onClose={() => setSuccessData(null)}
+          onClose={() => {
+            setSuccessData(null);
+            if (needsRefresh) {
+              setNeedsRefresh(false);
+              router.refresh();
+            }
+          }}
         />
       )}
     </>

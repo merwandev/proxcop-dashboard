@@ -6,6 +6,7 @@ import { MissingImageProducts } from "./missing-image-products";
 import { AdviceForm } from "./advice-form";
 import { AdviceList } from "./advice-list";
 import { WebhookConfig } from "./webhook-config";
+import { RoleManager } from "./role-manager";
 import { AdminProducts } from "./admin-products";
 import { AdminSalesList, type AdminSaleItem } from "./admin-sales-list";
 import { AdminSentMessages, type AdminSentMessage } from "./admin-sent-messages";
@@ -40,6 +41,14 @@ interface AdviceItem {
   creatorUsername: string | null;
 }
 
+interface AllowedRole {
+  id: string;
+  roleId: string;
+  roleName: string;
+  roleColor: string;
+  createdAt: string;
+}
+
 interface AdminProductItem {
   id: string;
   name: string;
@@ -70,9 +79,10 @@ interface AdminTabsProps {
   sentMessages: AdminSentMessage[];
   adminLogs: AdminLogItem[];
   webhookUrl: string | null;
+  allowedRoles: AllowedRole[];
 }
 
-export function AdminTabs({ skus, productsNoImage, userUploadedImages, adviceItems, adminProducts, adminSales, sentMessages, adminLogs, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, userUploadedImages, adviceItems, adminProducts, adminSales, sentMessages, adminLogs, webhookUrl, allowedRoles }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -204,6 +214,10 @@ export function AdminTabs({ skus, productsNoImage, userUploadedImages, adviceIte
       </TabsContent>
 
       <TabsContent value="config" className="mt-4 space-y-6">
+        <div>
+          <h2 className="text-base font-semibold mb-3">Acces au dashboard</h2>
+          <RoleManager allowedRoles={allowedRoles} />
+        </div>
         <div>
           <h2 className="text-base font-semibold mb-3">Configuration</h2>
           <WebhookConfig currentUrl={webhookUrl} />

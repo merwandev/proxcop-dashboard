@@ -6,6 +6,7 @@ import { getAllAdvice } from "@/lib/queries/product-advice";
 import { getAllAdminProducts } from "@/lib/queries/admin-products";
 import { getAllSalesWithUsers } from "@/lib/queries/admin-sales";
 import { getConfigValue } from "@/lib/queries/config";
+import { getAllowedDiscordRoles } from "@/lib/queries/discord-roles";
 import { getAllSentMessages } from "@/lib/queries/messages";
 import { getAdminLogs } from "@/lib/queries/admin-logs";
 import { AdminTabs } from "@/components/admin/admin-tabs";
@@ -16,7 +17,7 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [notFoundSkus, adviceItems, productsNoImage, userUploadedImagesRaw, adminProductsRaw, adminSalesRaw, sentMessagesRaw, adminLogsRaw, webhookUrl] = await Promise.all([
+  const [notFoundSkus, adviceItems, productsNoImage, userUploadedImagesRaw, adminProductsRaw, adminSalesRaw, sentMessagesRaw, adminLogsRaw, webhookUrl, allowedRoles] = await Promise.all([
     getNotFoundSkuImages(),
     getAllAdvice(),
     getProductsWithoutImages(),
@@ -26,6 +27,7 @@ export default async function AdminPage() {
     getAllSentMessages(200),
     getAdminLogs(200),
     getConfigValue("discord_webhook_url"),
+    getAllowedDiscordRoles(),
   ]);
 
   return (
@@ -117,6 +119,13 @@ export default async function AdminPage() {
           adminDiscordId: l.adminDiscordId,
         }))}
         webhookUrl={webhookUrl}
+        allowedRoles={allowedRoles.map((r) => ({
+          id: r.id,
+          roleId: r.roleId,
+          roleName: r.roleName,
+          roleColor: r.roleColor,
+          createdAt: r.createdAt.toISOString(),
+        }))}
       />
     </div>
   );

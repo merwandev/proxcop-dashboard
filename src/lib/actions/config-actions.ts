@@ -3,6 +3,10 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { setConfigValue } from "@/lib/queries/config";
+import {
+  addAllowedDiscordRole,
+  removeAllowedDiscordRole,
+} from "@/lib/queries/discord-roles";
 import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/queries/admin-logs";
 
@@ -31,5 +35,21 @@ export async function updateWebhookUrlAction(url: string) {
     details: `Webhook Discord ${trimmed ? "mis a jour" : "supprime"}`,
   });
 
+  revalidatePath("/admin");
+}
+
+export async function addAllowedRoleAction(
+  roleId: string,
+  roleName: string,
+  roleColor: string
+) {
+  const session = await requireStaffSession();
+  await addAllowedDiscordRole(roleId, roleName, roleColor, session.user.id);
+  revalidatePath("/admin");
+}
+
+export async function removeAllowedRoleAction(roleId: string) {
+  await requireStaffSession();
+  await removeAllowedDiscordRole(roleId);
   revalidatePath("/admin");
 }

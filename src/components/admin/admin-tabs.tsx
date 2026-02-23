@@ -6,7 +6,8 @@ import { MissingImageProducts } from "./missing-image-products";
 import { AdviceForm } from "./advice-form";
 import { AdviceList } from "./advice-list";
 import { WebhookConfig } from "./webhook-config";
-import { ImageIcon, Megaphone, Settings } from "lucide-react";
+import { AdminProducts } from "./admin-products";
+import { ImageIcon, Megaphone, Settings, Package } from "lucide-react";
 
 interface SkuItem {
   id: string;
@@ -35,14 +36,26 @@ interface AdviceItem {
   creatorUsername: string | null;
 }
 
+interface AdminProductItem {
+  id: string;
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category: string;
+  sizes: string[];
+  createdAt: string;
+  creatorUsername: string | null;
+}
+
 interface AdminTabsProps {
   skus: SkuItem[];
   productsNoImage: ProductNoImage[];
   adviceItems: AdviceItem[];
+  adminProducts: AdminProductItem[];
   webhookUrl: string | null;
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, webhookUrl }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -51,6 +64,15 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl }: Ad
         <TabsTrigger value="advice" className="gap-1.5">
           <Megaphone className="h-3.5 w-3.5" />
           Conseils
+        </TabsTrigger>
+        <TabsTrigger value="products" className="gap-1.5">
+          <Package className="h-3.5 w-3.5" />
+          Produits
+          {adminProducts.length > 0 && (
+            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+              {adminProducts.length}
+            </span>
+          )}
         </TabsTrigger>
         <TabsTrigger value="images" className="gap-1.5">
           <ImageIcon className="h-3.5 w-3.5" />
@@ -79,6 +101,10 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, webhookUrl }: Ad
           </h2>
           <AdviceList items={adviceItems} />
         </div>
+      </TabsContent>
+
+      <TabsContent value="products" className="mt-4 space-y-4">
+        <AdminProducts products={adminProducts} />
       </TabsContent>
 
       <TabsContent value="images" className="mt-4 space-y-6">

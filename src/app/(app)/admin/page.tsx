@@ -3,6 +3,7 @@ import { isAdminRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { getNotFoundSkuImages, getProductsWithoutImages } from "@/lib/queries/sku-images";
 import { getAllAdvice } from "@/lib/queries/product-advice";
+import { getAllAdminProducts } from "@/lib/queries/admin-products";
 import { getConfigValue } from "@/lib/queries/config";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 
@@ -12,10 +13,11 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [notFoundSkus, adviceItems, productsNoImage, webhookUrl] = await Promise.all([
+  const [notFoundSkus, adviceItems, productsNoImage, adminProductsRaw, webhookUrl] = await Promise.all([
     getNotFoundSkuImages(),
     getAllAdvice(),
     getProductsWithoutImages(),
+    getAllAdminProducts(),
     getConfigValue("discord_webhook_url"),
   ]);
 
@@ -52,6 +54,16 @@ export default async function AdminPage() {
           active: a.active,
           createdAt: a.createdAt.toISOString(),
           creatorUsername: a.creatorUsername,
+        }))}
+        adminProducts={adminProductsRaw.map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          imageUrl: p.imageUrl,
+          category: p.category,
+          sizes: (p.sizes as string[]) ?? [],
+          createdAt: p.createdAt.toISOString(),
+          creatorUsername: p.creatorUsername,
         }))}
         webhookUrl={webhookUrl}
       />

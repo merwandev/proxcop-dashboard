@@ -188,6 +188,19 @@ export const userSkuImages = pgTable("user_sku_images", {
   unique("user_sku_unique").on(table.userId, table.sku),
 ]);
 
+// Admin Products (custom products added by staff, available in search for all users)
+export const adminProducts = pgTable("admin_products", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  sku: text("sku"),
+  imageUrl: text("image_url"),
+  category: categoryEnum("category").notNull().default("sneakers"),
+  sizes: jsonb("sizes").$type<string[]>().default([]),
+  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // App Config (key-value store for global settings like webhook URLs)
 export const appConfig = pgTable("app_config", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -216,6 +229,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userSkuImages: many(userSkuImages),
   createdAdvice: many(productAdvice),
   suppliers: many(suppliers),
+  adminProducts: many(adminProducts),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -254,4 +268,8 @@ export const productAdviceRelations = relations(productAdvice, ({ one }) => ({
 
 export const suppliersRelations = relations(suppliers, ({ one }) => ({
   user: one(users, { fields: [suppliers.userId], references: [users.id] }),
+}));
+
+export const adminProductsRelations = relations(adminProducts, ({ one }) => ({
+  creator: one(users, { fields: [adminProducts.createdBy], references: [users.id] }),
 }));

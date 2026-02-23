@@ -55,6 +55,15 @@ interface SearchResult {
   imageUrl: string | null;
 }
 
+interface AdminSearchResult {
+  id: string;
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category: string;
+  sizes: string[];
+}
+
 type WizardStep = "search" | "sizes" | "manual";
 
 // ─── Return Deadline Picker ─────────────────────────────────────────
@@ -159,6 +168,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
   const [searchInput, setSearchInput] = useState("");
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [adminResults, setAdminResults] = useState<AdminSearchResult[]>([]);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
 
   // Product state (after selection)
@@ -317,15 +327,28 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
 
   // ─── Auto-search on input change (1000ms debounce) ────────────────
 
+  // Helper: search admin products
+  const searchAdminProductsApi = useCallback(async (query: string): Promise<AdminSearchResult[]> => {
+    try {
+      const res = await fetch(`/api/admin-products/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      return data.products ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const performSearch = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchStatus("idle");
       setSearchResults([]);
+      setAdminResults([]);
       return;
     }
 
     setSearchStatus("loading");
     setSearchResults([]);
+    setAdminResults([]);
 
     const isSku = looksLikeSku(query);
 
@@ -349,18 +372,26 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       }
     }
 
-    // Text search — returns multiple results (shown inline)
+    // Text search + admin products search in parallel
     try {
-      const res = await fetch(`/api/stockx/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
+      const [stockxRes, adminProds] = await Promise.all([
+        fetch(`/api/stockx/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+        searchAdminProductsApi(query),
+      ]);
 
-      if (data.status === "error") {
+      setAdminResults(adminProds);
+
+      if (stockxRes.status === "error" && adminProds.length === 0) {
         setSearchStatus("error");
         return;
       }
 
-      if (data.products && data.products.length > 0) {
-        setSearchResults(data.products);
+      const hasStockX = stockxRes.products && stockxRes.products.length > 0;
+      if (hasStockX) {
+        setSearchResults(stockxRes.products);
+      }
+
+      if (hasStockX || adminProds.length > 0) {
         setSearchStatus("found");
       } else {
         setSearchStatus("not_found");
@@ -368,7 +399,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
     } catch {
       setSearchStatus("error");
     }
-  }, [looksLikeSku]);
+  }, [looksLikeSku, searchAdminProductsApi]);
 
   // Debounced auto-search: triggers 1000ms after user stops typing
   const handleSearchInputChange = useCallback((value: string) => {
@@ -382,6 +413,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       }, 1000);
     } else {
       setSearchResults([]);
+      setAdminResults([]);
     }
   }, [performSearch]);
 
@@ -427,6 +459,53 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       setLoadingProductId(null);
     }
   }, []);
+
+  // ─── Select an admin product ────────────────────────────────────
+
+  const handleSelectAdminProduct = useCallback(async (product: AdminSearchResult) => {
+    // If admin product has a SKU, try StockX lookup first
+    if (product.sku && looksLikeSku(product.sku)) {
+      setLoadingProductId(product.id);
+      try {
+        const res = await fetch(`/api/sku-lookup?sku=${encodeURIComponent(product.sku)}&mode=full`);
+        const data = await res.json();
+        if (data.status === "found" && data.variants?.length > 0) {
+          setProductTitle(data.title || product.name);
+          setProductSku(product.sku.toUpperCase());
+          setProductImageUrl(data.imageUrl || product.imageUrl || null);
+          setAvailableSizes(data.variants);
+          setStep("sizes");
+          setLoadingProductId(null);
+          return;
+        }
+      } catch {
+        // Fall through to custom sizes
+      }
+      setLoadingProductId(null);
+    }
+
+    // If admin product has custom sizes, use them as StockX-like variants
+    if (product.sizes.length > 0) {
+      setProductTitle(product.name);
+      setProductSku(product.sku?.toUpperCase() || "");
+      setProductImageUrl(product.imageUrl || null);
+      setAvailableSizes(
+        product.sizes.map((s, i) => ({
+          variantId: `admin-${i}`,
+          sizeUS: s,
+          sizeEU: null,
+        }))
+      );
+      setStep("sizes");
+      return;
+    }
+
+    // Fallback: go to manual mode with pre-filled info
+    setManualName(product.name);
+    setManualCategory(product.category);
+    setManualImageUrl(product.imageUrl);
+    setStep("manual");
+  }, [looksLikeSku]);
 
   // ─── Size Selection ─────────────────────────────────────────────
 
@@ -694,11 +773,65 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
           </div>
         )}
 
+        {/* Admin product results */}
+        {searchStatus === "found" && adminResults.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Produits Proxcop
+            </p>
+            <div className="space-y-1.5">
+              {adminResults.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  disabled={loadingProductId !== null}
+                  onClick={() => handleSelectAdminProduct(product)}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left",
+                    "bg-card border-primary/30 hover:border-primary/60 hover:bg-secondary/50 active:scale-[0.98]",
+                    loadingProductId === product.id && "border-primary/50 bg-secondary/50"
+                  )}
+                >
+                  <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1.5" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-white/5"><Package className="h-5 w-5 text-muted-foreground" /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium leading-tight line-clamp-2">{product.name}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-primary/20 text-primary border-0">
+                        Admin
+                      </Badge>
+                      {product.sku && (
+                        <span className="text-[11px] text-muted-foreground font-mono">{product.sku}</span>
+                      )}
+                      {product.sizes.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground">{product.sizes.length} tailles</span>
+                      )}
+                    </div>
+                  </div>
+                  {loadingProductId === product.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                  ) : (
+                    <ArrowLeft className="h-4 w-4 text-muted-foreground/40 rotate-180 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Inline search results with images */}
         {searchStatus === "found" && searchResults.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} — choisissez un produit
+              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} StockX — choisissez un produit
             </p>
             <div className="space-y-1.5">
               {searchResults.map((product) => (

@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getDashboardKPIs, getProfitChartData, getPendingDeals, getExpensesChartData, getStatusBreakdown } from "@/lib/queries/dashboard";
 import { getDashboardLayout, getTaxSettings } from "@/lib/queries/user-preferences";
+import { getCalendarEvents } from "@/lib/queries/calendar";
+import { getInboxMessages } from "@/lib/queries/messages";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { ChartExport } from "@/components/dashboard/chart-export";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
@@ -21,7 +23,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const params = await searchParams;
   const period = params.period ?? "30j";
 
-  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout, taxSettings] = await Promise.all([
+  // Calendar: next 7 days
+  const today = new Date().toISOString().split("T")[0];
+  const in7Days = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+
+  const [kpis, chartData, pendingDeals, expensesChartData, statusBreakdown, dashboardLayout, taxSettings, calendarEvents, inboxMessages] = await Promise.all([
     getDashboardKPIs(session.user.id, period),
     getProfitChartData(session.user.id, period),
     getPendingDeals(session.user.id),
@@ -29,6 +35,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     getStatusBreakdown(session.user.id),
     getDashboardLayout(session.user.id),
     getTaxSettings(session.user.id),
+    getCalendarEvents(session.user.id, today, in7Days),
+    getInboxMessages(session.user.id),
   ]);
 
   // Apply AE cotisations if enabled
@@ -119,6 +127,24 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           sleeping: kpis.sleeping,
         }}
         taxRate={taxRate}
+        calendarEvents={calendarEvents.map((e) => ({
+          id: e.id,
+          title: e.title,
+          date: e.date,
+          type: e.type,
+          color: e.color,
+          isAuto: e.isAuto,
+        }))}
+        inboxMessages={inboxMessages.map((m) => ({
+          id: m.id,
+          subject: m.subject,
+          body: m.body,
+          read: m.read,
+          createdAt: m.createdAt.toISOString(),
+          fromUsername: m.fromUsername,
+          fromAvatar: m.fromAvatar,
+          fromDiscordId: m.fromDiscordId,
+        }))}
       />
     </div>
   );

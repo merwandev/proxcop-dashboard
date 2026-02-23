@@ -10,6 +10,8 @@ import {
   LineChart,
   Target,
   Layers,
+  Calendar,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +33,8 @@ export const DASHBOARD_WIDGETS: WidgetDefinition[] = [
   { id: "expenses-summary", label: "Depenses", icon: Receipt, page: "dashboard", defaultEnabled: true, conditional: true },
   { id: "top5", label: "Top 5 rentables", icon: Trophy, page: "dashboard", defaultEnabled: true, conditional: true },
   { id: "sleeping", label: "Produits dormants", icon: Moon, page: "dashboard", defaultEnabled: true, conditional: true },
+  { id: "calendar-preview", label: "Calendrier", icon: Calendar, page: "dashboard", defaultEnabled: false, conditional: true },
+  { id: "inbox-preview", label: "Inbox", icon: Mail, page: "dashboard", defaultEnabled: false, conditional: true },
 ];
 
 export const STATS_WIDGETS: WidgetDefinition[] = [

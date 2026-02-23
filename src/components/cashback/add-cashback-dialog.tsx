@@ -66,15 +66,20 @@ export function AddCashbackDialog({ open, onClose, variants, onCreated }: AddCas
       return;
     }
     if (!amount || Number(amount) <= 0) {
-      toast.error("Montant requis");
+      toast.error("Pourcentage requis");
       return;
     }
+    if (!selectedVariant) return;
+
+    const percentage = Number(amount);
+    const purchasePrice = Number(selectedVariant.purchasePrice);
+    const eurAmount = purchasePrice * percentage / 100;
 
     startTransition(async () => {
       try {
         await createCashback({
           variantId: selectedVariantId,
-          amount: Number(amount),
+          amount: eurAmount,
           source,
           status: "to_request",
         });
@@ -194,19 +199,28 @@ export function AddCashbackDialog({ open, onClose, variants, onCreated }: AddCas
             </>
           )}
 
-          {/* Amount + App */}
+          {/* Percentage + App */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Montant (EUR) *</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="5.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="h-9 text-sm"
-              />
+              <Label className="text-xs text-muted-foreground">Cashback (%) *</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  placeholder="5"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="h-9 text-sm pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+              </div>
+              {selectedVariant && amount && Number(amount) > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  = {(Number(selectedVariant.purchasePrice) * Number(amount) / 100).toFixed(2)} EUR
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Appli</Label>

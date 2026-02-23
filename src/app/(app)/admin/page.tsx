@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
-import { getNotFoundSkuImages, getProductsWithoutImages } from "@/lib/queries/sku-images";
+import { getNotFoundSkuImages, getProductsWithoutImages, getUserUploadedImages } from "@/lib/queries/sku-images";
 import { getAllAdvice } from "@/lib/queries/product-advice";
 import { getAllAdminProducts } from "@/lib/queries/admin-products";
 import { getAllSalesWithUsers } from "@/lib/queries/admin-sales";
@@ -17,10 +17,11 @@ export default async function AdminPage() {
     redirect("/dashboard");
   }
 
-  const [notFoundSkus, adviceItems, productsNoImage, adminProductsRaw, adminSalesRaw, sentMessagesRaw, adminLogsRaw, webhookUrl] = await Promise.all([
+  const [notFoundSkus, adviceItems, productsNoImage, userUploadedImagesRaw, adminProductsRaw, adminSalesRaw, sentMessagesRaw, adminLogsRaw, webhookUrl] = await Promise.all([
     getNotFoundSkuImages(),
     getAllAdvice(),
     getProductsWithoutImages(),
+    getUserUploadedImages(),
     getAllAdminProducts(),
     getAllSalesWithUsers(200),
     getAllSentMessages(200),
@@ -46,6 +47,14 @@ export default async function AdminPage() {
           sku: s.sku,
           stockxProductId: s.stockxProductId,
           createdAt: s.createdAt.toISOString(),
+        }))}
+        userUploadedImages={userUploadedImagesRaw.map((img) => ({
+          imageUrl: img.imageUrl,
+          name: img.name,
+          sku: img.sku,
+          category: img.category,
+          ownerUsername: img.ownerUsername,
+          count: img.count,
         }))}
         productsNoImage={productsNoImage.map((p) => ({
           id: p.id,

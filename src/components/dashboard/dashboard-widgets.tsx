@@ -236,9 +236,7 @@ export function DashboardWidgets({
                           {item.profit >= 0 ? "+" : ""}{formatCurrency(item.profit)}
                         </span>
                       </div>
-                      {item.sku && (
-                        <CopyableSku sku={item.sku} className="text-[10px]" />
-                      )}
+                      <CopyableSku sku={item.sku} fallback={item.name} className="text-[10px]" />
                     </div>
                   </div>
                 ))}
@@ -269,9 +267,7 @@ export function DashboardWidgets({
                           <span className="text-muted-foreground"> &mdash; {item.sizeVariant}</span>
                         )}
                       </span>
-                      {item.productSku && (
-                        <CopyableSku sku={item.productSku} className="text-[10px]" />
-                      )}
+                      <CopyableSku sku={item.productSku} fallback={item.productName} className="text-[10px]" />
                     </div>
                     <TimeBadge purchaseDate={item.purchaseDate} />
                   </div>

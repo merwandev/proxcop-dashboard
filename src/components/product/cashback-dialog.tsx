@@ -38,17 +38,11 @@ interface CashbackItem {
 
 interface CashbackDialogProps {
   variantId: string;
+  purchasePrice: number;
   cashbacks: CashbackItem[];
 }
 
-export function CashbackSection({ variantId, cashbacks }: CashbackDialogProps) {
-  const totalReceived = cashbacks
-    .filter((c) => c.status === "received")
-    .reduce((sum, c) => sum + Number(c.amount), 0);
-  const totalPending = cashbacks
-    .filter((c) => c.status !== "received")
-    .reduce((sum, c) => sum + Number(c.amount), 0);
-
+export function CashbackSection({ variantId, purchasePrice, cashbacks }: CashbackDialogProps) {
   return (
     <div className="space-y-1.5">
       {/* Summary line */}
@@ -81,9 +75,9 @@ export function CashbackSection({ variantId, cashbacks }: CashbackDialogProps) {
 
       {/* Action buttons */}
       <div className="flex items-center gap-1.5">
-        <AddCashbackDialog variantId={variantId} />
+        <AddCashbackDialog variantId={variantId} purchasePrice={purchasePrice} />
         {cashbacks.map((cb) => (
-          <EditCashbackDialog key={cb.id} cashback={cb} />
+          <EditCashbackDialog key={cb.id} cashback={cb} purchasePrice={purchasePrice} />
         ))}
       </div>
     </div>
@@ -114,27 +108,30 @@ export function CashbackIndicator({ cashbacks }: { cashbacks: CashbackItem[] }) 
 
 // --- Add Cashback Dialog ---
 
-function AddCashbackDialog({ variantId }: { variantId: string }) {
+function AddCashbackDialog({ variantId, purchasePrice }: { variantId: string; purchasePrice: number }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [source, setSource] = useState("");
   const [status, setStatus] = useState("to_request");
+  const [percentage, setPercentage] = useState("");
   const router = useRouter();
+
+  const eurAmount = percentage && Number(percentage) > 0
+    ? purchasePrice * Number(percentage) / 100
+    : 0;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const form = new FormData(e.currentTarget);
-      const amount = Number(form.get("amount"));
-      if (!amount || amount <= 0) {
-        toast.error("Montant invalide");
+      if (!percentage || Number(percentage) <= 0) {
+        toast.error("Pourcentage invalide");
         setSaving(false);
         return;
       }
       await createCashback({
         variantId,
-        amount,
+        amount: eurAmount,
         source: source || "other",
         status,
       });
@@ -142,6 +139,7 @@ function AddCashbackDialog({ variantId }: { variantId: string }) {
       setOpen(false);
       setSource("");
       setStatus("to_request");
+      setPercentage("");
       router.refresh();
     } catch {
       toast.error("Erreur");
@@ -164,15 +162,26 @@ function AddCashbackDialog({ variantId }: { variantId: string }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="cb-amount">Montant (EUR) *</Label>
-            <Input
-              id="cb-amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-            />
+            <Label htmlFor="cb-pct">Cashback (%) *</Label>
+            <div className="relative">
+              <Input
+                id="cb-pct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={percentage}
+                onChange={(e) => setPercentage(e.target.value)}
+                className="pr-8"
+                required
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+            </div>
+            {eurAmount > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                = {eurAmount.toFixed(2)} EUR (sur {formatCurrency(purchasePrice)})
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -218,22 +227,29 @@ function AddCashbackDialog({ variantId }: { variantId: string }) {
 
 // --- Edit Cashback Dialog ---
 
-function EditCashbackDialog({ cashback }: { cashback: CashbackItem }) {
+function EditCashbackDialog({ cashback, purchasePrice }: { cashback: CashbackItem; purchasePrice: number }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [source, setSource] = useState(cashback.source);
   const [status, setStatus] = useState(cashback.status);
+  // Back-calculate % from existing EUR amount
+  const initialPct = purchasePrice > 0
+    ? ((Number(cashback.amount) / purchasePrice) * 100).toFixed(1)
+    : "";
+  const [percentage, setPercentage] = useState(initialPct);
   const router = useRouter();
+
+  const eurAmount = percentage && Number(percentage) > 0
+    ? purchasePrice * Number(percentage) / 100
+    : 0;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const form = new FormData(e.currentTarget);
-      const amount = Number(form.get("amount"));
       await updateCashback(cashback.id, {
-        amount,
+        amount: eurAmount,
         source,
         status,
       });
@@ -274,16 +290,26 @@ function EditCashbackDialog({ cashback }: { cashback: CashbackItem }) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="ecb-amount">Montant (EUR) *</Label>
-            <Input
-              id="ecb-amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={cashback.amount}
-              required
-            />
+            <Label htmlFor="ecb-pct">Cashback (%) *</Label>
+            <div className="relative">
+              <Input
+                id="ecb-pct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={percentage}
+                onChange={(e) => setPercentage(e.target.value)}
+                className="pr-8"
+                required
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+            </div>
+            {eurAmount > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                = {eurAmount.toFixed(2)} EUR (sur {formatCurrency(purchasePrice)})
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

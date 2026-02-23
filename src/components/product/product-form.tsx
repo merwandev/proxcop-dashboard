@@ -1020,9 +1020,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                   Sneakers
                 </Badge>
-                {productSku && (
-                  <CopyableSku sku={productSku} className="text-[10px]" />
-                )}
+                <CopyableSku sku={productSku || null} fallback={productTitle || undefined} className="text-[10px]" />
               </div>
             </div>
           </div>

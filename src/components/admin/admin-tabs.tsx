@@ -10,6 +10,7 @@ import { AdminProducts } from "./admin-products";
 import { AdminSalesList, type AdminSaleItem } from "./admin-sales-list";
 import { AdminSentMessages, type AdminSentMessage } from "./admin-sent-messages";
 import { AdminLogs, type AdminLogItem } from "./admin-logs";
+import { UserUploadedImages } from "./user-uploaded-images";
 import { ImageIcon, Megaphone, Settings, Package, ShoppingCart, Mail, ScrollText } from "lucide-react";
 
 interface SkuItem {
@@ -50,9 +51,19 @@ interface AdminProductItem {
   creatorUsername: string | null;
 }
 
+interface UserUploadedImage {
+  imageUrl: string;
+  name: string;
+  sku: string | null;
+  category: string;
+  ownerUsername: string;
+  count: number;
+}
+
 interface AdminTabsProps {
   skus: SkuItem[];
   productsNoImage: ProductNoImage[];
+  userUploadedImages: UserUploadedImage[];
   adviceItems: AdviceItem[];
   adminProducts: AdminProductItem[];
   adminSales: AdminSaleItem[];
@@ -61,7 +72,7 @@ interface AdminTabsProps {
   webhookUrl: string | null;
 }
 
-export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, adminSales, sentMessages, adminLogs, webhookUrl }: AdminTabsProps) {
+export function AdminTabs({ skus, productsNoImage, userUploadedImages, adviceItems, adminProducts, adminSales, sentMessages, adminLogs, webhookUrl }: AdminTabsProps) {
   const totalMissing = skus.length + productsNoImage.length;
 
   return (
@@ -136,7 +147,20 @@ export function AdminTabs({ skus, productsNoImage, adviceItems, adminProducts, a
       </TabsContent>
 
       <TabsContent value="images" className="mt-4 space-y-6">
-        {totalMissing === 0 ? (
+        {/* User-uploaded images available for global linking */}
+        {userUploadedImages.length > 0 && (
+          <div>
+            <h2 className="text-base font-semibold mb-3">
+              Images utilisateurs ({userUploadedImages.length})
+            </h2>
+            <p className="text-xs text-muted-foreground mb-2">
+              Images uploadees par les membres. Cliquez pour les lier a tous les utilisateurs.
+            </p>
+            <UserUploadedImages images={userUploadedImages} />
+          </div>
+        )}
+
+        {totalMissing === 0 && userUploadedImages.length === 0 ? (
           <div className="rounded-xl bg-secondary p-8 text-center">
             <p className="text-muted-foreground">
               Aucun produit en attente d&apos;image. Tout est a jour !

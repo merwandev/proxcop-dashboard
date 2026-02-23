@@ -185,9 +185,7 @@ export function CashbackPageClient({ cashbacks, summary, availableVariants }: Ca
                           )}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {cb.productSku && (
-                            <CopyableSku sku={cb.productSku} className="text-[10px]" />
-                          )}
+                          <CopyableSku sku={cb.productSku} fallback={cb.productName} className="text-[10px]" />
                           <span className="text-[10px] text-muted-foreground">{getAppLabel(cb.source)}</span>
                         </div>
                       </div>

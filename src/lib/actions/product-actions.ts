@@ -1,11 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { products, productVariants, users } from "@/lib/db/schema";
+import { products, productVariants, users, skuImages } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { createProductSchema, updateProductSchema, updateVariantSchema } from "@/lib/validators/product";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { logAdminAction } from "@/lib/queries/admin-logs";
 
@@ -398,4 +398,64 @@ export async function bulkListProducts(productIds: string[], platform: string) {
 
   revalidatePath("/stock");
   revalidatePath("/dashboard");
+}
+
+/**
+ * Admin: Link a user-uploaded image globally.
+ * - If SKU exists: upsert into sku_images + apply to all products with that SKU that have no image
+ * - If no SKU: apply image to all products with the same name that have no image
+ */
+export async function adminLinkImageGlobally(
+  imageUrl: string,
+  sku: string | null,
+  productName: string,
+) {
+  const session = await auth();
+  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+    throw new Error("Acces refuse");
+  }
+
+  if (sku) {
+    // Upsert into sku_images table for global cache
+    const normalizedSku = sku.trim().toUpperCase();
+    await db
+      .insert(skuImages)
+      .values({ sku: normalizedSku, imageUrl, source: "user", status: "manual" })
+      .onConflictDoUpdate({
+        target: skuImages.sku,
+        set: { imageUrl, source: "user", status: "manual", updatedAt: new Date() },
+      });
+
+    // Apply to all products with this SKU that have no image
+    await db
+      .update(products)
+      .set({ imageUrl, updatedAt: new Date() })
+      .where(
+        and(
+          sql`upper(${products.sku}) = ${normalizedSku}`,
+          isNull(products.imageUrl),
+        )
+      );
+  } else {
+    // No SKU — apply to all products with same name that have no image
+    await db
+      .update(products)
+      .set({ imageUrl, updatedAt: new Date() })
+      .where(
+        and(
+          eq(products.name, productName),
+          isNull(products.imageUrl),
+        )
+      );
+  }
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "link_image_globally",
+    target: sku ? `sku:${sku}` : `name:${productName}`,
+    details: `Image liee globalement: ${imageUrl.substring(0, 60)}...`,
+  });
+
+  revalidatePath("/stock");
+  revalidatePath("/admin");
 }

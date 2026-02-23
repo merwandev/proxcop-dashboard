@@ -21,7 +21,7 @@ export function CommunitySettings({ communityOptIn }: CommunitySettingsProps) {
     startTransition(async () => {
       try {
         await saveCommunityOptInAction(checked);
-        toast.success(checked ? "Ventes partagees" : "Ventes masquees");
+        toast.success(checked ? "Donnees partagees" : "Donnees masquees");
       } catch {
         setEnabled(!checked);
         toast.error("Erreur");
@@ -38,7 +38,7 @@ export function CommunitySettings({ communityOptIn }: CommunitySettingsProps) {
 
       <div className="flex items-center justify-between gap-3">
         <Label htmlFor="community-opt-in" className="text-sm font-normal text-muted-foreground cursor-pointer flex-1">
-          Partager mes ventes dans le feed communautaire (anonyme)
+          Contribuer aux donnees communautaires (anonyme)
         </Label>
         <Switch
           id="community-opt-in"
@@ -48,7 +48,8 @@ export function CommunitySettings({ communityOptIn }: CommunitySettingsProps) {
         />
       </div>
       <p className="text-[11px] text-muted-foreground mt-2">
-        Vos ventes sont toujours anonymes — seuls le prix, la taille, la date et la plateforme sont visibles.
+        Vos donnees sont partagees de maniere 100% anonyme pour alimenter les tendances, prix du marche et stats de la communaute.
+        Aucun nom ni detail personnel n&apos;est visible.
       </p>
     </Card>
   );

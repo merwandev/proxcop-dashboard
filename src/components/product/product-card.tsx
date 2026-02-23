@@ -96,9 +96,7 @@ export function ProductGroupCard({ product, hasAdvice, disableLink, onClick }: P
           <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
             {categoryLabel}
           </Badge>
-          {product.sku && (
-            <CopyableSku sku={product.sku} className="text-[10px]" />
-          )}
+          <CopyableSku sku={product.sku} fallback={product.name} className="text-[10px]" />
         </div>
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-xs text-muted-foreground">

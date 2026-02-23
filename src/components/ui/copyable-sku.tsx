@@ -5,17 +5,19 @@ import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CopyableSkuProps {
-  sku: string;
+  sku: string | null;
+  fallback?: string;
   className?: string;
 }
 
-export function CopyableSku({ sku, className }: CopyableSkuProps) {
+export function CopyableSku({ sku, fallback, className }: CopyableSkuProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!sku) return;
       navigator.clipboard.writeText(sku).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -23,6 +25,22 @@ export function CopyableSku({ sku, className }: CopyableSkuProps) {
     },
     [sku]
   );
+
+  // If no SKU, show fallback label (non-copyable, truncated)
+  if (!sku) {
+    if (!fallback) return null;
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center text-muted-foreground truncate max-w-[120px]",
+          className
+        )}
+        title={fallback}
+      >
+        {fallback}
+      </span>
+    );
+  }
 
   return (
     <button

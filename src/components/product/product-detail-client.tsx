@@ -201,9 +201,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], pla
               <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                 {categoryLabel}
               </Badge>
-              {product.sku && (
-                <CopyableSku sku={product.sku} className="text-[10px]" />
-              )}
+              <CopyableSku sku={product.sku} fallback={product.name} className="text-[10px]" />
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
               {allInStockVariants.length} en stock
@@ -470,7 +468,7 @@ function VariantCard({
           </div>
           {/* Cashback management */}
           {!soldView && (
-            <CashbackSection variantId={variant.id} cashbacks={variant.cashbacks ?? []} />
+            <CashbackSection variantId={variant.id} purchasePrice={Number(variant.purchasePrice)} cashbacks={variant.cashbacks ?? []} />
           )}
         </div>
 

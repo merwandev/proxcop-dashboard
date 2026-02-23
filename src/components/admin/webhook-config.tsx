@@ -32,30 +32,26 @@ export function WebhookConfig({ currentUrl }: WebhookConfigProps) {
   };
 
   return (
-    <Card className="p-4 bg-card border-border space-y-3">
-      <div className="flex items-center gap-2">
-        <Webhook className="h-4 w-4 text-muted-foreground" />
-        <h3 className="font-medium text-sm">Discord Webhook</h3>
+    <Card className="p-3 gap-0 bg-card border-border">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
+        <h3 className="font-medium text-xs">Discord Webhook</h3>
         {saved && (
-          <CheckCircle2 className="h-3.5 w-3.5 text-success ml-auto" />
+          <CheckCircle2 className="h-3 w-3 text-success ml-auto" />
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Les ventes seront envoyees anonymement dans le channel Discord configure.
-      </p>
-      <div className="space-y-1.5">
-        <Label htmlFor="webhook-url">URL du Webhook</Label>
+      <div className="flex gap-1.5">
         <Input
           id="webhook-url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://discord.com/api/webhooks/..."
-          className="text-xs font-mono"
+          className="text-[11px] font-mono h-8 flex-1"
         />
+        <Button onClick={handleSave} size="sm" className="h-8 px-3" disabled={saving}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "OK"}
+        </Button>
       </div>
-      <Button onClick={handleSave} className="w-full" disabled={saving}>
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enregistrer"}
-      </Button>
     </Card>
   );
 }

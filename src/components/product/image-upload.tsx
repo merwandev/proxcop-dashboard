@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Camera, Loader2, Package } from "lucide-react";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
+// Upload via server-side proxy (avoids R2 CORS issues)
 import { updateProductImage } from "@/lib/actions/product-actions";
 import { toast } from "sonner";
 
@@ -30,15 +30,12 @@ export function ImageUpload({ productId, currentImage }: ImageUploadProps) {
         useWebWorker: true,
       });
 
-      // Get presigned URL
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-
-      // Upload to R2
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
+      // Upload via server-side proxy to avoid R2 CORS issues
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { publicUrl } = await uploadRes.json();
 
       // Update product image in DB
       await updateProductImage(productId, publicUrl);

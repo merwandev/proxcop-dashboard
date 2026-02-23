@@ -187,6 +187,8 @@ export interface StockXProductResult {
   imageUrl: string | null;
   variants: StockXVariant[];
   status: "found" | "not_found";
+  /** Raw variant name from GTIN lookup (e.g. "Nike-Dunk-Low-Panda:10") */
+  variantName?: string;
 }
 
 /**
@@ -249,7 +251,12 @@ export async function searchProductBySkuStockX(
     const variants: StockXVariant[] = variantArray
       .map((v: Record<string, unknown>) => {
         const variantId = (v.variantId ?? v.id ?? "") as string;
-        const sizeUS = (v.variantValue ?? "") as string;
+        let sizeUS = (v.variantValue ?? "") as string;
+
+        // For products with a single variant and no size (e.g., "OS", collectibles, etc.)
+        if (!sizeUS && variantArray.length === 1) {
+          sizeUS = "OS";
+        }
 
         // Extract EU size from sizeChart.availableConversions
         let sizeEU: string | null = null;
@@ -398,15 +405,31 @@ export async function getProductByIdStockX(
   if (!accessToken) return null;
 
   try {
-    // Get variants
-    const variantsUrl = `https://api.stockx.com/v2/catalog/products/${productId}/variants`;
-    const variantsRes = await fetch(variantsUrl, {
-      headers: stockxHeaders(accessToken),
-      signal: AbortSignal.timeout(10000),
-    });
+    const hdrs = stockxHeaders(accessToken);
+
+    // Fetch product info + variants in parallel
+    const [productRes, variantsRes] = await Promise.all([
+      fetch(`https://api.stockx.com/v2/catalog/products/${productId}`, {
+        headers: hdrs,
+        signal: AbortSignal.timeout(10000),
+      }),
+      fetch(`https://api.stockx.com/v2/catalog/products/${productId}/variants`, {
+        headers: hdrs,
+        signal: AbortSignal.timeout(10000),
+      }),
+    ]);
 
     if (variantsRes.status === 429) return null;
     if (!variantsRes.ok) return null;
+
+    // Extract product title + styleId
+    let productTitle = "";
+    let productStyleId = "";
+    if (productRes.ok) {
+      const productData = await productRes.json();
+      productTitle = (productData.title ?? "") as string;
+      productStyleId = (productData.styleId ?? "") as string;
+    }
 
     const variantsData = await variantsRes.json();
     const variantArray = Array.isArray(variantsData)
@@ -414,14 +437,19 @@ export async function getProductByIdStockX(
       : variantsData?.variants ?? [];
 
     if (variantArray.length === 0) {
-      return { productId, title: "", styleId: "", imageUrl: null, variants: [], status: "not_found" };
+      return { productId, title: productTitle, styleId: productStyleId, imageUrl: null, variants: [], status: "not_found" };
     }
 
     // Parse variants
     const variants: StockXVariant[] = variantArray
       .map((v: Record<string, unknown>) => {
         const variantId = (v.variantId ?? v.id ?? "") as string;
-        const sizeUS = (v.variantValue ?? "") as string;
+        let sizeUS = (v.variantValue ?? "") as string;
+
+        // For products with a single variant and no size (e.g., "OS", collectibles, etc.)
+        if (!sizeUS && variantArray.length === 1) {
+          sizeUS = "OS";
+        }
 
         let sizeEU: string | null = null;
         const sizeChart = v.sizeChart as { availableConversions?: { size: string; type: string }[] } | undefined;
@@ -446,11 +474,64 @@ export async function getProductByIdStockX(
 
     return {
       productId,
-      title: "",
-      styleId: "",
+      title: productTitle,
+      styleId: productStyleId,
       imageUrl,
       variants,
       status: "found",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─── GTIN / Barcode Lookup ──────────────────────────────────────────
+
+/**
+ * Look up a product by GTIN (barcode / UPC / EAN).
+ * StockX API: GET /v2/catalog/products/variants/gtins/{gtin}
+ * Returns the product variant info → we use it to get productId → full lookup.
+ */
+export async function lookupByGtinStockX(
+  gtin: string
+): Promise<StockXProductResult | null> {
+  const accessToken = await getStockXAccessToken();
+  if (!accessToken) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.stockx.com/v2/catalog/products/variants/gtins/${encodeURIComponent(gtin)}`,
+      {
+        headers: stockxHeaders(accessToken),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+
+    if (res.status === 429 || res.status === 404) return null;
+    if (!res.ok) return null;
+
+    const data = await res.json();
+
+    // The response contains the variant and parent product info
+    const productId = (data.productId ?? data.product?.id ?? "") as string;
+    if (!productId) return null;
+
+    // Now get full product details using existing function
+    const product = await getProductByIdStockX(productId);
+    if (!product) return null;
+
+    // Enrich with title/styleId from GTIN response if available
+    const title = (data.product?.title ?? product.title) as string;
+    const styleId = (data.product?.styleId ?? product.styleId) as string;
+
+    // Extract and parse variantName from GTIN response
+    const rawVariantName = (data.variantName ?? "") as string;
+
+    return {
+      ...product,
+      title,
+      styleId,
+      variantName: rawVariantName,
     };
   } catch {
     return null;

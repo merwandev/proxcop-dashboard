@@ -364,9 +364,7 @@ function SaleCard({
                   <span className="text-[11px] text-muted-foreground">
                     {formatDate(sale.saleDate)}
                   </span>
-                  {product.sku && (
-                    <CopyableSku sku={product.sku} className="text-[10px]" />
-                  )}
+                  <CopyableSku sku={product.sku} fallback={product.name} className="text-[10px]" />
                   {sale.platform && (
                     <Badge
                       variant="outline"

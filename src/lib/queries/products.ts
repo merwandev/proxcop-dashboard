@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { products, productVariants, sales, cashbacks } from "@/lib/db/schema";
-import { eq, and, desc, sql, ne, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, ne, inArray, gte } from "drizzle-orm";
 
 /**
  * Get all products grouped by SKU (when available) with variant counts for stock page.
@@ -33,6 +33,32 @@ export async function getStockProductsGrouped(userId: string) {
     .groupBy(sql`coalesce(${products.sku}, ${products.id}::text)`)
     .having(sql`count(case when ${productVariants.status} != 'vendu' then 1 end) > 0`)
     .orderBy(sql`max(${products.createdAt}) desc`);
+
+  // Fallback: for products with no image but a SKU, try to find an image from any product with the same SKU
+  const missingImageSkus = result
+    .filter((r) => !r.imageUrl && r.sku)
+    .map((r) => r.sku!);
+
+  if (missingImageSkus.length > 0) {
+    const fallbackImages = await db
+      .select({
+        sku: products.sku,
+        imageUrl: sql<string>`(array_agg(${products.imageUrl} order by ${products.createdAt} desc))[1]`,
+      })
+      .from(products)
+      .where(and(
+        inArray(products.sku, missingImageSkus),
+        sql`${products.imageUrl} is not null`,
+      ))
+      .groupBy(products.sku);
+
+    const fallbackMap = new Map(fallbackImages.map((f) => [f.sku, f.imageUrl]));
+    for (const row of result) {
+      if (!row.imageUrl && row.sku && fallbackMap.has(row.sku)) {
+        row.imageUrl = fallbackMap.get(row.sku)!;
+      }
+    }
+  }
 
   return result;
 }
@@ -77,6 +103,22 @@ export async function getProductWithVariants(productId: string, userId: string) 
 
   if (!product[0]) return null;
 
+  // Fallback: if product has no image but has a SKU, try to find an image from any product with the same SKU
+  let resolvedImageUrl = product[0].imageUrl;
+  if (!resolvedImageUrl && product[0].sku) {
+    const fallback = await db
+      .select({ imageUrl: products.imageUrl })
+      .from(products)
+      .where(and(
+        eq(products.sku, product[0].sku),
+        sql`${products.imageUrl} is not null`,
+      ))
+      .limit(1);
+    if (fallback[0]?.imageUrl) {
+      resolvedImageUrl = fallback[0].imageUrl;
+    }
+  }
+
   let variants;
   if (product[0].sku) {
     // Find all product IDs with the same SKU for this user
@@ -100,9 +142,26 @@ export async function getProductWithVariants(productId: string, userId: string) 
       .orderBy(productVariants.sizeVariant, desc(productVariants.createdAt));
   }
 
+  // Get cashbacks for all variants
+  const variantIds = variants.map((v) => v.id);
+  const allCashbacks = variantIds.length > 0
+    ? await db.select().from(cashbacks).where(inArray(cashbacks.variantId, variantIds))
+    : [];
+
+  // Group cashbacks by variant ID
+  const cashbacksByVariant: Record<string, typeof allCashbacks> = {};
+  for (const cb of allCashbacks) {
+    if (!cashbacksByVariant[cb.variantId]) cashbacksByVariant[cb.variantId] = [];
+    cashbacksByVariant[cb.variantId].push(cb);
+  }
+
   return {
     ...product[0],
-    variants,
+    imageUrl: resolvedImageUrl,
+    variants: variants.map((v) => ({
+      ...v,
+      cashbacks: cashbacksByVariant[v.id] ?? [],
+    })),
   };
 }
 
@@ -144,6 +203,27 @@ export async function getVariantWithProduct(variantId: string, userId: string) {
 }
 
 /**
+ * Aggregated KPIs for stock page header.
+ */
+export async function getStockKPIs(userId: string) {
+  const result = await db
+    .select({
+      totalPairs: sql<number>`count(*)`,
+      totalValue: sql<number>`coalesce(sum(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+      avgPrice: sql<number>`coalesce(avg(cast(${productVariants.purchasePrice} as decimal)), 0)`,
+      avgDaysInStock: sql<number>`coalesce(avg(extract(day from now() - ${productVariants.purchaseDate}::timestamp)), 0)`,
+    })
+    .from(productVariants)
+    .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
+  return {
+    totalPairs: Number(result[0]?.totalPairs ?? 0),
+    totalValue: Math.round(Number(result[0]?.totalValue ?? 0) * 100) / 100,
+    avgPrice: Math.round(Number(result[0]?.avgPrice ?? 0) * 100) / 100,
+    avgDaysInStock: Math.round(Number(result[0]?.avgDaysInStock ?? 0)),
+  };
+}
+
+/**
  * Count of variants in stock (status != vendu).
  */
 export async function getStockCount(userId: string) {
@@ -165,4 +245,51 @@ export async function getStockValue(userId: string) {
     .from(productVariants)
     .where(and(eq(productVariants.userId, userId), ne(productVariants.status, "vendu")));
   return Number(result[0]?.total ?? 0);
+}
+
+/**
+ * Get user's most recently added products (unique by SKU or name).
+ */
+export async function getRecentProducts(userId: string, limit = 5) {
+  const result = await db
+    .select({
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
+      category: sql<string>`(array_agg(${products.category}::text order by ${products.createdAt} desc))[1]`,
+      lastAdded: sql<Date>`max(${products.createdAt})`,
+    })
+    .from(products)
+    .where(eq(products.userId, userId))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
+    .orderBy(sql`max(${products.createdAt}) desc`)
+    .limit(limit);
+
+  return result;
+}
+
+/**
+ * Get trending products across all users (most added in last N days).
+ * Anonymous: only product name, SKU, image, add count.
+ */
+export async function getTrendingProducts(daysBack = 7, limit = 5) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+
+  const result = await db
+    .select({
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
+      sku: sql<string | null>`max(${products.sku})`,
+      imageUrl: sql<string | null>`(array_agg(${products.imageUrl} order by case when ${products.imageUrl} is not null then 0 else 1 end, ${products.createdAt} desc))[1]`,
+      addCount: sql<number>`count(distinct ${productVariants.id})`,
+    })
+    .from(products)
+    .innerJoin(productVariants, eq(products.id, productVariants.productId))
+    .where(gte(productVariants.createdAt, cutoff))
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
+    .having(sql`count(distinct ${productVariants.id}) >= 2`)
+    .orderBy(sql`count(distinct ${productVariants.id}) desc`)
+    .limit(limit);
+
+  return result;
 }

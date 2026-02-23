@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { skuImages, userSkuImages, stockxProductsCache, products, users } from "@/lib/db/schema";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, isNotNull, sql } from "drizzle-orm";
 import type { StockXCachedVariant } from "@/lib/stockx/client";
 
 // ─── Global SKU Images (shared across all users) ────────────────────
@@ -93,6 +93,35 @@ export async function getProductsWithoutImages(limit = 50) {
     .innerJoin(users, eq(products.userId, users.id))
     .where(isNull(products.imageUrl))
     .orderBy(desc(products.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Get unique user-uploaded product images grouped by SKU (or name if no SKU).
+ * Only includes manually uploaded images (R2), excludes StockX auto-fetched images.
+ * Staff can decide to use these for all users via sku_images table.
+ */
+export async function getUserUploadedImages(limit = 50) {
+  return db
+    .select({
+      imageUrl: sql<string>`(array_agg(${products.imageUrl} order by ${products.createdAt} desc))[1]`,
+      name: sql<string>`(array_agg(${products.name} order by ${products.createdAt} desc))[1]`,
+      sku: sql<string | null>`(array_agg(${products.sku} order by ${products.createdAt} desc))[1]`,
+      category: sql<string>`(array_agg(${products.category} order by ${products.createdAt} desc))[1]`,
+      ownerUsername: sql<string>`(array_agg(${users.discordUsername} order by ${products.createdAt} desc))[1]`,
+      count: sql<number>`count(distinct ${products.id})::int`,
+    })
+    .from(products)
+    .innerJoin(users, eq(products.userId, users.id))
+    .where(
+      and(
+        isNotNull(products.imageUrl),
+        // Exclude StockX auto-fetched images — only keep manually uploaded (R2)
+        sql`${products.imageUrl} NOT LIKE '%images.stockx.com%'`,
+      )
+    )
+    .groupBy(sql`coalesce(upper(${products.sku}), ${products.name})`)
+    .orderBy(desc(sql`max(${products.createdAt})`))
     .limit(limit);
 }
 

@@ -1,10 +1,14 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/auth-utils";
 import { UserMenu } from "./logout-button";
-import { Shield, Settings } from "lucide-react";
+import { Shield, Settings, Mail } from "lucide-react";
 import Link from "next/link";
 
-export async function AppHeader() {
+interface AppHeaderProps {
+  unreadMessages?: number;
+}
+
+export async function AppHeader({ unreadMessages = 0 }: AppHeaderProps) {
   const session = await auth();
   const admin = isAdminRole(session?.user?.role);
 
@@ -26,6 +30,18 @@ export async function AppHeader() {
         <div className="hidden lg:block" />
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/inbox"
+            className="relative text-muted-foreground hover:text-foreground transition-colors lg:hidden"
+            title="Inbox"
+          >
+            <Mail className="h-4.5 w-4.5" />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                {unreadMessages > 99 ? "99+" : unreadMessages}
+              </span>
+            )}
+          </Link>
           <Link
             href="/settings"
             className="text-muted-foreground hover:text-foreground transition-colors lg:hidden"

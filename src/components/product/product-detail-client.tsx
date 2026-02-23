@@ -26,6 +26,7 @@ import { StatusBadge } from "./status-badge";
 import { TimeBadge } from "./time-badge";
 import { SaleDialog } from "@/components/sales/sale-dialog";
 import { SaleSuccessAnimation, type SaleSuccessData } from "@/components/sales/sale-success-animation";
+import { CashbackIndicator, CashbackSection } from "./cashback-dialog";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CATEGORIES, STATUSES, STORAGE_LOCATIONS, PLATFORMS } from "@/lib/utils/constants";
@@ -55,6 +56,15 @@ import { cn } from "@/lib/utils";
 // Module-level variable: survives component remounts caused by RSC re-renders
 let _pendingSaleData: SaleSuccessData | null = null;
 
+interface CashbackItem {
+  id: string;
+  amount: string;
+  source: string;
+  status: string;
+  requestedAt: Date;
+  receivedAt: Date | null;
+}
+
 interface ProductVariant {
   id: string;
   productId: string;
@@ -68,6 +78,7 @@ interface ProductVariant {
   returnDeadline: string | null;
   supplierName: string | null;
   listedOn: string[] | null;
+  cashbacks?: CashbackItem[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,11 +108,12 @@ interface ProductDetailClientProps {
   };
   medianPrices?: Record<string, MedianPrice>;
   suppliers?: Supplier[];
+  platformFees?: Record<string, number>;
   userName?: string;
   showSuccessAnimation?: boolean;
 }
 
-export function ProductDetailClient({ product, medianPrices, suppliers = [], userName, showSuccessAnimation }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, medianPrices, suppliers = [], platformFees, userName, showSuccessAnimation }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -190,9 +202,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
               <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                 {categoryLabel}
               </Badge>
-              {product.sku && (
-                <CopyableSku sku={product.sku} className="text-[10px]" />
-              )}
+              <CopyableSku sku={product.sku} fallback={product.name} className="text-[10px]" />
             </div>
             <p className="text-xs text-muted-foreground mt-1.5">
               {allInStockVariants.length} en stock
@@ -288,6 +298,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
                 variant={variant}
                 medianPrice={medianPrices?.[sizeKey] ?? null}
                 suppliers={suppliers}
+                platformFees={platformFees}
                 productInfo={{ name: product.name, imageUrl: product.imageUrl, sku: product.sku }}
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
@@ -366,6 +377,7 @@ function VariantCard({
   soldView = false,
   medianPrice = null,
   suppliers = [],
+  platformFees,
   productInfo,
   userName,
   showSuccessAnimation,
@@ -376,6 +388,7 @@ function VariantCard({
   soldView?: boolean;
   medianPrice?: MedianPrice | null;
   suppliers?: Supplier[];
+  platformFees?: Record<string, number>;
   productInfo?: { name: string; imageUrl: string | null; sku: string | null };
   userName?: string;
   showSuccessAnimation?: boolean;
@@ -423,6 +436,9 @@ function VariantCard({
             {variant.supplierName && (
               <span className="text-muted-foreground">{variant.supplierName}</span>
             )}
+            {variant.cashbacks && variant.cashbacks.length > 0 && (
+              <CashbackIndicator cashbacks={variant.cashbacks} />
+            )}
           </div>
           {/* Listed platforms */}
           {variant.status !== "vendu" && variant.listedOn && variant.listedOn.length > 0 && (
@@ -454,6 +470,10 @@ function VariantCard({
               </span>
             )}
           </div>
+          {/* Cashback management */}
+          {!soldView && (
+            <CashbackSection variantId={variant.id} purchasePrice={Number(variant.purchasePrice)} cashbacks={variant.cashbacks ?? []} />
+          )}
         </div>
 
         {/* Actions */}
@@ -468,6 +488,7 @@ function VariantCard({
                   sizeVariant: variant.sizeVariant,
                   purchasePrice: Number(variant.purchasePrice),
                 } : undefined}
+                platformFees={platformFees}
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
                 onSaleSuccess={onSaleSuccess}
@@ -885,10 +906,10 @@ function DeleteVariantButton({ variantId, isLastVariant }: { variantId: string; 
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await deleteVariant(variantId);
+      const { productDeleted } = await deleteVariant(variantId);
       toast.success("Variant supprime");
       setOpen(false);
-      if (isLastVariant) {
+      if (productDeleted) {
         router.push("/stock");
       } else {
         router.refresh();

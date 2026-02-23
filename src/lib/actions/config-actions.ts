@@ -8,6 +8,7 @@ import {
   removeAllowedDiscordRole,
 } from "@/lib/queries/discord-roles";
 import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 
 function requireStaffSession() {
   return auth().then((session) => {
@@ -19,7 +20,7 @@ function requireStaffSession() {
 }
 
 export async function updateWebhookUrlAction(url: string) {
-  await requireStaffSession();
+  const session = await requireStaffSession();
 
   const trimmed = url.trim();
   if (trimmed && !trimmed.startsWith("https://discord.com/api/webhooks/")) {
@@ -27,6 +28,13 @@ export async function updateWebhookUrlAction(url: string) {
   }
 
   await setConfigValue("discord_webhook_url", trimmed);
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "update_webhook",
+    details: `Webhook Discord ${trimmed ? "mis a jour" : "supprime"}`,
+  });
+
   revalidatePath("/admin");
 }
 

@@ -24,9 +24,14 @@ export function ExportCsvButton() {
   };
 
   return (
-    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 px-2 text-muted-foreground hover:text-foreground"
+      onClick={handleExport}
+      title="Exporter CSV"
+    >
       <FileDown className="h-3.5 w-3.5" />
-      CSV
     </Button>
   );
 }

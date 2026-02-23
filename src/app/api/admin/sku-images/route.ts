@@ -1,5 +1,6 @@
 import { requireStaff } from "@/lib/auth-utils";
 import { upsertSkuImage } from "@/lib/queries/sku-images";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 import { NextRequest, NextResponse } from "next/server";
 
 /**
@@ -24,6 +25,13 @@ export async function POST(req: NextRequest) {
 
   // Update global SKU image with "manual" status
   await upsertSkuImage(sku, imageUrl, "manual", "manual");
+
+  await logAdminAction({
+    adminId: authResult.userId,
+    action: "set_sku_image",
+    target: `sku:${sku}`,
+    details: `Image SKU ajoutee manuellement pour ${sku}`,
+  });
 
   return NextResponse.json({ success: true });
 }

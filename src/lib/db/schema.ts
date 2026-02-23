@@ -23,13 +23,16 @@ export const productStatusEnum = pgEnum("product_status", [
   "en_attente", "en_stock", "liste", "reserve", "expedie", "vendu", "en_litige", "return_waiting_rf", "hold", "reship", "consign",
 ]);
 export const cashbackStatusEnum = pgEnum("cashback_status", [
-  "requested", "approved", "received",
+  "to_request", "requested", "approved", "received",
 ]);
 export const expenseCategoryEnum = pgEnum("expense_category", [
   "bot", "proxy", "shipping_materials", "subscription", "other",
 ]);
 export const skuImageStatusEnum = pgEnum("sku_image_status", [
   "found", "not_found", "manual",
+]);
+export const calendarEventTypeEnum = pgEnum("calendar_event_type", [
+  "drop", "ship", "return", "custom",
 ]);
 
 // Users
@@ -44,6 +47,7 @@ export const users = pgTable("users", {
   tvaEnabled: boolean("tva_enabled").notNull().default(false),
   tvaRate: decimal("tva_rate", { precision: 5, scale: 2 }).default("20.00"),
   communityOptIn: boolean("community_opt_in").notNull().default(true),
+  platformFees: jsonb("platform_fees").$type<Record<string, number>>(),
   saleSuccessAnimation: boolean("sale_success_animation").notNull().default(true),
   dashboardLayout: jsonb("dashboard_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
   statsLayout: jsonb("stats_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
@@ -187,6 +191,54 @@ export const userSkuImages = pgTable("user_sku_images", {
   unique("user_sku_unique").on(table.userId, table.sku),
 ]);
 
+// Admin Products (custom products added by staff, available in search for all users)
+export const adminProducts = pgTable("admin_products", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  sku: text("sku"),
+  imageUrl: text("image_url"),
+  category: categoryEnum("category").notNull().default("sneakers"),
+  sizes: jsonb("sizes").$type<string[]>().default([]),
+  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Calendar Events (per-user: drops, shipments, returns, custom events)
+export const calendarEvents = pgTable("calendar_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  date: date("date").notNull(),
+  type: calendarEventTypeEnum("type").notNull().default("custom"),
+  variantId: uuid("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
+  color: text("color"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Messages (staff → user inbox system)
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  fromUserId: uuid("from_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  toUserId: uuid("to_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  read: boolean("read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Admin Logs (audit trail for all admin actions)
+export const adminLogs = pgTable("admin_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: uuid("admin_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  action: text("action").notNull(), // e.g. "delete_sale", "send_message", "create_advice"
+  target: text("target"), // e.g. "sale:uuid", "user:uuid", "sku:ABC-123"
+  details: text("details"), // human-readable description
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(), // extra structured data
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // App Config (key-value store for global settings like webhook URLs)
 export const appConfig = pgTable("app_config", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -225,6 +277,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   userSkuImages: many(userSkuImages),
   createdAdvice: many(productAdvice),
   suppliers: many(suppliers),
+  adminProducts: many(adminProducts),
+  sentMessages: many(messages, { relationName: "sentMessages" }),
+  receivedMessages: many(messages, { relationName: "receivedMessages" }),
+  calendarEvents: many(calendarEvents),
+  adminLogs: many(adminLogs),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -263,6 +320,24 @@ export const productAdviceRelations = relations(productAdvice, ({ one }) => ({
 
 export const suppliersRelations = relations(suppliers, ({ one }) => ({
   user: one(users, { fields: [suppliers.userId], references: [users.id] }),
+}));
+
+export const adminProductsRelations = relations(adminProducts, ({ one }) => ({
+  creator: one(users, { fields: [adminProducts.createdBy], references: [users.id] }),
+}));
+
+export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
+  user: one(users, { fields: [calendarEvents.userId], references: [users.id] }),
+  variant: one(productVariants, { fields: [calendarEvents.variantId], references: [productVariants.id] }),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  from: one(users, { fields: [messages.fromUserId], references: [users.id], relationName: "sentMessages" }),
+  to: one(users, { fields: [messages.toUserId], references: [users.id], relationName: "receivedMessages" }),
+}));
+
+export const adminLogsRelations = relations(adminLogs, ({ one }) => ({
+  admin: one(users, { fields: [adminLogs.adminId], references: [users.id] }),
 }));
 
 export const allowedDiscordRolesRelations = relations(allowedDiscordRoles, ({ one }) => ({

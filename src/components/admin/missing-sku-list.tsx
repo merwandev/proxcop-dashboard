@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Upload, Check, Image as ImageIcon } from "lucide-react";
+// Upload via server-side proxy (avoids R2 CORS issues)
+import { Loader2, Upload, Check, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface SkuItem {
@@ -20,6 +20,7 @@ interface MissingSkuListProps {
 
 export function MissingSkuList({ skus }: MissingSkuListProps) {
   const [resolvedSkus, setResolvedSkus] = useState<Set<string>>(new Set());
+  const [dismissedSkus, setDismissedSkus] = useState<Set<string>>(new Set());
   const [loadingSkus, setLoadingSkus] = useState<Set<string>>(new Set());
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
@@ -35,13 +36,12 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
         useWebWorker: true,
       });
 
-      // Upload to R2
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, {
-        method: "PUT",
-        body: compressed,
-        headers: { "Content-Type": compressed.type },
-      });
+      // Upload via server-side proxy to avoid R2 CORS issues
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { publicUrl } = await uploadRes.json();
 
       // Save as staff-provided image
       await fetch("/api/admin/sku-images", {
@@ -93,12 +93,17 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
     }
   };
 
+  const visibleSkus = skus.filter((s) => !dismissedSkus.has(s.sku));
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        {skus.length} SKU{skus.length > 1 ? "s" : ""} en attente
+        {visibleSkus.length} SKU{visibleSkus.length > 1 ? "s" : ""} en attente
+        {dismissedSkus.size > 0 && (
+          <span className="text-muted-foreground/60"> ({dismissedSkus.size} masque{dismissedSkus.size > 1 ? "s" : ""})</span>
+        )}
       </p>
-      {skus.map((item) => {
+      {visibleSkus.map((item) => {
         const isResolved = resolvedSkus.has(item.sku);
         const isLoading = loadingSkus.has(item.sku);
         const previewUrl = imageUrls[item.sku];
@@ -117,12 +122,26 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
                   Detecte le {new Date(item.createdAt).toLocaleDateString("fr-FR")}
                 </p>
               </div>
-              {isResolved && (
-                <div className="flex items-center gap-1 text-success">
-                  <Check className="h-4 w-4" />
-                  <span className="text-xs font-medium">Resolu</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {isResolved && (
+                  <div className="flex items-center gap-1 text-success">
+                    <Check className="h-4 w-4" />
+                    <span className="text-xs font-medium">Resolu</span>
+                  </div>
+                )}
+                {!isResolved && (
+                  <button
+                    onClick={() => {
+                      setDismissedSkus((prev) => new Set(prev).add(item.sku));
+                      toast.info(`${item.sku} masque`);
+                    }}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    title="Masquer ce SKU"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Preview if resolved */}

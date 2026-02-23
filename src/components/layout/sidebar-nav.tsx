@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Package, Receipt, TrendingUp, Settings } from "lucide-react";
+import { BarChart3, Package, Receipt, TrendingUp, Settings, Coins, Calendar, Mail, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -10,6 +10,10 @@ const navItems = [
   { href: "/stock", label: "Stock", icon: Package },
   { href: "/ventes", label: "Ventes", icon: Receipt },
   { href: "/stats", label: "Analytics", icon: TrendingUp },
+  { href: "/community", label: "Communauté", icon: Users },
+  { href: "/cashback", label: "Cashback", icon: Coins },
+  { href: "/calendar", label: "Calendrier", icon: Calendar },
+  { href: "/inbox", label: "Inbox", icon: Mail },
 ];
 
 const bottomItems = [
@@ -18,9 +22,10 @@ const bottomItems = [
 
 interface SidebarNavProps {
   hasStockNotification?: boolean;
+  unreadMessages?: number;
 }
 
-export function SidebarNav({ hasStockNotification }: SidebarNavProps) {
+export function SidebarNav({ hasStockNotification, unreadMessages = 0 }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
@@ -43,6 +48,7 @@ export function SidebarNav({ hasStockNotification }: SidebarNavProps) {
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const showDot = item.href === "/stock" && hasStockNotification;
+          const showInboxBadge = item.href === "/inbox" && unreadMessages > 0;
           return (
             <Link
               key={item.href}
@@ -58,6 +64,11 @@ export function SidebarNav({ hasStockNotification }: SidebarNavProps) {
                 <item.icon className="h-[18px] w-[18px]" />
                 {showDot && (
                   <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-blue-400 ring-2 ring-card" />
+                )}
+                {showInboxBadge && (
+                  <span className="absolute -top-1.5 -right-2.5 flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
                 )}
               </div>
               {item.label}

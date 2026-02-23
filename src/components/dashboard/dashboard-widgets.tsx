@@ -6,6 +6,9 @@ import { ProfitChart } from "@/components/dashboard/profit-chart";
 import { ExpensesChart } from "@/components/dashboard/expenses-chart";
 import { StatusBreakdownChart } from "@/components/dashboard/status-breakdown-chart";
 import { PendingDealRow } from "@/components/dashboard/pending-deal-row";
+import { CalendarPreviewWidget } from "@/components/dashboard/calendar-preview";
+import { InboxPreviewWidget } from "@/components/dashboard/inbox-preview";
+import { CashbackPreviewWidget } from "@/components/dashboard/cashback-preview";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyableSku } from "@/components/ui/copyable-sku";
@@ -67,6 +70,33 @@ interface DashboardWidgetsProps {
       status: string;
     }[];
   };
+  calendarEvents?: {
+    id: string;
+    title: string;
+    date: string;
+    type: string;
+    color: string | null;
+    isAuto?: boolean;
+  }[];
+  inboxMessages?: {
+    id: string;
+    subject: string;
+    body: string;
+    read: boolean;
+    createdAt: string;
+    fromUsername: string | null;
+    fromAvatar: string | null;
+    fromDiscordId: string | null;
+  }[];
+  cashbackSummary?: {
+    totalReceived: number;
+    totalPending: number;
+    countTotal: number;
+    countToRequest: number;
+    countRequested: number;
+    countApproved: number;
+    countReceived: number;
+  };
 }
 
 export function DashboardWidgets({
@@ -79,6 +109,9 @@ export function DashboardWidgets({
   statusBreakdown,
   pendingDeals,
   kpis,
+  calendarEvents = [],
+  inboxMessages = [],
+  cashbackSummary,
 }: DashboardWidgetsProps) {
   const hasExpenses = kpis.expenses.total > 0;
 
@@ -203,9 +236,7 @@ export function DashboardWidgets({
                           {item.profit >= 0 ? "+" : ""}{formatCurrency(item.profit)}
                         </span>
                       </div>
-                      {item.sku && (
-                        <CopyableSku sku={item.sku} className="text-[10px]" />
-                      )}
+                      <CopyableSku sku={item.sku} fallback={item.name} className="text-[10px]" />
                     </div>
                   </div>
                 ))}
@@ -236,9 +267,7 @@ export function DashboardWidgets({
                           <span className="text-muted-foreground"> &mdash; {item.sizeVariant}</span>
                         )}
                       </span>
-                      {item.productSku && (
-                        <CopyableSku sku={item.productSku} className="text-[10px]" />
-                      )}
+                      <CopyableSku sku={item.productSku} fallback={item.productName} className="text-[10px]" />
                     </div>
                     <TimeBadge purchaseDate={item.purchaseDate} />
                   </div>
@@ -247,6 +276,15 @@ export function DashboardWidgets({
             )}
           </Card>
         );
+
+      case "calendar-preview":
+        return <CalendarPreviewWidget events={calendarEvents} />;
+
+      case "inbox-preview":
+        return <InboxPreviewWidget messages={inboxMessages} />;
+
+      case "cashback-preview":
+        return cashbackSummary ? <CashbackPreviewWidget summary={cashbackSummary} /> : null;
 
       default:
         return null;

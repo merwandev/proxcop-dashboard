@@ -34,10 +34,13 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
 
     const embed: Record<string, unknown> = {
       title: "Nouvelle vente",
-      color: 0x4ade80, // green-400 matching text-success
+      color: 0x5800ff,
       fields,
       timestamp: new Date().toISOString(),
-      footer: { text: "ProxStock" },
+      footer: {
+        text: "Powered by Proxcop",
+        icon_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://proxcop.com"}/logo%20icon.png`,
+      },
     };
 
     if (data.imageUrl) {

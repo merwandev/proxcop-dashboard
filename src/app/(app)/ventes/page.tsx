@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getSalesByUser, getCommunitySales } from "@/lib/queries/sales";
+import { getSalesByUser } from "@/lib/queries/sales";
 import { ExportCsvButton } from "@/components/sales/export-csv-button";
 import { VentesTabs } from "@/components/sales/ventes-tabs";
 
@@ -8,10 +8,7 @@ export default async function VentesPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [salesData, communitySalesRaw] = await Promise.all([
-    getSalesByUser(session.user.id),
-    getCommunitySales(50),
-  ]);
+  const salesData = await getSalesByUser(session.user.id);
 
   // Serialize for client component (VentesClient format)
   const serialized = salesData.map(({ sale, variant, product }) => ({
@@ -37,19 +34,6 @@ export default async function VentesPage() {
     },
   }));
 
-  // Serialize community sales for client component
-  const communitySales = communitySalesRaw.map((s) => ({
-    saleId: s.saleId,
-    productName: s.productName,
-    sku: s.sku,
-    imageUrl: s.imageUrl,
-    sizeVariant: s.sizeVariant,
-    salePrice: s.salePrice,
-    platform: s.platform,
-    saleDate: s.saleDate,
-    category: s.category,
-  }));
-
   return (
     <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
       {/* Header */}
@@ -65,7 +49,6 @@ export default async function VentesPage() {
 
       <VentesTabs
         userSales={serialized}
-        communitySales={communitySales}
         userName={session.user.discordUsername ?? session.user.name ?? undefined}
       />
     </div>

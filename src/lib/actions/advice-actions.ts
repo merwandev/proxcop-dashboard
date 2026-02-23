@@ -9,6 +9,7 @@ import {
   markAdviceAsRead,
 } from "@/lib/queries/product-advice";
 import { revalidatePath } from "next/cache";
+import { logAdminAction } from "@/lib/queries/admin-logs";
 
 function requireStaffSession() {
   return auth().then((session) => {
@@ -45,23 +46,44 @@ export async function createAdviceAction(data: {
     createdBy: session.user.id,
   });
 
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "create_advice",
+    target: `sku:${data.sku.trim()}`,
+    details: `Conseil cree pour "${data.title.trim()}" (${data.severity})`,
+  });
+
   revalidatePath("/admin");
   revalidatePath("/stock");
 }
 
 export async function toggleAdviceAction(adviceId: string) {
-  await requireStaffSession();
+  const session = await requireStaffSession();
 
   await toggleAdviceActive(adviceId);
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "toggle_advice",
+    target: `advice:${adviceId}`,
+    details: `Conseil active/desactive`,
+  });
 
   revalidatePath("/admin");
   revalidatePath("/stock");
 }
 
 export async function deleteAdviceAction(adviceId: string) {
-  await requireStaffSession();
+  const session = await requireStaffSession();
 
   await deleteAdvice(adviceId);
+
+  await logAdminAction({
+    adminId: session.user.id,
+    action: "delete_advice",
+    target: `advice:${adviceId}`,
+    details: `Conseil supprime`,
+  });
 
   revalidatePath("/admin");
   revalidatePath("/stock");

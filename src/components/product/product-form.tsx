@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CopyableSku } from "@/components/ui/copyable-sku";
-import { CATEGORIES, STORAGE_LOCATIONS } from "@/lib/utils/constants";
+import { CATEGORIES, STORAGE_LOCATIONS, CASHBACK_APPS } from "@/lib/utils/constants";
 import {
   Dialog,
   DialogContent,
@@ -24,13 +24,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createProductWithVariants } from "@/lib/actions/product-actions";
+import { createCashback } from "@/lib/actions/cashback-actions";
 import { createSupplierAction } from "@/lib/actions/supplier-actions";
-import { getPresignedUploadUrl } from "@/lib/actions/upload-actions";
-import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2 } from "lucide-react";
+// Upload via server-side proxy (avoids R2 CORS issues)
+import { Loader2, Search, Plus, Minus, Package, Upload, ArrowLeft, X, Link2, Camera, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils/format";
 import { SkuSalesSection } from "@/components/product/sku-sales-section";
+import { BarcodeScanner } from "@/components/product/barcode-scanner";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -53,6 +55,15 @@ interface SearchResult {
   title: string;
   styleId: string;
   imageUrl: string | null;
+}
+
+interface AdminSearchResult {
+  id: string;
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category: string;
+  sizes: string[];
 }
 
 type WizardStep = "search" | "sizes" | "manual";
@@ -122,7 +133,7 @@ function ReturnDeadlinePicker({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn("h-9 text-sm max-w-full", isCustom && "border-primary")}
+        className={cn("h-9 text-sm w-full", isCustom && "border-primary")}
       />
     </div>
   );
@@ -136,7 +147,21 @@ interface SupplierOption {
   returnDays: string | null;
 }
 
-export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }) {
+interface QuickProduct {
+  name: string;
+  sku: string | null;
+  imageUrl: string | null;
+  category?: string;
+  addCount?: number;
+}
+
+interface ProductFormProps {
+  suppliers?: SupplierOption[];
+  recentProducts?: QuickProduct[];
+  trendingProducts?: QuickProduct[];
+}
+
+export function ProductForm({ suppliers = [], recentProducts = [], trendingProducts = [] }: ProductFormProps) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>("search");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -145,7 +170,10 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
   const [searchInput, setSearchInput] = useState("");
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "found" | "not_found" | "error">("idle");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [adminResults, setAdminResults] = useState<AdminSearchResult[]>([]);
   const [loadingProductId, setLoadingProductId] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
 
   // Product state (after selection)
   const [productTitle, setProductTitle] = useState("");
@@ -172,6 +200,11 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
   const [manualQuantity, setManualQuantity] = useState(1);
   const [manualImageUrl, setManualImageUrl] = useState<string | null>(null);
   const [manualUploading, setManualUploading] = useState(false);
+
+  // Cashback state (global — applied to all variants)
+  const [cashbackEnabled, setCashbackEnabled] = useState(false);
+  const [cashbackAmount, setCashbackAmount] = useState("");
+  const [cashbackApp, setCashbackApp] = useState("igraal");
 
   // Median price state
   const [medianPrice, setMedianPrice] = useState<{ median: number; saleCount: number } | null>(null);
@@ -303,15 +336,28 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
 
   // ─── Auto-search on input change (1000ms debounce) ────────────────
 
+  // Helper: search admin products
+  const searchAdminProductsApi = useCallback(async (query: string): Promise<AdminSearchResult[]> => {
+    try {
+      const res = await fetch(`/api/admin-products/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      return data.products ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   const performSearch = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchStatus("idle");
       setSearchResults([]);
+      setAdminResults([]);
       return;
     }
 
     setSearchStatus("loading");
     setSearchResults([]);
+    setAdminResults([]);
 
     const isSku = looksLikeSku(query);
 
@@ -335,18 +381,26 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       }
     }
 
-    // Text search — returns multiple results (shown inline)
+    // Text search + admin products search in parallel
     try {
-      const res = await fetch(`/api/stockx/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
+      const [stockxRes, adminProds] = await Promise.all([
+        fetch(`/api/stockx/search?q=${encodeURIComponent(query)}`).then((r) => r.json()),
+        searchAdminProductsApi(query),
+      ]);
 
-      if (data.status === "error") {
+      setAdminResults(adminProds);
+
+      if (stockxRes.status === "error" && adminProds.length === 0) {
         setSearchStatus("error");
         return;
       }
 
-      if (data.products && data.products.length > 0) {
-        setSearchResults(data.products);
+      const hasStockX = stockxRes.products && stockxRes.products.length > 0;
+      if (hasStockX) {
+        setSearchResults(stockxRes.products);
+      }
+
+      if (hasStockX || adminProds.length > 0) {
         setSearchStatus("found");
       } else {
         setSearchStatus("not_found");
@@ -354,7 +408,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     } catch {
       setSearchStatus("error");
     }
-  }, [looksLikeSku]);
+  }, [looksLikeSku, searchAdminProductsApi]);
 
   // Debounced auto-search: triggers 1000ms after user stops typing
   const handleSearchInputChange = useCallback((value: string) => {
@@ -368,6 +422,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       }, 1000);
     } else {
       setSearchResults([]);
+      setAdminResults([]);
     }
   }, [performSearch]);
 
@@ -379,6 +434,39 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       performSearch(searchInput.trim());
     }
   }, [searchInput, performSearch]);
+
+  // ─── Barcode scan handler ──────────────────────────────────────────
+
+  const handleBarcodeScan = useCallback(async (gtin: string) => {
+    setShowScanner(false);
+    setScanLoading(true);
+    setSearchStatus("loading");
+    setSearchInput(gtin);
+
+    try {
+      const res = await fetch(`/api/stockx/gtin/${encodeURIComponent(gtin)}`);
+      const data = await res.json();
+
+      if (data.status === "found" && data.variants?.length > 0) {
+        setProductTitle(data.title || "");
+        setProductSku(data.styleId || "");
+        setProductImageUrl(data.imageUrl || null);
+        setAvailableSizes(data.variants);
+        setSearchStatus("found");
+        setStep("sizes");
+        const displayName = data.variantName || data.title || "Produit";
+        toast.success(`Trouve : ${displayName}`);
+      } else {
+        setSearchStatus("not_found");
+        toast.error("Aucun produit trouve pour ce code-barres");
+      }
+    } catch {
+      setSearchStatus("error");
+      toast.error("Erreur lors de la recherche");
+    } finally {
+      setScanLoading(false);
+    }
+  }, []);
 
   // ─── Select a product from search results ─────────────────────────
 
@@ -414,6 +502,53 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     }
   }, []);
 
+  // ─── Select an admin product ────────────────────────────────────
+
+  const handleSelectAdminProduct = useCallback(async (product: AdminSearchResult) => {
+    // If admin product has a SKU, try StockX lookup first
+    if (product.sku && looksLikeSku(product.sku)) {
+      setLoadingProductId(product.id);
+      try {
+        const res = await fetch(`/api/sku-lookup?sku=${encodeURIComponent(product.sku)}&mode=full`);
+        const data = await res.json();
+        if (data.status === "found" && data.variants?.length > 0) {
+          setProductTitle(data.title || product.name);
+          setProductSku(product.sku.toUpperCase());
+          setProductImageUrl(data.imageUrl || product.imageUrl || null);
+          setAvailableSizes(data.variants);
+          setStep("sizes");
+          setLoadingProductId(null);
+          return;
+        }
+      } catch {
+        // Fall through to custom sizes
+      }
+      setLoadingProductId(null);
+    }
+
+    // If admin product has custom sizes, use them as StockX-like variants
+    if (product.sizes.length > 0) {
+      setProductTitle(product.name);
+      setProductSku(product.sku?.toUpperCase() || "");
+      setProductImageUrl(product.imageUrl || null);
+      setAvailableSizes(
+        product.sizes.map((s, i) => ({
+          variantId: `admin-${i}`,
+          sizeUS: s,
+          sizeEU: null,
+        }))
+      );
+      setStep("sizes");
+      return;
+    }
+
+    // Fallback: go to manual mode with pre-filled info
+    setManualName(product.name);
+    setManualCategory(product.category);
+    setManualImageUrl(product.imageUrl);
+    setStep("manual");
+  }, [looksLikeSku]);
+
   // ─── Size Selection ─────────────────────────────────────────────
 
   const toggleSize = useCallback((sizeUS: string, sizeEU: string | null) => {
@@ -446,8 +581,11 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     try {
       const { default: imageCompression } = await import("browser-image-compression");
       const compressed = await imageCompression(file, { maxWidthOrHeight: 800, maxSizeMB: 0.2, useWebWorker: true });
-      const { uploadUrl, publicUrl } = await getPresignedUploadUrl(compressed.type);
-      await fetch(uploadUrl, { method: "PUT", body: compressed, headers: { "Content-Type": compressed.type } });
+      const formData = new FormData();
+      formData.append("file", compressed);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { publicUrl } = await uploadRes.json();
       setManualImageUrl(publicUrl);
       toast.success("Image ajoutee");
     } catch {
@@ -466,7 +604,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
     }
     setIsSubmitting(true);
     try {
-      await createProductWithVariants({
+      const result = await createProductWithVariants({
         name: productTitle, sku: productSku, imageUrl: productImageUrl || undefined,
         category: "sneakers", purchaseDate: globalPurchaseDate,
         targetPrice: globalTargetPrice ? Number(globalTargetPrice) : undefined,
@@ -478,19 +616,29 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           storageLocation: v.storageLocation || globalStorageLocation || undefined,
         })),
       });
+
+      // Create cashbacks for all variants if enabled
+      if (cashbackEnabled && cashbackAmount && Number(cashbackAmount) > 0 && result.variantIds) {
+        await Promise.all(
+          result.variantIds.map((vid) =>
+            createCashback({ variantId: vid, amount: Number(cashbackAmount), source: cashbackApp, status: "to_request" })
+          )
+        );
+      }
+
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
+  }, [selectedSizes, productTitle, productSku, productImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, cashbackEnabled, cashbackAmount, cashbackApp, router]);
 
   const handleSubmitManual = useCallback(async () => {
     if (!manualName.trim()) { toast.error("Le nom du produit est requis"); return; }
     if (!manualPrice || Number(manualPrice) <= 0) { toast.error("Le prix d'achat est requis"); return; }
     setIsSubmitting(true);
     try {
-      await createProductWithVariants({
+      const result = await createProductWithVariants({
         name: manualName.trim(), imageUrl: manualImageUrl || undefined,
         category: manualCategory as "sneakers" | "pokemon" | "lego" | "random",
         purchaseDate: globalPurchaseDate,
@@ -499,12 +647,22 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
         supplierName: globalSupplierName || undefined,
         variants: [{ sizeVariant: manualSize || undefined, purchasePrice: Number(manualPrice), quantity: manualQuantity, storageLocation: globalStorageLocation || undefined }],
       });
+
+      // Create cashbacks for all variants if enabled
+      if (cashbackEnabled && cashbackAmount && Number(cashbackAmount) > 0 && result.variantIds) {
+        await Promise.all(
+          result.variantIds.map((vid) =>
+            createCashback({ variantId: vid, amount: Number(cashbackAmount), source: cashbackApp, status: "to_request" })
+          )
+        );
+      }
+
       toast.success("Produit ajoute au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
     } finally { setIsSubmitting(false); }
-  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, router]);
+  }, [manualName, manualCategory, manualSize, manualPrice, manualQuantity, manualImageUrl, globalPurchaseDate, globalTargetPrice, globalReturnDeadline, globalStorageLocation, globalSupplierName, notes, cashbackEnabled, cashbackAmount, cashbackApp, router]);
 
   // ─── Add Supplier Dialog (shared across steps) ─────────────────
 
@@ -554,29 +712,41 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           <Label htmlFor="product-search" className="text-base font-semibold">
             Rechercher un produit
           </Label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="product-search"
-              placeholder="Nike Dunk Low, DD1391-100..."
-              value={searchInput}
-              onChange={(e) => handleSearchInputChange(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-              className="pl-9 pr-10 h-11"
-              autoFocus
-            />
-            {searchStatus === "loading" && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
-            )}
-            {searchInput && searchStatus !== "loading" && (
-              <button
-                type="button"
-                onClick={() => { handleSearchInputChange(""); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="product-search"
+                placeholder="Nike Dunk Low, DD1391-100..."
+                value={searchInput}
+                onChange={(e) => handleSearchInputChange(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-9 pr-10 h-11"
+                autoFocus
+              />
+              {(searchStatus === "loading" || scanLoading) && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+              )}
+              {searchInput && searchStatus !== "loading" && !scanLoading && (
+                <button
+                  type="button"
+                  onClick={() => { handleSearchInputChange(""); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 flex-shrink-0"
+              onClick={() => setShowScanner(true)}
+              disabled={scanLoading}
+            >
+              <Camera className="h-4.5 w-4.5" />
+            </Button>
           </div>
           {searchStatus === "idle" && searchInput.length === 0 && (
             <p className="text-[11px] text-muted-foreground">
@@ -584,6 +754,86 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             </p>
           )}
         </div>
+
+        {/* Recent + Trending (shown only when search is idle) */}
+        {searchStatus === "idle" && searchInput.length === 0 && (
+          <>
+            {recentProducts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Ajoutes recemment</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {recentProducts.map((p, i) => (
+                    <button
+                      key={p.sku ?? i}
+                      type="button"
+                      onClick={() => {
+                        if (p.sku) {
+                          handleSearchInputChange(p.sku);
+                          setTimeout(() => performSearch(p.sku!), 0);
+                        } else {
+                          handleSearchInputChange(p.name);
+                          setTimeout(() => performSearch(p.name), 0);
+                        }
+                      }}
+                      className="flex-shrink-0 flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors max-w-[200px]"
+                    >
+                      <div className="relative h-10 w-10 rounded overflow-hidden bg-white flex-shrink-0">
+                        {p.imageUrl ? (
+                          <Image src={p.imageUrl} alt={p.name} fill className="object-contain p-0.5" sizes="40px" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full"><Package className="h-4 w-4 text-muted-foreground" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[11px] font-medium leading-tight truncate">{p.name}</p>
+                        {p.sku && <p className="text-[9px] text-muted-foreground font-mono truncate">{p.sku}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {trendingProducts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Tendances (7 jours)</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {trendingProducts.map((p, i) => (
+                    <button
+                      key={p.sku ?? i}
+                      type="button"
+                      onClick={() => {
+                        if (p.sku) {
+                          handleSearchInputChange(p.sku);
+                          setTimeout(() => performSearch(p.sku!), 0);
+                        } else {
+                          handleSearchInputChange(p.name);
+                          setTimeout(() => performSearch(p.name), 0);
+                        }
+                      }}
+                      className="flex-shrink-0 flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:border-primary/40 transition-colors max-w-[200px]"
+                    >
+                      <div className="relative h-10 w-10 rounded overflow-hidden bg-white flex-shrink-0">
+                        {p.imageUrl ? (
+                          <Image src={p.imageUrl} alt={p.name} fill className="object-contain p-0.5" sizes="40px" />
+                        ) : (
+                          <div className="flex items-center justify-center h-full"><Package className="h-4 w-4 text-muted-foreground" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[11px] font-medium leading-tight truncate">{p.name}</p>
+                        <p className="text-[9px] text-muted-foreground">
+                          {p.addCount} ajout{Number(p.addCount) > 1 ? "s" : ""}
+                          {p.sku && <span className="font-mono ml-1">{p.sku}</span>}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* Loading skeleton */}
         {searchStatus === "loading" && (
@@ -600,11 +850,65 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           </div>
         )}
 
+        {/* Admin product results */}
+        {searchStatus === "found" && adminResults.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Produits Proxcop
+            </p>
+            <div className="space-y-1.5">
+              {adminResults.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  disabled={loadingProductId !== null}
+                  onClick={() => handleSelectAdminProduct(product)}
+                  className={cn(
+                    "w-full flex items-center gap-3 p-2.5 rounded-xl border transition-all text-left",
+                    "bg-card border-primary/30 hover:border-primary/60 hover:bg-secondary/50 active:scale-[0.98]",
+                    loadingProductId === product.id && "border-primary/50 bg-secondary/50"
+                  )}
+                >
+                  <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-white flex-shrink-0">
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-1.5" />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-white/5"><Package className="h-5 w-5 text-muted-foreground" /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium leading-tight line-clamp-2">{product.name}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-primary/20 text-primary border-0">
+                        Admin
+                      </Badge>
+                      {product.sku && (
+                        <span className="text-[11px] text-muted-foreground font-mono">{product.sku}</span>
+                      )}
+                      {product.sizes.length > 0 && (
+                        <span className="text-[10px] text-muted-foreground">{product.sizes.length} tailles</span>
+                      )}
+                    </div>
+                  </div>
+                  {loadingProductId === product.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                  ) : (
+                    <ArrowLeft className="h-4 w-4 text-muted-foreground/40 rotate-180 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Inline search results with images */}
         {searchStatus === "found" && searchResults.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} — choisissez un produit
+              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} StockX — choisissez un produit
             </p>
             <div className="space-y-1.5">
               {searchResults.map((product) => (
@@ -673,6 +977,12 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
           <Package className="h-4 w-4 mr-2" />
           Ajouter manuellement
         </Button>
+
+        <BarcodeScanner
+          open={showScanner}
+          onClose={() => setShowScanner(false)}
+          onScan={handleBarcodeScan}
+        />
       </div>
     );
   }
@@ -710,9 +1020,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
                   Sneakers
                 </Badge>
-                {productSku && (
-                  <CopyableSku sku={productSku} className="text-[10px]" />
-                )}
+                <CopyableSku sku={productSku || null} fallback={productTitle || undefined} className="text-[10px]" />
               </div>
             </div>
           </div>
@@ -763,12 +1071,12 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
 
         <div className="space-y-3 pt-2 border-t border-border">
           <Label className="text-sm font-semibold">Infos globales</Label>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1 min-w-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1 min-w-0 overflow-hidden">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
-              <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm max-w-full" />
+              <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm w-full" />
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Prix cible</Label>
               <Input type="number" step="0.01" min="0" placeholder={medianPrice ? `~${Math.round(medianPrice.median)}` : "180.00"} value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="h-9 text-sm" />
               {medianPrice && (
@@ -782,15 +1090,15 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Stockage</Label>
               <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
                 <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 min-w-0">
+            <div className="space-y-1 min-w-0 overflow-hidden">
               <Label className="text-[11px] text-muted-foreground">Date retour</Label>
               <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
             </div>
@@ -817,6 +1125,49 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             <Label className="text-[11px] text-muted-foreground">Notes</Label>
             <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
           </div>
+        </div>
+
+        {/* Cashback section */}
+        <div className="space-y-2 pt-2 border-t border-border">
+          <button
+            type="button"
+            onClick={() => setCashbackEnabled(!cashbackEnabled)}
+            className={cn(
+              "flex items-center gap-2 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+              cashbackEnabled ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Coins className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm font-medium flex-1">Cashback</span>
+            <span className="text-[10px]">{cashbackEnabled ? "Actif" : "Ajouter"}</span>
+          </button>
+          {cashbackEnabled && (
+            <div className="grid grid-cols-2 gap-2 px-1">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Montant (EUR)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="5.00"
+                  value={cashbackAmount}
+                  onChange={(e) => setCashbackAmount(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Appli</Label>
+                <Select value={cashbackApp} onValueChange={setCashbackApp}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CASHBACK_APPS.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Community sales for this SKU */}
@@ -929,18 +1280,18 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5 min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5 min-w-0 overflow-hidden">
           <Label>Date d&apos;achat *</Label>
-          <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="max-w-full" />
+          <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="w-full" />
         </div>
         <div className="space-y-1.5 min-w-0">
           <Label>Prix cible</Label>
-          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="max-w-full" />
+          <Input type="number" step="0.01" min="0" placeholder="180.00" value={globalTargetPrice} onChange={(e) => setGlobalTargetPrice(e.target.value)} className="w-full" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5 min-w-0">
           <Label>Stockage</Label>
           <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
@@ -948,7 +1299,7 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
             <SelectContent>{STORAGE_LOCATIONS.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5 min-w-0">
+        <div className="space-y-1.5 min-w-0 overflow-hidden">
           <Label>Date retour</Label>
           <ReturnDeadlinePicker value={globalReturnDeadline} onChange={handleReturnDeadlineChange} baseDate={globalPurchaseDate} />
         </div>
@@ -976,6 +1327,49 @@ export function ProductForm({ suppliers = [] }: { suppliers?: SupplierOption[] }
       <div className="space-y-1.5">
         <Label>Notes</Label>
         <Textarea placeholder="Notes supplementaires..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+      </div>
+
+      {/* Cashback section */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setCashbackEnabled(!cashbackEnabled)}
+          className={cn(
+            "flex items-center gap-2 w-full px-3 py-2.5 rounded-lg transition-colors text-left",
+            cashbackEnabled ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Coins className="h-4 w-4 flex-shrink-0" />
+          <span className="text-sm font-medium flex-1">Cashback</span>
+          <span className="text-[10px]">{cashbackEnabled ? "Actif" : "Ajouter"}</span>
+        </button>
+        {cashbackEnabled && (
+          <div className="grid grid-cols-2 gap-2 px-1">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Montant (EUR)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="5.00"
+                value={cashbackAmount}
+                onChange={(e) => setCashbackAmount(e.target.value)}
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Appli</Label>
+              <Select value={cashbackApp} onValueChange={setCashbackApp}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CASHBACK_APPS.map((a) => (
+                    <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       <Button onClick={handleSubmitManual} className="w-full h-12" disabled={isSubmitting}>

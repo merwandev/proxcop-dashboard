@@ -21,6 +21,7 @@ import {
   Square,
   Loader2,
   Download,
+  Upload,
   MessageSquare,
   Copy,
   Check,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CSVImportStockDialog } from "./csv-import-dialog";
 
 interface StockProduct {
   id: string;
@@ -70,6 +72,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
   const [showWithAdvice, setShowWithAdvice] = useState(false);
   const [showListingDialog, setShowListingDialog] = useState(false);
   const [listingLoading, setListingLoading] = useState<string | null>(null);
+  const [showImportCSV, setShowImportCSV] = useState(false);
 
   // Get categories that actually have products
   const usedCategories = useMemo(() => {
@@ -458,26 +461,38 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                 Message admin
               </button>
             )}
-            {products.length > 0 && (
-              <div className="flex items-center gap-0.5 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                  onClick={handleExportCsv}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setSelectMode(true)}
-                >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-0.5 ml-auto">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowImportCSV(true)}
+                title="Importer CSV"
+              >
+                <Upload className="h-3.5 w-3.5" />
+              </Button>
+              {products.length > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={handleExportCsv}
+                    title="Exporter CSV"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setSelectMode(true)}
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -494,20 +509,30 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
       {/* Product list — stack on mobile, 2-col grid on desktop */}
       <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3">
         {filtered.length === 0 ? (
-          <p className="text-center py-12 text-sm text-muted-foreground lg:col-span-2">
-            {products.length === 0
-              ? "Aucun produit en stock"
-              : "Aucun resultat"}
-          </p>
+          <div className="text-center py-12 lg:col-span-2">
+            <p className="text-sm text-muted-foreground">
+              {products.length === 0
+                ? "Aucun produit en stock"
+                : "Aucun resultat"}
+            </p>
+            {products.length === 0 && (
+              <button
+                onClick={() => setShowImportCSV(true)}
+                className="mt-2 text-xs text-primary hover:underline"
+              >
+                Importer depuis un CSV
+              </button>
+            )}
+          </div>
         ) : (
           filtered.map((product) => (
             <div
               key={product.id}
-              className={cn("flex items-center gap-2", selectMode && "cursor-pointer")}
+              className={cn("flex items-stretch gap-2", selectMode && "cursor-pointer")}
               onClick={selectMode ? () => toggleSelect(product.id) : undefined}
             >
               {selectMode && (
-                <div className="flex-shrink-0 p-1">
+                <div className="flex-shrink-0 p-1 flex items-center">
                   {selectedIds.has(product.id) ? (
                     <CheckSquare className="h-5 w-5 text-primary" />
                   ) : (
@@ -515,7 +540,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
                   )}
                 </div>
               )}
-              <div className={cn("flex-1 min-w-0", selectMode && selectedIds.has(product.id) && "opacity-75")}>
+              <div className={cn("flex-1 min-w-0 flex", selectMode && selectedIds.has(product.id) && "opacity-75")}>
                 <ProductGroupCard
                   product={product}
                   hasAdvice={!!product.sku && adviceSkus.includes(product.sku.toUpperCase())}
@@ -587,6 +612,12 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* CSV Import dialog */}
+      <CSVImportStockDialog
+        open={showImportCSV}
+        onClose={() => setShowImportCSV(false)}
+      />
 
       {/* WTS Message dialog */}
       <Dialog open={showWtsDialog} onOpenChange={setShowWtsDialog}>

@@ -36,9 +36,19 @@ export const STATUSES = [
 ] as const;
 
 export const CASHBACK_STATUSES = [
-  { value: "requested", label: "Demande" },
-  { value: "approved", label: "Approuve" },
-  { value: "received", label: "Recu" },
+  { value: "to_request", label: "A demander", color: "bg-muted-foreground" },
+  { value: "requested", label: "Demande", color: "bg-orange-400" },
+  { value: "approved", label: "Approuve", color: "bg-blue-500" },
+  { value: "received", label: "Recu", color: "bg-success" },
+] as const;
+
+export const CASHBACK_APPS = [
+  { value: "igraal", label: "iGraal" },
+  { value: "poulpeo", label: "Poulpeo" },
+  { value: "widilo", label: "Widilo" },
+  { value: "joko", label: "Joko" },
+  { value: "rnr", label: "R&R" },
+  { value: "other", label: "Autre" },
 ] as const;
 
 export const EXPENSE_CATEGORIES = [

@@ -18,36 +18,66 @@ interface AnalyticsData {
   topBrowsers?: { key: string; total: number }[];
 }
 
+/**
+ * Vercel Web Analytics uses internal APIs that aren't fully documented.
+ * We try multiple known endpoint patterns:
+ * 1. api.vercel.com/v1/web-analytics (newer)
+ * 2. vercel.com/api/web/insights (legacy dashboard API)
+ */
+const API_BASES = [
+  "https://api.vercel.com/v1/web-analytics",
+  "https://vercel.com/api/web/insights",
+];
+
 async function fetchVercelAnalytics(
   endpoint: string,
   params: Record<string, string>
 ): Promise<unknown> {
-  const url = new URL(`https://vercel.com/api/web/insights/${endpoint}`);
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
-  }
-  if (VERCEL_TEAM_ID) {
-    url.searchParams.set("teamId", VERCEL_TEAM_ID);
+  let lastError: Error | null = null;
+
+  for (const base of API_BASES) {
+    const url = new URL(`${base}/${endpoint}`);
+    for (const [k, v] of Object.entries(params)) {
+      url.searchParams.set(k, v);
+    }
+    if (VERCEL_TEAM_ID) {
+      url.searchParams.set("teamId", VERCEL_TEAM_ID);
+    }
+
+    try {
+      const res = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${VERCEL_API_TOKEN}`,
+        },
+        next: { revalidate: 300 }, // cache 5 minutes
+      });
+
+      if (res.ok) {
+        return res.json();
+      }
+
+      // If 404, try next base URL
+      if (res.status === 404) {
+        lastError = new Error(`${base}: 404 Not Found`);
+        continue;
+      }
+
+      const text = await res.text();
+      lastError = new Error(`Vercel API ${res.status}: ${text}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${VERCEL_API_TOKEN}`,
-    },
-    next: { revalidate: 300 }, // cache 5 minutes
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Vercel API ${res.status}: ${text}`);
-  }
-
-  return res.json();
+  throw lastError || new Error("All API endpoints failed");
 }
 
 /**
  * GET /api/admin/analytics
  * Fetches Vercel Web Analytics data for the admin dashboard.
+ *
+ * Note: Vercel Web Analytics doesn't have a fully public REST API.
+ * This tries known internal endpoints. If none work, a helpful error is returned.
  */
 export async function GET() {
   const authResult = await requireStaff();
@@ -78,33 +108,33 @@ export async function GET() {
     // Fetch all analytics data in parallel
     const [statsData, pagesData, referrersData, countriesData, devicesData, osData, browsersData] =
       await Promise.all([
-        fetchVercelAnalytics("stats", baseParams) as Promise<{
+        fetchVercelAnalytics("stats", baseParams).catch(() => ({ data: {} })) as Promise<{
           data?: { visitors?: number; pageViews?: number; bounceRate?: number };
         }>,
-        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "path", limit: "10" }) as Promise<{
+        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "path", limit: "10" }).catch(() => ({ data: [] })) as Promise<{
           data?: { key: string; total: number }[];
         }>,
-        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "referrer", limit: "10" }) as Promise<{
+        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "referrer", limit: "10" }).catch(() => ({ data: [] })) as Promise<{
           data?: { key: string; total: number }[];
         }>,
-        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "country", limit: "10" }) as Promise<{
+        fetchVercelAnalytics("stats", { ...baseParams, groupBy: "country", limit: "10" }).catch(() => ({ data: [] })) as Promise<{
           data?: { key: string; total: number }[];
         }>,
         fetchVercelAnalytics("stats", {
           ...baseParams,
           groupBy: "device",
           limit: "5",
-        }) as Promise<{ data?: { key: string; total: number }[] }>,
+        }).catch(() => ({ data: [] })) as Promise<{ data?: { key: string; total: number }[] }>,
         fetchVercelAnalytics("stats", {
           ...baseParams,
           groupBy: "os",
           limit: "5",
-        }) as Promise<{ data?: { key: string; total: number }[] }>,
+        }).catch(() => ({ data: [] })) as Promise<{ data?: { key: string; total: number }[] }>,
         fetchVercelAnalytics("stats", {
           ...baseParams,
           groupBy: "browser",
           limit: "5",
-        }) as Promise<{ data?: { key: string; total: number }[] }>,
+        }).catch(() => ({ data: [] })) as Promise<{ data?: { key: string; total: number }[] }>,
       ]);
 
     const result: AnalyticsData = {
@@ -119,15 +149,36 @@ export async function GET() {
       topBrowsers: Array.isArray(browsersData?.data) ? browsersData.data : [],
     };
 
+    // If all data is empty, the API likely isn't accessible
+    const hasAnyData =
+      result.visitors != null ||
+      result.pageViews != null ||
+      (result.topPages && result.topPages.length > 0);
+
+    if (!hasAnyData) {
+      return NextResponse.json(
+        {
+          error: "Analytics non disponible",
+          message:
+            "L'API Vercel Web Analytics n'est pas accessible avec votre token. " +
+            "Consultez les analytics directement sur le dashboard Vercel.",
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     console.error("Vercel analytics fetch error:", err);
     return NextResponse.json(
       {
-        error: "Erreur lors de la recuperation des analytics",
-        message: err instanceof Error ? err.message : "Unknown error",
+        error: "Analytics non disponible",
+        message:
+          "L'API Vercel Web Analytics n'a pas pu etre contactee. " +
+          "Vercel ne propose pas encore d'API publique pour lire les analytics. " +
+          "Consultez vos analytics sur vercel.com/analytics.",
       },
-      { status: 500 }
+      { status: 503 }
     );
   }
 }

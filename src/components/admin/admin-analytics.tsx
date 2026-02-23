@@ -107,12 +107,12 @@ export function AdminAnalytics() {
       <div className="rounded-xl bg-secondary p-6 text-center space-y-2">
         <p className="text-sm text-muted-foreground">{error}</p>
         <a
-          href="https://vercel.com/docs/analytics/api"
+          href="https://vercel.com/analytics"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
-          Configurer les analytics Vercel
+          Voir les analytics sur Vercel
           <ExternalLink className="h-3 w-3" />
         </a>
       </div>

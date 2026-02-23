@@ -97,11 +97,12 @@ interface ProductDetailClientProps {
   };
   medianPrices?: Record<string, MedianPrice>;
   suppliers?: Supplier[];
+  platformFees?: Record<string, number>;
   userName?: string;
   showSuccessAnimation?: boolean;
 }
 
-export function ProductDetailClient({ product, medianPrices, suppliers = [], userName, showSuccessAnimation }: ProductDetailClientProps) {
+export function ProductDetailClient({ product, medianPrices, suppliers = [], platformFees, userName, showSuccessAnimation }: ProductDetailClientProps) {
   const [showSold, setShowSold] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -287,6 +288,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], use
                 variant={variant}
                 medianPrice={medianPrices?.[sizeKey] ?? null}
                 suppliers={suppliers}
+                platformFees={platformFees}
                 productInfo={{ name: product.name, imageUrl: product.imageUrl, sku: product.sku }}
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
@@ -364,6 +366,7 @@ function VariantCard({
   soldView = false,
   medianPrice = null,
   suppliers = [],
+  platformFees,
   productInfo,
   userName,
   showSuccessAnimation,
@@ -373,6 +376,7 @@ function VariantCard({
   soldView?: boolean;
   medianPrice?: MedianPrice | null;
   suppliers?: Supplier[];
+  platformFees?: Record<string, number>;
   productInfo?: { name: string; imageUrl: string | null; sku: string | null };
   userName?: string;
   showSuccessAnimation?: boolean;
@@ -464,6 +468,7 @@ function VariantCard({
                   sizeVariant: variant.sizeVariant,
                   purchasePrice: Number(variant.purchasePrice),
                 } : undefined}
+                platformFees={platformFees}
                 userName={userName}
                 showSuccessAnimation={showSuccessAnimation}
                 onSaleSuccess={onSaleSuccess}

@@ -4,7 +4,7 @@ import { getProductWithVariants } from "@/lib/queries/products";
 import { getActiveAdviceForSkus } from "@/lib/queries/product-advice";
 import { getMedianSalePricesBatch, getSalesBySku } from "@/lib/queries/sales";
 import { getUserSuppliers } from "@/lib/queries/suppliers";
-import { getSaleSuccessAnimation } from "@/lib/queries/user-preferences";
+import { getSaleSuccessAnimation, getPlatformFees } from "@/lib/queries/user-preferences";
 import { DeleteProductButton } from "@/components/product/delete-product-button";
 import { ProductDetailClient } from "@/components/product/product-detail-client";
 import { SkuSalesSection } from "@/components/product/sku-sales-section";
@@ -25,12 +25,13 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   if (!product) notFound();
 
   // Get advice + median prices + sku sales + suppliers + animation pref
-  const [advice, medianPrices, skuSales, suppliers, showSuccessAnimation] = await Promise.all([
+  const [advice, medianPrices, skuSales, suppliers, showSuccessAnimation, platformFees] = await Promise.all([
     product.sku ? getActiveAdviceForSkus([product.sku]) : Promise.resolve([]),
     product.sku ? getMedianSalePricesBatch(product.sku) : Promise.resolve({}),
     product.sku ? getSalesBySku(product.sku) : Promise.resolve([]),
     getUserSuppliers(session.user.id),
     getSaleSuccessAnimation(session.user.id),
+    getPlatformFees(session.user.id),
   ]);
 
   return (
@@ -56,6 +57,7 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
         product={product}
         medianPrices={medianPrices}
         suppliers={suppliers}
+        platformFees={platformFees}
         userName={session.user.name ?? undefined}
         showSuccessAnimation={showSuccessAnimation}
       />

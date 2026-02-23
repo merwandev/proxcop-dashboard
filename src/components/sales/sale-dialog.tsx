@@ -34,14 +34,41 @@ interface SaleDialogProps {
     sizeVariant: string | null;
     purchasePrice: number;
   };
+  platformFees?: Record<string, number>;
   userName?: string;
   showSuccessAnimation?: boolean;
   onSaleSuccess?: (data: SaleSuccessData) => void;
 }
 
-export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimation = true, onSaleSuccess }: SaleDialogProps) {
+export function SaleDialog({ variantId, productInfo, platformFees, userName, showSuccessAnimation = true, onSaleSuccess }: SaleDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [platformFeeValue, setPlatformFeeValue] = useState("0");
+
+  // Auto-calculate commission when platform or sale price changes
+  const autoCalculateFee = (platform: string, price: string) => {
+    const feePercent = platformFees?.[platform];
+    const priceNum = parseFloat(price);
+    if (feePercent && priceNum > 0) {
+      const fee = Math.round(priceNum * feePercent) / 100;
+      setPlatformFeeValue(fee.toFixed(2));
+    } else if (!feePercent) {
+      setPlatformFeeValue("0");
+    }
+  };
+
+  const handlePlatformChange = (platform: string) => {
+    setSelectedPlatform(platform);
+    autoCalculateFee(platform, salePrice);
+  };
+
+  const handleSalePriceChange = (price: string) => {
+    setSalePrice(price);
+    if (selectedPlatform) {
+      autoCalculateFee(selectedPlatform, price);
+    }
+  };
 
   const action = async (_prev: unknown, formData: FormData) => {
     formData.set("variantId", variantId);
@@ -75,6 +102,8 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
 
       setOpen(false);
       setSelectedPlatform("");
+      setSalePrice("");
+      setPlatformFeeValue("0");
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -85,7 +114,7 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSelectedPlatform(""); }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedPlatform(""); setSalePrice(""); setPlatformFeeValue("0"); } }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-success">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -107,6 +136,8 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
                 step="0.01"
                 min="0"
                 required
+                value={salePrice}
+                onChange={(e) => handleSalePriceChange(e.target.value)}
               />
             </div>
 
@@ -117,7 +148,7 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
               <Label>Plateforme</Label>
               <Select
                 value={selectedPlatform}
-                onValueChange={setSelectedPlatform}
+                onValueChange={handlePlatformChange}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir..." />
@@ -169,7 +200,8 @@ export function SaleDialog({ variantId, productInfo, userName, showSuccessAnimat
                   type="number"
                   step="0.01"
                   min="0"
-                  defaultValue="0"
+                  value={platformFeeValue}
+                  onChange={(e) => setPlatformFeeValue(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">

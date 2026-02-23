@@ -106,6 +106,25 @@ export async function saveCommunityOptIn(userId: string, optIn: boolean) {
     .where(eq(users.id, userId));
 }
 
+// ─── Platform Fees ──────────────────────────────────────────────────
+
+export async function getPlatformFees(userId: string): Promise<Record<string, number>> {
+  const result = await db
+    .select({ platformFees: users.platformFees })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return (result[0]?.platformFees as Record<string, number>) ?? {};
+}
+
+export async function savePlatformFees(userId: string, fees: Record<string, number>) {
+  await db
+    .update(users)
+    .set({ platformFees: fees, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
 // ─── Sale Success Animation ─────────────────────────────────────────
 
 export async function getSaleSuccessAnimation(userId: string): Promise<boolean> {

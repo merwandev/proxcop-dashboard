@@ -4,10 +4,14 @@ import { NextResponse } from "next/server";
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isOnLogin = req.nextUrl.pathname === "/login";
+  const isOnWelcome = req.nextUrl.pathname === "/welcome";
   const isAuthRoute = req.nextUrl.pathname.startsWith("/api/auth");
 
   // Allow auth routes always
   if (isAuthRoute) return NextResponse.next();
+
+  // Allow logged-in users to see welcome page
+  if (isOnWelcome && isLoggedIn) return NextResponse.next();
 
   // Redirect logged-in users away from login page
   if (isOnLogin && isLoggedIn) {

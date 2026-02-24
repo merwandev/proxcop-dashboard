@@ -22,7 +22,10 @@ export default async function AddProductPage() {
         <Link href="/stock" className="p-1">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h1 className="text-xl font-bold">Ajouter un produit</h1>
+        <div>
+          <h1 className="text-xl font-bold">Ajouter un produit</h1>
+          <p className="text-sm text-muted-foreground">Recherche StockX ou ajout manuel</p>
+        </div>
       </div>
       <ProductForm
         suppliers={suppliers}

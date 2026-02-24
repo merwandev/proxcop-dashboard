@@ -45,7 +45,10 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
           <Link href="/stock" className="p-1 flex-shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-base sm:text-xl font-bold truncate">{product.name}</h1>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-bold truncate">{product.name}</h1>
+            <p className="text-sm text-muted-foreground truncate">{product.category}{product.sku ? ` · ${product.sku}` : ""}</p>
+          </div>
         </div>
         <div className="flex-shrink-0">
           <DeleteProductButton productId={product.id} />

@@ -25,7 +25,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="py-4 space-y-6 lg:py-6 lg:space-y-8">
-      <h1 className="text-xl font-bold lg:text-2xl">Parametres</h1>
+      <div>
+        <h1 className="text-xl font-bold lg:text-2xl">Parametres</h1>
+        <p className="text-sm text-muted-foreground">Fournisseurs, frais, fiscalite et preferences</p>
+      </div>
 
       <div className="space-y-6 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0">
         <div className="space-y-6">

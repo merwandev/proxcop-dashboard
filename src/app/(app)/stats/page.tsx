@@ -24,7 +24,10 @@ export default async function StatsPage() {
 
   return (
     <div className="py-4 space-y-4 lg:py-6 lg:space-y-6">
-      <h1 className="text-xl font-bold lg:text-2xl">Analytics</h1>
+      <div>
+        <h1 className="text-xl font-bold lg:text-2xl">Analytics</h1>
+        <p className="text-sm text-muted-foreground">Marges, ROI et tendances de vos ventes</p>
+      </div>
 
       {/* KPI summary */}
       <div className="grid grid-cols-2 gap-2">

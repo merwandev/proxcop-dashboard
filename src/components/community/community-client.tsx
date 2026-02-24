@@ -112,7 +112,10 @@ export function CommunityClient({
     <div className="py-4 space-y-4 lg:py-6 lg:space-y-6 pb-24 lg:pb-8">
       {/* Header + Period selector */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold lg:text-2xl">Communauté</h1>
+        <div>
+          <h1 className="text-xl font-bold lg:text-2xl">Communauté</h1>
+          <p className="text-sm text-muted-foreground">Tendances et stats de la communaute Proxcop</p>
+        </div>
         <div className="flex items-center gap-1">
           {PERIODS.map((p) => (
             <button

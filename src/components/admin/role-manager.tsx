@@ -112,7 +112,7 @@ export function RoleManager({ allowedRoles: initialRoles }: RoleManagerProps) {
   };
 
   return (
-    <Card className="p-4 bg-card border-border space-y-4">
+    <Card className="p-4 bg-card border-border gap-4">
       <div className="flex items-center gap-2">
         <Shield className="h-4 w-4 text-muted-foreground" />
         <h3 className="font-medium text-sm">Roles Discord autorises</h3>

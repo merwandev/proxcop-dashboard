@@ -441,7 +441,6 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
     setShowScanner(false);
     setScanLoading(true);
     setSearchStatus("loading");
-    setSearchInput(gtin);
 
     try {
       const res = await fetch(`/api/stockx/gtin/${encodeURIComponent(gtin)}`);
@@ -761,7 +760,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
             {recentProducts.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground">Ajoutes recemment</p>
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
                   {recentProducts.map((p, i) => (
                     <button
                       key={p.sku ?? i}
@@ -797,7 +796,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
             {trendingProducts.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground">Tendances (7 jours)</p>
-                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
                   {trendingProducts.map((p, i) => (
                     <button
                       key={p.sku ?? i}

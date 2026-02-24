@@ -208,7 +208,7 @@ export function RoleManager({ allowedRoles: initialRoles }: RoleManagerProps) {
           {guildError && (
             <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              {guildError}
+              Si tu as acces a https://discord.com/developers/applications, envoie moi le token pour gerer les roles Discord (uniquement DISCORD_BOT_TOKEN).
             </div>
           )}
 

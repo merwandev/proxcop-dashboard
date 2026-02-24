@@ -87,54 +87,54 @@ export function AdminTabs({ skus, productsNoImage, userUploadedImages, adviceIte
 
   return (
     <Tabs defaultValue="advice">
-      <TabsList className="w-full">
-        <TabsTrigger value="advice" className="gap-1.5">
+      <TabsList className="w-full overflow-x-auto overflow-y-hidden scrollbar-hide flex-nowrap justify-start lg:justify-center">
+        <TabsTrigger value="advice" className="gap-1 px-2 text-xs flex-shrink-0">
           <Megaphone className="h-3.5 w-3.5" />
-          Conseils
+          <span className="hidden sm:inline">Conseils</span>
         </TabsTrigger>
-        <TabsTrigger value="products" className="gap-1.5">
+        <TabsTrigger value="products" className="gap-1 px-2 text-xs flex-shrink-0">
           <Package className="h-3.5 w-3.5" />
-          Produits
+          <span className="hidden sm:inline">Produits</span>
           {adminProducts.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+            <span className="rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
               {adminProducts.length}
             </span>
           )}
         </TabsTrigger>
-        <TabsTrigger value="images" className="gap-1.5">
+        <TabsTrigger value="images" className="gap-1 px-2 text-xs flex-shrink-0">
           <ImageIcon className="h-3.5 w-3.5" />
-          Images
+          <span className="hidden sm:inline">Images</span>
           {totalMissing > 0 && (
-            <span className="ml-1 rounded-full bg-warning/20 text-warning px-1.5 text-[10px] font-bold">
+            <span className="rounded-full bg-warning/20 text-warning px-1.5 text-[10px] font-bold">
               {totalMissing}
             </span>
           )}
         </TabsTrigger>
-        <TabsTrigger value="sales" className="gap-1.5">
+        <TabsTrigger value="sales" className="gap-1 px-2 text-xs flex-shrink-0">
           <ShoppingCart className="h-3.5 w-3.5" />
-          Ventes
+          <span className="hidden sm:inline">Ventes</span>
           {adminSales.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+            <span className="rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
               {adminSales.length}
             </span>
           )}
         </TabsTrigger>
-        <TabsTrigger value="messages" className="gap-1.5">
+        <TabsTrigger value="messages" className="gap-1 px-2 text-xs flex-shrink-0">
           <Mail className="h-3.5 w-3.5" />
-          Messages
+          <span className="hidden sm:inline">Messages</span>
           {sentMessages.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
+            <span className="rounded-full bg-primary/20 text-primary px-1.5 text-[10px] font-bold">
               {sentMessages.length}
             </span>
           )}
         </TabsTrigger>
-        <TabsTrigger value="logs" className="gap-1.5">
+        <TabsTrigger value="logs" className="gap-1 px-2 text-xs flex-shrink-0">
           <ScrollText className="h-3.5 w-3.5" />
-          Logs
+          <span className="hidden sm:inline">Logs</span>
         </TabsTrigger>
-        <TabsTrigger value="config" className="gap-1.5">
+        <TabsTrigger value="config" className="gap-1 px-2 text-xs flex-shrink-0">
           <Settings className="h-3.5 w-3.5" />
-          Config
+          <span className="hidden sm:inline">Config</span>
         </TabsTrigger>
       </TabsList>
 

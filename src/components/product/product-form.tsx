@@ -490,7 +490,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         setAvailableSizes(data.variants);
         setStep("sizes");
       } else if (data.status === "error") {
-        toast.error("Service StockX indisponible");
+        toast.error("Service de recherche indisponible");
       } else {
         toast.error("Aucune taille trouvée pour ce produit");
       }
@@ -907,7 +907,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         {searchStatus === "found" && searchResults.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} StockX — choisissez un produit
+              {searchResults.length} résultat{searchResults.length > 1 ? "s" : ""} — choisissez un produit
             </p>
             <div className="space-y-1.5">
               {searchResults.map((product) => (

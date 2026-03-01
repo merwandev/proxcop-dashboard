@@ -113,18 +113,20 @@ export function RoleManager({ allowedRoles: initialRoles }: RoleManagerProps) {
 
   return (
     <Card className="p-4 bg-card border-border space-y-4">
-      <div className="flex items-center gap-2">
-        <Shield className="h-4 w-4 text-muted-foreground" />
-        <h3 className="font-medium text-sm">Roles Discord autorises</h3>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Seuls les membres avec un de ces roles pourront se connecter.
+      <div>
+        <div className="flex items-center gap-2">
+          <Shield className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-medium text-sm">Roles Discord autorises</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Seuls les membres avec un de ces roles pourront se connecter.
         {allowedRoles.length === 0 && (
           <span className="text-warning font-medium">
             {" "}Aucun role configure — tous les membres du serveur peuvent se connecter.
           </span>
         )}
-      </p>
+        </p>
+      </div>
 
       {/* Currently allowed roles */}
       {allowedRoles.length > 0 && (

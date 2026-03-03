@@ -21,29 +21,30 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
     const webhookUrl = await getConfigValue("discord_webhook_url");
     if (!webhookUrl) return;
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://proxcop-dashboard.vercel.app";
+    const logoUrl = `${appUrl}/logo%20icon.png`;
+
+    const footer = {
+      text: "Powered by Proxcop",
+      icon_url: logoUrl,
+    };
+
     let embed: Record<string, unknown>;
 
     if (data.anonymous) {
-      const now = new Date();
-      const sellTime = now.toLocaleDateString("fr-FR", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-      }) + " " + now.toLocaleTimeString("fr-FR", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-      });
-
       embed = {
-        title: "\uD83E\uDD77 New Hidden Sale \uD83D\uDCB8",
-        description: "This sale has been hidden, which means that the seller has purchased the Anonymous sales package at the dashboard.",
+        title: "Nouvelle vente",
         color: 0x2f3136,
         fields: [
-          { name: "Site", value: "HIDDEN \uD83E\uDD77", inline: true },
-          { name: "Sell Time", value: sellTime, inline: true },
+          { name: "Produit", value: "HIDDEN", inline: true },
+          { name: "SKU", value: "HIDDEN", inline: true },
+          { name: "Taille", value: "HIDDEN", inline: true },
+          { name: "Prix de vente", value: "HIDDEN", inline: true },
+          { name: "Plateforme", value: "HIDDEN", inline: true },
+          { name: "Date", value: data.saleDate, inline: true },
         ],
         timestamp: new Date().toISOString(),
-        footer: {
-          text: "Powered by Proxcop",
-          icon_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://proxcop.com"}/logo%20icon.png`,
-        },
+        footer,
       };
     } else {
       const platformLabel = data.platform
@@ -64,7 +65,7 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
         color: 0x4ade80,
         fields,
         timestamp: new Date().toISOString(),
-        footer: { text: "ProxStock" },
+        footer,
       };
 
       if (data.imageUrl) {

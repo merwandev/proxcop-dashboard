@@ -33,14 +33,15 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
 
     if (data.anonymous) {
       embed = {
-        title: "Nouvelle vente",
+        title: "Nouvelle vente anonyme",
+        description: "Cette vente a été masquée par le vendeur. Il a choisi de ne pas partager les détails publiquement.",
         color: 0x2f3136,
         fields: [
-          { name: "Produit", value: "HIDDEN", inline: true },
-          { name: "SKU", value: "HIDDEN", inline: true },
-          { name: "Taille", value: "HIDDEN", inline: true },
-          { name: "Prix de vente", value: "HIDDEN", inline: true },
-          { name: "Plateforme", value: "HIDDEN", inline: true },
+          { name: "Produit", value: "||HIDDEN||", inline: true },
+          { name: "SKU", value: "||HIDDEN||", inline: true },
+          { name: "Taille", value: "||HIDDEN||", inline: true },
+          { name: "Prix de vente", value: "||HIDDEN||", inline: true },
+          { name: "Plateforme", value: "||HIDDEN||", inline: true },
           { name: "Date", value: data.saleDate, inline: true },
         ],
         timestamp: new Date().toISOString(),

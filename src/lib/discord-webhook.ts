@@ -21,8 +21,7 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
     const webhookUrl = await getConfigValue("discord_webhook_url");
     if (!webhookUrl) return;
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://proxcop-dashboard.vercel.app";
-    const logoUrl = `${appUrl}/logo-icon.png`;
+    const logoUrl = "https://proxcop-dashboard.vercel.app/logo-icon.png";
 
     const footer = {
       text: "Powered by Proxcop",

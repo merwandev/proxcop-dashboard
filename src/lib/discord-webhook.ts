@@ -22,7 +22,7 @@ export async function sendSaleWebhook(data: SaleEmbedData): Promise<void> {
     if (!webhookUrl) return;
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://proxcop-dashboard.vercel.app";
-    const logoUrl = `${appUrl}/logo%20icon.png`;
+    const logoUrl = `${appUrl}/logo-icon.png`;
 
     const footer = {
       text: "Powered by Proxcop",

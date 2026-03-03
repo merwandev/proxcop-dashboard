@@ -48,7 +48,7 @@ export function MissingImageProducts({ products }: MissingImageProductsProps) {
 
       setResolvedIds((prev) => new Set(prev).add(productId));
       setImageUrls((prev) => ({ ...prev, [productId]: publicUrl }));
-      toast.success("Image ajoutee");
+      toast.success("Image ajoutée");
     } catch {
       toast.error("Erreur lors de l'upload");
     } finally {
@@ -73,7 +73,7 @@ export function MissingImageProducts({ products }: MissingImageProductsProps) {
 
       setResolvedIds((prev) => new Set(prev).add(productId));
       setImageUrls((prev) => ({ ...prev, [productId]: url }));
-      toast.success("Image ajoutee");
+      toast.success("Image ajoutée");
     } catch {
       toast.error("Erreur");
     } finally {

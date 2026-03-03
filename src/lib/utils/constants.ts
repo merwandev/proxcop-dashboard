@@ -12,6 +12,10 @@ export const PLATFORMS = [
   { value: "laced", label: "Laced" },
   { value: "hypeboost", label: "Hypeboost" },
   { value: "alias", label: "Alias" },
+  { value: "leboncoin", label: "Leboncoin" },
+  { value: "vestiaire", label: "Vestiaire Co" },
+  { value: "fb_groups", label: "FB Groupes" },
+  { value: "direct", label: "Vente directe" },
   { value: "discord", label: "Discord" },
   { value: "other", label: "Autre" },
 ] as const;
@@ -25,8 +29,8 @@ export const STATUSES = [
   { value: "en_attente", label: "En attente", color: "bg-orange-400" },
   { value: "en_stock", label: "En stock", color: "bg-blue-500" },
   { value: "liste", label: "Liste", color: "bg-purple-500" },
-  { value: "reserve", label: "Reserve", color: "bg-yellow-500" },
-  { value: "expedie", label: "Expedie", color: "bg-cyan-500" },
+  { value: "reserve", label: "Réservé", color: "bg-yellow-500" },
+  { value: "expedie", label: "Expédié", color: "bg-cyan-500" },
   { value: "vendu", label: "Vendu", color: "bg-success" },
   { value: "en_litige", label: "En litige", color: "bg-danger" },
   { value: "return_waiting_rf", label: "Return / Waiting RF", color: "bg-warning" },
@@ -36,10 +40,10 @@ export const STATUSES = [
 ] as const;
 
 export const CASHBACK_STATUSES = [
-  { value: "to_request", label: "A demander", color: "bg-muted-foreground" },
-  { value: "requested", label: "Demande", color: "bg-orange-400" },
-  { value: "approved", label: "Approuve", color: "bg-blue-500" },
-  { value: "received", label: "Recu", color: "bg-success" },
+  { value: "to_request", label: "À demander", color: "bg-muted-foreground" },
+  { value: "requested", label: "Demandé", color: "bg-orange-400" },
+  { value: "approved", label: "Approuvé", color: "bg-blue-500" },
+  { value: "received", label: "Reçu", color: "bg-success" },
 ] as const;
 
 export const CASHBACK_APPS = [
@@ -54,7 +58,7 @@ export const CASHBACK_APPS = [
 export const EXPENSE_CATEGORIES = [
   { value: "bot", label: "Bot" },
   { value: "proxy", label: "Proxy" },
-  { value: "shipping_materials", label: "Materiel d'envoi" },
+  { value: "shipping_materials", label: "Matériel d'envoi" },
   { value: "subscription", label: "Abonnement" },
   { value: "other", label: "Autre" },
 ] as const;
@@ -62,7 +66,7 @@ export const EXPENSE_CATEGORIES = [
 export const STORAGE_LOCATIONS = [
   { value: "home", label: "Chez moi" },
   { value: "shop", label: "Shop" },
-  { value: "associate", label: "Associe" },
+  { value: "associate", label: "Associé" },
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number]["value"];

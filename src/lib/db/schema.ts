@@ -16,7 +16,7 @@ import { relations } from "drizzle-orm";
 export const userRoleEnum = pgEnum("user_role", ["member", "staff", "shop", "dev"]);
 export const categoryEnum = pgEnum("category", ["sneakers", "pokemon", "lego", "random"]);
 export const platformEnum = pgEnum("platform", [
-  "stockx", "vinted", "ebay", "laced", "hypeboost", "alias", "discord", "other",
+  "stockx", "vinted", "ebay", "laced", "hypeboost", "alias", "leboncoin", "vestiaire", "fb_groups", "direct", "discord", "other",
 ]);
 export const paymentStatusEnum = pgEnum("payment_status", ["paid", "pending"]);
 export const productStatusEnum = pgEnum("product_status", [

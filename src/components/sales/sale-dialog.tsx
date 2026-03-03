@@ -22,7 +22,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PLATFORMS } from "@/lib/utils/constants";
 import { createSale } from "@/lib/actions/sale-actions";
-import { BadgeCheck, Loader2 } from "lucide-react";
+import { BadgeCheck, Loader2, EyeOff } from "lucide-react";
 import { type SaleSuccessData } from "./sale-success-animation";
 
 interface SaleDialogProps {
@@ -45,6 +45,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [platformFeeValue, setPlatformFeeValue] = useState("0");
+  const [anonymousSale, setAnonymousSale] = useState(false);
 
   // Auto-calculate commission when platform or sale price changes
   const autoCalculateFee = (platform: string, price: string) => {
@@ -104,6 +105,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
       setSelectedPlatform("");
       setSalePrice("");
       setPlatformFeeValue("0");
+      setAnonymousSale(false);
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -114,7 +116,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedPlatform(""); setSalePrice(""); setPlatformFeeValue("0"); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedPlatform(""); setSalePrice(""); setPlatformFeeValue("0"); setAnonymousSale(false); } }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-success">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -183,8 +185,8 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="paid">Deja paye</SelectItem>
-                      <SelectItem value="pending">Paiement a reception</SelectItem>
+                      <SelectItem value="paid">Déjà payé</SelectItem>
+                      <SelectItem value="pending">Paiement à réception</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -232,6 +234,27 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
               <Label htmlFor="notes">Notes</Label>
               <Textarea id="notes" name="notes" rows={2} />
             </div>
+
+            {/* Anonymous sale toggle */}
+            <input type="hidden" name="anonymousSale" value={anonymousSale ? "true" : "false"} />
+            <button
+              type="button"
+              onClick={() => setAnonymousSale(!anonymousSale)}
+              className={`flex items-center gap-2 w-full rounded-lg border p-3 text-sm transition-colors ${
+                anonymousSale
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-border bg-secondary/50 text-muted-foreground"
+              }`}
+            >
+              <EyeOff className="h-4 w-4 shrink-0" />
+              <div className="text-left">
+                <p className="font-medium">Vente anonyme</p>
+                <p className="text-xs opacity-70">Masquer les détails dans le webhook Discord</p>
+              </div>
+              <div className={`ml-auto h-5 w-9 rounded-full transition-colors ${anonymousSale ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                <div className={`h-4 w-4 rounded-full bg-white mt-0.5 transition-transform ${anonymousSale ? "translate-x-4.5" : "translate-x-0.5"}`} />
+              </div>
+            </button>
 
             {state && "error" in state && (
               <p className="text-sm text-danger">{state.error}</p>

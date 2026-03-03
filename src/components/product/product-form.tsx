@@ -491,7 +491,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         setAvailableSizes(data.variants);
         setStep("sizes");
       } else if (data.status === "error") {
-        toast.error("Service StockX indisponible");
+        toast.error("Produit non trouvé sur StockX, ajoutez-le manuellement");
       } else {
         toast.error("Aucune taille trouvée pour ce produit");
       }
@@ -587,7 +587,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       if (!uploadRes.ok) throw new Error("Upload failed");
       const { publicUrl } = await uploadRes.json();
       setManualImageUrl(publicUrl);
-      toast.success("Image ajoutee");
+      toast.success("Image ajoutée");
     } catch {
       toast.error("Erreur lors de l'upload");
     } finally {
@@ -598,7 +598,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
   // ─── Submit ─────────────────────────────────────────────────────
 
   const handleSubmitStockX = useCallback(async () => {
-    if (selectedSizes.size === 0) { toast.error("Selectionnez au moins une taille"); return; }
+    if (selectedSizes.size === 0) { toast.error("Sélectionnez au moins une taille"); return; }
     for (const [size, data] of selectedSizes) {
       if (!data.purchasePrice || Number(data.purchasePrice) <= 0) { toast.error(`Prix d'achat requis pour la taille ${size}`); return; }
     }
@@ -611,7 +611,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         returnDeadline: globalReturnDeadline || undefined, notes: notes || undefined,
         supplierName: globalSupplierName || undefined,
         variants: Array.from(selectedSizes.values()).map((v) => ({
-          sizeVariant: v.sizeEU ? `US ${v.sizeUS} / EU ${v.sizeEU}` : `US ${v.sizeUS}`,
+          sizeVariant: v.sizeEU ? `EU ${v.sizeEU} / US ${v.sizeUS}` : `US ${v.sizeUS}`,
           purchasePrice: Number(v.purchasePrice), quantity: v.quantity,
           storageLocation: v.storageLocation || globalStorageLocation || undefined,
         })),
@@ -626,7 +626,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         );
       }
 
-      toast.success("Produit ajoute au stock !");
+      toast.success("Produit ajouté au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
@@ -657,7 +657,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         );
       }
 
-      toast.success("Produit ajoute au stock !");
+      toast.success("Produit ajouté au stock !");
       router.push("/stock");
     } catch (e) {
       toast.error((e as Error).message || "Erreur lors de l'ajout");
@@ -962,8 +962,8 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         {/* Error */}
         {searchStatus === "error" && (
           <div className="rounded-xl bg-secondary/50 p-5 text-center space-y-1">
-            <p className="text-sm text-muted-foreground">Service de search temporairement indisponible</p>
-            <p className="text-xs text-muted-foreground/70">Réessayez ou ajoutez manuellement</p>
+            <p className="text-sm text-muted-foreground">Produit non trouvé sur StockX</p>
+            <p className="text-xs text-muted-foreground/70">Ce produit n&apos;est peut-être pas référencé sur StockX. Ajoutez-le manuellement ci-dessous.</p>
           </div>
         )}
 
@@ -1027,14 +1027,14 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         </div>
 
         <div className="space-y-2">
-          <Label className="text-sm font-semibold">Selectionnez les tailles ({selectedSizes.size} selectionnee{selectedSizes.size > 1 ? "s" : ""})</Label>
+          <Label className="text-sm font-semibold">Sélectionnez les tailles ({selectedSizes.size} sélectionnée{selectedSizes.size > 1 ? "s" : ""})</Label>
           <div className="grid grid-cols-4 gap-1.5">
             {availableSizes.map((v) => {
               const isSelected = selectedSizes.has(v.sizeUS);
               return (
                 <button key={v.variantId} type="button" onClick={() => toggleSize(v.sizeUS, v.sizeEU)} className={cn("py-2 px-1 rounded-lg font-medium transition-all min-h-[44px] flex flex-col items-center justify-center gap-0.5", isSelected ? "bg-primary text-primary-foreground ring-2 ring-primary/50" : "bg-secondary hover:bg-secondary/80 text-muted-foreground")}>
-                  <span className="text-xs">US {v.sizeUS}</span>
-                  {v.sizeEU && <span className={cn("text-[9px]", isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60")}>EU {v.sizeEU}</span>}
+                  {v.sizeEU ? <span className="text-xs">EU {v.sizeEU}</span> : <span className="text-xs">US {v.sizeUS}</span>}
+                  {v.sizeEU && <span className={cn("text-[9px]", isSelected ? "text-primary-foreground/70" : "text-muted-foreground/60")}>US {v.sizeUS}</span>}
                 </button>
               );
             })}
@@ -1047,7 +1047,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
             {Array.from(selectedSizes.entries()).map(([size, data]) => (
               <div key={size} className="rounded-xl bg-secondary p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">US {size}{data.sizeEU ? ` / EU ${data.sizeEU}` : ""}</span>
+                  <span className="text-sm font-medium">{data.sizeEU ? `EU ${data.sizeEU} / US ${size}` : `US ${size}`}</span>
                   <button type="button" onClick={() => toggleSize(size, data.sizeEU)} className="text-xs text-muted-foreground hover:text-danger transition-colors">Retirer</button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1056,7 +1056,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
                     <Input type="number" step="0.01" min="0" placeholder="120.00" value={data.purchasePrice} onChange={(e) => updateSizeField(size, "purchasePrice", e.target.value)} className="h-9 text-sm" />
                   </div>
                   <div>
-                    <Label className="text-[11px] text-muted-foreground">Quantite</Label>
+                    <Label className="text-[11px] text-muted-foreground">Quantité</Label>
                     <div className="flex items-center gap-1">
                       <Button type="button" variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => updateSizeField(size, "quantity", Math.max(1, data.quantity - 1))}><Minus className="h-3 w-3" /></Button>
                       <Input type="number" min="1" value={data.quantity} onChange={(e) => updateSizeField(size, "quantity", Math.max(1, parseInt(e.target.value) || 1))} className="h-9 text-sm text-center" />
@@ -1272,7 +1272,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
       </div>
 
       <div className="space-y-1.5">
-        <Label>Quantite</Label>
+        <Label>Quantité</Label>
         <div className="flex items-center gap-2 w-32">
           <Button type="button" variant="outline" size="icon" className="h-9 w-9" onClick={() => setManualQuantity(Math.max(1, manualQuantity - 1))}><Minus className="h-3 w-3" /></Button>
           <Input type="number" min="1" value={manualQuantity} onChange={(e) => setManualQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="h-9 text-center" />

@@ -30,12 +30,15 @@ import { CashbackIndicator, CashbackSection } from "./cashback-dialog";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CATEGORIES, STATUSES, STORAGE_LOCATIONS, PLATFORMS } from "@/lib/utils/constants";
+import { createBulkSales } from "@/lib/actions/sale-actions";
 import {
   updateProduct,
   updateVariant,
   deleteVariant,
   addVariantToProduct,
   toggleVariantListing,
+  duplicateProduct,
+  bulkUpdateReturnDeadline,
 } from "@/lib/actions/product-actions";
 import {
   Package,
@@ -49,6 +52,8 @@ import {
   ChevronDown,
   ChevronUp,
   TrendingUp,
+  Copy,
+  ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -217,9 +222,12 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], pla
         </div>
 
         {/* Edit product info */}
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex gap-2 flex-wrap">
           <EditProductDialog product={product} />
           <AddVariantDialog productId={product.id} />
+          <DuplicateProductButton productId={product.id} />
+          <BulkReturnDeadlineDialog productId={product.id} variantCount={allInStockVariants.length} />
+          <BulkSaleDialog variants={product.variants} />
         </div>
       </Card>
 
@@ -524,7 +532,7 @@ function EditProductDialog({
         category: form.get("category") as "sneakers" | "pokemon" | "lego" | "random",
         notes: (form.get("notes") as string) || undefined,
       });
-      toast.success("Produit modifie");
+      toast.success("Produit modifié");
       setOpen(false);
       router.refresh();
     } catch {
@@ -604,7 +612,7 @@ function AddVariantDialog({ productId }: { productId: string }) {
         storageLocation: (form.get("storageLocation") as string) || undefined,
         returnDeadline: (form.get("returnDeadline") as string) || undefined,
       });
-      toast.success("Variant ajoute");
+      toast.success("Variant ajouté");
       setOpen(false);
       router.refresh();
     } catch {
@@ -729,7 +737,7 @@ function EditVariantDialog({ variant, medianPrice = null, suppliers = [] }: { va
         supplierName: ((form.get("supplierName") as string) === "__none__" ? undefined : (form.get("supplierName") as string)) || undefined,
         listedOn,
       });
-      toast.success("Variant modifie");
+      toast.success("Variant modifié");
       setOpen(false);
       router.refresh();
     } catch {
@@ -896,6 +904,232 @@ function EditVariantDialog({ variant, medianPrice = null, suppliers = [] }: { va
   );
 }
 
+// --- Bulk Sale Dialog ---
+
+function BulkSaleDialog({ variants }: { variants: ProductVariant[] }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [platform, setPlatform] = useState("");
+  const router = useRouter();
+
+  const unsoldVariants = variants.filter((v) => v.status !== "vendu");
+
+  const toggleVariant = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === unsoldVariants.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(unsoldVariants.map((v) => v.id)));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (selectedIds.size === 0) { toast.error("Sélectionnez au moins un variant"); return; }
+    setSaving(true);
+    try {
+      const form = new FormData(e.currentTarget);
+      await createBulkSales({
+        variantIds: Array.from(selectedIds),
+        salePrice: Number(form.get("salePrice")),
+        saleDate: form.get("saleDate") as string,
+        platform: platform || undefined,
+        platformFee: Number(form.get("platformFee") || 0),
+        shippingCost: Number(form.get("shippingCost") || 0),
+        otherFees: Number(form.get("otherFees") || 0),
+      });
+      toast.success(`${selectedIds.size} vente${selectedIds.size > 1 ? "s" : ""} créée${selectedIds.size > 1 ? "s" : ""}`);
+      setOpen(false);
+      setSelectedIds(new Set());
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la création des ventes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (unsoldVariants.length < 2) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSelectedIds(new Set()); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <ShoppingBag className="h-3.5 w-3.5 mr-1" />
+          <span className="text-xs">Vendre en masse</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Vente en masse</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Variant selection */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Variants à vendre ({selectedIds.size}/{unsoldVariants.length})</Label>
+              <button type="button" onClick={selectAll} className="text-xs text-primary hover:underline">
+                {selectedIds.size === unsoldVariants.length ? "Tout désélectionner" : "Tout sélectionner"}
+              </button>
+            </div>
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {unsoldVariants.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => toggleVariant(v.id)}
+                  className={cn(
+                    "w-full flex items-center gap-2 p-2 rounded-lg text-left text-sm transition-colors",
+                    selectedIds.has(v.id) ? "bg-primary/10 text-primary" : "bg-secondary hover:bg-secondary/80"
+                  )}
+                >
+                  <div className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0", selectedIds.has(v.id) ? "bg-primary border-primary" : "border-muted-foreground/30")}>
+                    {selectedIds.has(v.id) && <span className="text-[10px] text-primary-foreground">✓</span>}
+                  </div>
+                  <span>{v.sizeVariant || "Taille unique"}</span>
+                  <span className="text-muted-foreground ml-auto">{formatCurrency(Number(v.purchasePrice))}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-salePrice">Prix de vente *</Label>
+              <Input id="bulk-salePrice" name="salePrice" type="number" step="0.01" min="0" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-saleDate">Date de vente *</Label>
+              <Input id="bulk-saleDate" name="saleDate" type="date" defaultValue={new Date().toISOString().split("T")[0]} required />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Plateforme</Label>
+            <Select value={platform} onValueChange={setPlatform}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PLATFORMS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Commission</Label>
+              <Input name="platformFee" type="number" step="0.01" min="0" defaultValue="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Frais envoi</Label>
+              <Input name="shippingCost" type="number" step="0.01" min="0" defaultValue="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Autres frais</Label>
+              <Input name="otherFees" type="number" step="0.01" min="0" defaultValue="0" />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={saving || selectedIds.size === 0}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : `Vendre ${selectedIds.size} variant${selectedIds.size > 1 ? "s" : ""}`}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Bulk Return Deadline Dialog ---
+
+function BulkReturnDeadlineDialog({ productId, variantCount }: { productId: string; variantCount: number }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const form = new FormData(e.currentTarget);
+      const deadline = form.get("returnDeadline") as string;
+      await bulkUpdateReturnDeadline(productId, deadline || null);
+      toast.success(`Date de retour mise à jour pour ${variantCount} variant${variantCount > 1 ? "s" : ""}`);
+      setOpen(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la mise à jour");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Calendar className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Date de retour en masse</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Appliquer à tous les variants non vendus ({variantCount})
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Date de retour</Label>
+            <Input type="date" name="returnDeadline" />
+            <p className="text-xs text-muted-foreground">Laisser vide pour supprimer la date de retour</p>
+          </div>
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Appliquer"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Duplicate Product Button ---
+
+function DuplicateProductButton({ productId }: { productId: string }) {
+  const [duplicating, setDuplicating] = useState(false);
+  const router = useRouter();
+
+  const handleDuplicate = async () => {
+    setDuplicating(true);
+    try {
+      const newId = await duplicateProduct(productId);
+      toast.success("Produit dupliqué");
+      router.push(`/stock/${newId}`);
+    } catch {
+      toast.error("Erreur lors de la duplication");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleDuplicate} disabled={duplicating}>
+      {duplicating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+    </Button>
+  );
+}
+
 // --- Delete Variant Button ---
 
 function DeleteVariantButton({ variantId, isLastVariant }: { variantId: string; isLastVariant?: boolean }) {
@@ -907,7 +1141,7 @@ function DeleteVariantButton({ variantId, isLastVariant }: { variantId: string; 
     setDeleting(true);
     try {
       const { productDeleted } = await deleteVariant(variantId);
-      toast.success("Variant supprime");
+      toast.success("Variant supprimé");
       setOpen(false);
       if (productDeleted) {
         router.push("/stock");
@@ -933,7 +1167,7 @@ function DeleteVariantButton({ variantId, isLastVariant }: { variantId: string; 
           <DialogTitle>Supprimer ce variant ?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Cette action est irreversible. Si c&apos;est le dernier variant, le produit sera aussi supprime.
+          Cette action est irréversible. Si c&apos;est le dernier variant, le produit sera aussi supprimé.
         </p>
         <div className="flex gap-2 mt-4">
           <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>

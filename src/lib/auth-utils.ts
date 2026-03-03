@@ -22,7 +22,7 @@ export function isAdminRole(role: string | undefined | null): boolean {
 export async function requireAuth(): Promise<AuthResult | NextResponse> {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
   return { userId: session.user.id, role: session.user.role ?? "member" };
 }

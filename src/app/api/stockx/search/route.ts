@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   const productId = req.nextUrl.searchParams.get("productId");
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       status: "not_found",
-      message: "Aucune variante trouvee pour ce produit.",
+      message: "Aucune variante trouvée pour ce produit.",
     });
   }
 

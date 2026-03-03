@@ -10,7 +10,7 @@ import { sendSaleWebhook } from "@/lib/discord-webhook";
 
 export async function createSale(formData: FormData) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const raw = Object.fromEntries(formData.entries());
   const parsed = saleSchema.parse(raw);
@@ -54,6 +54,8 @@ export async function createSale(formData: FormData) {
     .where(eq(productVariants.id, parsed.variantId))
     .limit(1);
 
+  const isAnonymous = raw.anonymousSale === "true" || raw.anonymousSale === "on";
+
   if (variantInfo[0]) {
     sendSaleWebhook({
       productName: variantInfo[0].productName,
@@ -63,6 +65,7 @@ export async function createSale(formData: FormData) {
       salePrice: parsed.salePrice,
       platform: parsed.platform ?? null,
       saleDate: parsed.saleDate,
+      anonymous: isAnonymous,
     }).catch(() => {});
   }
 }
@@ -82,7 +85,7 @@ export async function updateSale(
   }
 ) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const sale = await db
     .select()
@@ -97,7 +100,7 @@ export async function updateSale(
     .set({
       salePrice: data.salePrice.toString(),
       saleDate: data.saleDate,
-      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "discord" | "other") || null,
+      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "leboncoin" | "vestiaire" | "fb_groups" | "direct" | "discord" | "other") || null,
       platformFee: (data.platformFee ?? 0).toString(),
       shippingCost: (data.shippingCost ?? 0).toString(),
       otherFees: (data.otherFees ?? 0).toString(),
@@ -115,7 +118,7 @@ export async function updateSale(
 
 export async function markDealAsPaid(saleId: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const sale = await db
     .select()
@@ -139,7 +142,7 @@ export async function markDealAsPaid(saleId: string) {
 
 export async function deleteSale(saleId: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   // Get the sale to find the variant
   const sale = await db
@@ -160,6 +163,42 @@ export async function deleteSale(saleId: string) {
     .update(productVariants)
     .set({ status: "en_stock", updatedAt: new Date() })
     .where(eq(productVariants.id, sale[0].variantId));
+
+  revalidatePath("/stock");
+  revalidatePath("/ventes");
+  revalidatePath("/dashboard");
+  revalidatePath("/stats");
+}
+
+export async function createBulkSales(data: {
+  variantIds: string[];
+  salePrice: number;
+  saleDate: string;
+  platform?: string;
+  platformFee?: number;
+  shippingCost?: number;
+  otherFees?: number;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifié");
+
+  for (const variantId of data.variantIds) {
+    await db.insert(sales).values({
+      variantId,
+      userId: session.user.id,
+      salePrice: data.salePrice.toString(),
+      saleDate: data.saleDate,
+      platform: (data.platform as "stockx" | "vinted" | "ebay" | "laced" | "hypeboost" | "alias" | "leboncoin" | "vestiaire" | "fb_groups" | "direct" | "discord" | "other") || null,
+      platformFee: (data.platformFee ?? 0).toString(),
+      shippingCost: (data.shippingCost ?? 0).toString(),
+      otherFees: (data.otherFees ?? 0).toString(),
+    });
+
+    await db
+      .update(productVariants)
+      .set({ status: "vendu", updatedAt: new Date() })
+      .where(and(eq(productVariants.id, variantId), eq(productVariants.userId, session.user.id)));
+  }
 
   revalidatePath("/stock");
   revalidatePath("/ventes");

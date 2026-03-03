@@ -18,7 +18,7 @@ export async function getPresignedUploadUrl(
   fileType: string
 ): Promise<{ uploadUrl: string; publicUrl: string }> {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const ext = fileType.split("/")[1] || "jpg";
   const key = `products/${session.user.id}/${randomUUID()}.${ext}`;

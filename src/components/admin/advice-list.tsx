@@ -35,7 +35,7 @@ export function AdviceList({ items }: AdviceListProps) {
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       await toggleAdviceAction(id);
-      toast.success("Statut mis a jour");
+      toast.success("Statut mis à jour");
     } catch {
       toast.error("Erreur");
     } finally {
@@ -51,7 +51,7 @@ export function AdviceList({ items }: AdviceListProps) {
     setLoadingIds((prev) => new Set(prev).add(id));
     try {
       await deleteAdviceAction(id);
-      toast.success("Conseil supprime");
+      toast.success("Conseil supprimé");
     } catch {
       toast.error("Erreur");
     } finally {

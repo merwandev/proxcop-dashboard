@@ -27,7 +27,7 @@ export async function createProductWithVariants(data: {
   }>;
 }) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   // Verify user exists in DB (JWT may reference a deleted user after DB rebuild)
   const [userExists] = await db
@@ -92,7 +92,7 @@ export async function updateProduct(productId: string, data: {
   notes?: string;
 }) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const parsed = updateProductSchema.parse(data);
 
@@ -125,7 +125,7 @@ export async function updateVariant(variantId: string, data: {
   listedOn?: string[];
 }) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const parsed = updateVariantSchema.parse(data);
 
@@ -151,7 +151,7 @@ export async function updateVariant(variantId: string, data: {
 
 export async function toggleVariantListing(variantId: string, platform: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   const [variant] = await db
     .select({ listedOn: productVariants.listedOn })
@@ -177,7 +177,7 @@ export async function toggleVariantListing(variantId: string, platform: string) 
 
 export async function updateProductImage(productId: string, imageUrl: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   await db
     .update(products)
@@ -213,7 +213,7 @@ export async function adminSetProductImage(productId: string, imageUrl: string) 
 
 export async function deleteProduct(productId: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   // CASCADE will delete all variants + their sales + cashbacks
   await db
@@ -227,7 +227,7 @@ export async function deleteProduct(productId: string) {
 
 export async function deleteProducts(productIds: string[]) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   if (productIds.length === 0) return;
 
@@ -246,7 +246,7 @@ export async function deleteProducts(productIds: string[]) {
 
 export async function deleteVariant(variantId: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   // Get the variant to find the parent product
   const [variant] = await db
@@ -293,7 +293,7 @@ export async function addVariantToProduct(productId: string, data: {
   returnDeadline?: string;
 }) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   // Verify ownership
   const [product] = await db
@@ -325,7 +325,7 @@ export async function addVariantToProduct(productId: string, data: {
 
 export async function getProductsWithSizes(productIds: string[]) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   if (productIds.length === 0) return [];
 
@@ -368,7 +368,7 @@ export async function getProductsWithSizes(productIds: string[]) {
 
 export async function bulkListProducts(productIds: string[], platform: string) {
   const session = await auth();
-  if (!session?.user?.id) throw new Error("Non authentifie");
+  if (!session?.user?.id) throw new Error("Non authentifié");
 
   if (productIds.length === 0) return;
 
@@ -412,7 +412,7 @@ export async function adminLinkImageGlobally(
 ) {
   const session = await auth();
   if (!session?.user?.id || !isAdminRole(session.user.role)) {
-    throw new Error("Acces refuse");
+    throw new Error("Accès refusé");
   }
 
   if (sku) {
@@ -453,9 +453,89 @@ export async function adminLinkImageGlobally(
     adminId: session.user.id,
     action: "link_image_globally",
     target: sku ? `sku:${sku}` : `name:${productName}`,
-    details: `Image liee globalement: ${imageUrl.substring(0, 60)}...`,
+    details: `Image liée globalement: ${imageUrl.substring(0, 60)}...`,
   });
 
   revalidatePath("/stock");
   revalidatePath("/admin");
+}
+
+export async function duplicateProduct(productId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifié");
+
+  // Get original product
+  const [original] = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.id, productId), eq(products.userId, session.user.id)))
+    .limit(1);
+
+  if (!original) throw new Error("Produit introuvable");
+
+  // Get original variants
+  const originalVariants = await db
+    .select()
+    .from(productVariants)
+    .where(and(eq(productVariants.productId, productId), eq(productVariants.userId, session.user.id)));
+
+  // Create new product
+  const [newProduct] = await db
+    .insert(products)
+    .values({
+      userId: session.user.id,
+      name: original.name,
+      sku: original.sku,
+      category: original.category,
+      imageUrl: original.imageUrl,
+      notes: original.notes,
+    })
+    .returning({ id: products.id });
+
+  // Clone variants with status reset to en_stock
+  if (originalVariants.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    await db.insert(productVariants).values(
+      originalVariants.map((v) => ({
+        productId: newProduct.id,
+        userId: session.user.id,
+        sizeVariant: v.sizeVariant,
+        purchasePrice: v.purchasePrice,
+        purchaseDate: today,
+        targetPrice: v.targetPrice,
+        status: "en_stock" as const,
+        storageLocation: v.storageLocation,
+        returnDeadline: null,
+        supplierName: v.supplierName,
+      }))
+    );
+  }
+
+  revalidatePath("/stock");
+  revalidatePath("/dashboard");
+
+  return newProduct.id;
+}
+
+export async function bulkUpdateReturnDeadline(productId: string, returnDeadline: string | null) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifié");
+
+  // Only update unsold variants
+  await db
+    .update(productVariants)
+    .set({
+      returnDeadline: returnDeadline || null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(productVariants.productId, productId),
+        eq(productVariants.userId, session.user.id),
+        sql`${productVariants.status} != 'vendu'`
+      )
+    );
+
+  revalidatePath("/stock");
+  revalidatePath(`/stock/${productId}`);
 }

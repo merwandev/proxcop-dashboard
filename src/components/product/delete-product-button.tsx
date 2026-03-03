@@ -27,7 +27,7 @@ export function DeleteProductButton({ productId }: DeleteProductButtonProps) {
     setDeleting(true);
     try {
       await deleteProduct(productId);
-      toast.success("Produit supprime");
+      toast.success("Produit supprimé");
       router.push("/stock");
     } catch {
       toast.error("Erreur lors de la suppression");
@@ -49,7 +49,7 @@ export function DeleteProductButton({ productId }: DeleteProductButtonProps) {
           <DialogTitle>Supprimer ce produit ?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Cette action est irreversible. Le produit et ses donnees de vente seront supprimes.
+          Cette action est irréversible. Le produit et ses données de vente seront supprimés.
         </p>
         <div className="flex gap-2 mt-4">
           <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>

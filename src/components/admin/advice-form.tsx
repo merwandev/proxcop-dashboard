@@ -91,7 +91,7 @@ export function AdviceForm() {
         message: message.trim(),
         severity,
       });
-      toast.success("Conseil cree avec succes");
+      toast.success("Conseil créé avec succès");
       setSelectedProduct(null);
       setMessage("");
       setSeverity("warning");

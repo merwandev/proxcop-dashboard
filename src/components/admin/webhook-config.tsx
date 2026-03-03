@@ -23,7 +23,7 @@ export function WebhookConfig({ currentUrl }: WebhookConfigProps) {
     try {
       await updateWebhookUrlAction(url.trim());
       setSaved(!!url.trim());
-      toast.success("Webhook mis a jour");
+      toast.success("Webhook mis à jour");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

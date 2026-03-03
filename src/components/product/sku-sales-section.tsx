@@ -75,7 +75,7 @@ export function SkuSalesSection({ sales, sku }: SkuSalesSectionProps) {
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-2">
         <KpiCard
-          label="Derniere vente"
+          label="Dernière vente"
           value={lastSale ? formatDateShort(lastSale.saleDate) : "—"}
           sub={lastSale ? formatCurrency(lastSale.salePrice) : undefined}
         />

@@ -64,7 +64,7 @@ export function ProductFilters() {
         <div className="space-y-4 py-4">
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="text-sm text-muted-foreground">Categorie</label>
+            <label className="text-sm text-muted-foreground">Catégorie</label>
             <Select
               value={currentCategory || "all"}
               onValueChange={(v) => applyFilter("category", v)}

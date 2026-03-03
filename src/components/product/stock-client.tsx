@@ -167,7 +167,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
     try {
       const allIds = expandSelectedIds();
       await deleteProducts(allIds);
-      toast.success(`${selectedIds.size} produit${selectedIds.size > 1 ? "s" : ""} supprime${selectedIds.size > 1 ? "s" : ""}`);
+      toast.success(`${selectedIds.size} produit${selectedIds.size > 1 ? "s" : ""} supprimé${selectedIds.size > 1 ? "s" : ""}`);
       setShowDeleteConfirm(false);
       exitSelectMode();
       router.refresh();
@@ -562,7 +562,7 @@ export function StockClient({ products, adviceSkus }: StockClientProps) {
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             Cette action supprimera {selectedIds.size} produit{selectedIds.size > 1 ? "s" : ""} et{" "}
-            {selectedVariantCount} variant{selectedVariantCount > 1 ? "s" : ""} (y compris les ventes associees). Cette action est irreversible.
+            {selectedVariantCount} variant{selectedVariantCount > 1 ? "s" : ""} (y compris les ventes associées). Cette action est irréversible.
           </p>
           <div className="flex gap-2 mt-2">
             <Button

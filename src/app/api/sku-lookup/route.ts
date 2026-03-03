@@ -22,7 +22,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   const sku = req.nextUrl.searchParams.get("sku")?.trim().toUpperCase();
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         imageUrl: null,
         status: "not_found",
-        message: "Image non trouvee pour ce SKU. Un staff l'ajoutera bientot.",
+        message: "Image non trouvée pour ce SKU. Un staff l'ajoutera bientôt.",
       });
     }
   }
@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     imageUrl: null,
     status: "not_found",
-    message: "Image non trouvee pour ce SKU. Un staff l'ajoutera bientot.",
+    message: "Image non trouvée pour ce SKU. Un staff l'ajoutera bientôt.",
   });
 }
 
@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Non authentifie" }, { status: 401 });
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   const body = await req.json();

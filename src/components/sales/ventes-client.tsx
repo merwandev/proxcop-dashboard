@@ -455,7 +455,7 @@ function EditSaleDialog({
         buyerUsername: (form.get("buyerUsername") as string) || undefined,
         paymentStatus: (form.get("paymentStatus") as string) || undefined,
       });
-      toast.success("Vente modifiee");
+      toast.success("Vente modifiée");
       onOpenChange(false);
       router.refresh();
     } catch {
@@ -469,7 +469,7 @@ function EditSaleDialog({
     setDeleting(true);
     try {
       await deleteSale(sale.id);
-      toast.success("Vente supprimee - produit remis en stock");
+      toast.success("Vente supprimée - produit remis en stock");
       onOpenChange(false);
       router.refresh();
     } catch {
@@ -533,8 +533,16 @@ function EditSaleDialog({
             />
           </div>
 
-          {/* Sale date is preserved but not editable */}
-          <input type="hidden" name="saleDate" value={sale.saleDate} />
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-saleDate">Date de vente</Label>
+            <Input
+              id="edit-saleDate"
+              name="saleDate"
+              type="date"
+              defaultValue={sale.saleDate}
+              required
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label>Plateforme</Label>
@@ -573,8 +581,8 @@ function EditSaleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="paid">Deja paye</SelectItem>
-                    <SelectItem value="pending">Paiement a reception</SelectItem>
+                    <SelectItem value="paid">Déjà payé</SelectItem>
+                    <SelectItem value="pending">Paiement à réception</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

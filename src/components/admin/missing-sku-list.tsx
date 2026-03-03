@@ -52,7 +52,7 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
 
       setResolvedSkus((prev) => new Set(prev).add(sku));
       setImageUrls((prev) => ({ ...prev, [sku]: publicUrl }));
-      toast.success(`Image ajoutee pour ${sku}`);
+      toast.success(`Image ajoutée pour ${sku}`);
     } catch {
       toast.error("Erreur lors de l'upload");
     } finally {
@@ -81,7 +81,7 @@ export function MissingSkuList({ skus }: MissingSkuListProps) {
 
       setResolvedSkus((prev) => new Set(prev).add(sku));
       setImageUrls((prev) => ({ ...prev, [sku]: url }));
-      toast.success(`Image ajoutee pour ${sku}`);
+      toast.success(`Image ajoutée pour ${sku}`);
     } catch {
       toast.error("Erreur");
     } finally {

@@ -41,7 +41,7 @@ export function ImageUpload({ productId, currentImage }: ImageUploadProps) {
       await updateProductImage(productId, publicUrl);
 
       setImage(publicUrl);
-      toast.success("Photo mise a jour");
+      toast.success("Photo mise à jour");
     } catch {
       toast.error("Erreur lors de l'upload");
     } finally {
@@ -72,7 +72,6 @@ export function ImageUpload({ productId, currentImage }: ImageUploadProps) {
       <input
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleUpload}
         disabled={uploading}

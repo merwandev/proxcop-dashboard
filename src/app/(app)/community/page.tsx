@@ -8,6 +8,7 @@ import {
 import { getCommunitySales, getCommunityTopROI, getCommunityTopVolume } from "@/lib/queries/sales";
 import { getTrendingProducts } from "@/lib/queries/products";
 import { CommunityClient } from "@/components/community/community-client";
+import { isAdminRole } from "@/lib/auth-utils";
 
 interface CommunityPageProps {
   searchParams: Promise<{ period?: string }>;
@@ -27,6 +28,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
   const params = await searchParams;
   const period = params.period ?? "30j";
   const daysBack = parsePeriod(period);
+  const isAdmin = isAdminRole(session.user.role);
 
   const [
     stats,
@@ -41,7 +43,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
     getCommunityTopROI(daysBack, 5),
     getCommunityTopVolume(daysBack, 5),
     getTrendingProducts(daysBack, 5),
-    getCommunitySales(100),
+    getCommunitySales(100, isAdmin),
     getCommunityPlatformDistribution(daysBack),
     getCommunityCategoryBreakdown(daysBack),
   ]);
@@ -51,6 +53,7 @@ export default async function CommunityPage({ searchParams }: CommunityPageProps
     ...s,
     salePrice: String(s.salePrice),
     saleDate: typeof s.saleDate === "string" ? s.saleDate : new Date(s.saleDate).toISOString(),
+    isAnonymous: Boolean(s.isAnonymous),
   }));
 
   const serializedTrending = trending.map((t) => ({

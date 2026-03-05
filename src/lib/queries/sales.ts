@@ -103,8 +103,10 @@ export async function getSalesBySku(sku: string) {
 /**
  * Get recent community sales for the anonymous feed.
  * Deliberately excludes userId, purchasePrice, fees, notes for privacy.
+ * Admins see all sales (including opted-out users) with an isAnonymous flag.
+ * Regular users only see sales from users who opted in.
  */
-export async function getCommunitySales(limit = 50) {
+export async function getCommunitySales(limit = 50, isAdmin = false) {
   return db
     .select({
       saleId: sales.id,
@@ -116,12 +118,13 @@ export async function getCommunitySales(limit = 50) {
       platform: sales.platform,
       saleDate: sales.saleDate,
       category: products.category,
+      isAnonymous: sql<boolean>`NOT ${users.communityOptIn}`,
     })
     .from(sales)
     .innerJoin(productVariants, eq(sales.variantId, productVariants.id))
     .innerJoin(products, eq(productVariants.productId, products.id))
     .innerJoin(users, eq(sales.userId, users.id))
-    .where(eq(users.communityOptIn, true))
+    .where(isAdmin ? undefined : eq(users.communityOptIn, true))
     .orderBy(desc(sales.saleDate), desc(sales.createdAt))
     .limit(limit);
 }

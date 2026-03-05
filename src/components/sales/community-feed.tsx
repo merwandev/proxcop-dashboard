@@ -35,6 +35,7 @@ interface CommunitySale {
   platform: string | null;
   saleDate: string;
   category: string;
+  isAnonymous?: boolean;
 }
 
 interface CommunityFeedProps {
@@ -345,6 +346,9 @@ export function CommunityFeed({ sales, topROI, topVolume }: CommunityFeedProps) 
                           <span className="text-muted-foreground font-normal">
                             {" "}&mdash; {sale.sizeVariant}
                           </span>
+                        )}
+                        {sale.isAnonymous && (
+                          <span className="text-[10px] text-warning font-normal ml-1">(ano)</span>
                         )}
                       </h3>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">

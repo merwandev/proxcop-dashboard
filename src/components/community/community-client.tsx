@@ -57,6 +57,7 @@ interface CommunitySale {
   platform: string | null;
   saleDate: string;
   category: string;
+  isAnonymous?: boolean;
 }
 
 interface PlatformDist {

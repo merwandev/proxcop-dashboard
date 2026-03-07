@@ -63,6 +63,23 @@ export const EXPENSE_CATEGORIES = [
   { value: "other", label: "Autre" },
 ] as const;
 
+export const PAYMENT_METHODS = [
+  { value: "platform_default", label: "Par défaut" },
+  { value: "virement", label: "Virement" },
+  { value: "paypal", label: "PayPal" },
+  { value: "cash", label: "Cash" },
+  { value: "crypto", label: "Crypto" },
+  { value: "carte", label: "Carte" },
+  { value: "other", label: "Autre" },
+] as const;
+
+export const INCOME_CATEGORIES = [
+  { value: "parrainage", label: "Parrainage" },
+  { value: "salaire", label: "Salaire" },
+  { value: "commission", label: "Commission" },
+  { value: "autre", label: "Autre" },
+] as const;
+
 export const STORAGE_LOCATIONS = [
   { value: "home", label: "Chez moi" },
   { value: "shop", label: "Shop" },

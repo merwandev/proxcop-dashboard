@@ -34,6 +34,12 @@ export const skuImageStatusEnum = pgEnum("sku_image_status", [
 export const calendarEventTypeEnum = pgEnum("calendar_event_type", [
   "drop", "ship", "return", "custom",
 ]);
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "virement", "paypal", "cash", "crypto", "carte", "platform_default", "other",
+]);
+export const incomeCategoryEnum = pgEnum("income_category", [
+  "parrainage", "salaire", "commission", "autre",
+]);
 
 // Users
 export const users = pgTable("users", {
@@ -49,6 +55,7 @@ export const users = pgTable("users", {
   communityOptIn: boolean("community_opt_in").notNull().default(true),
   platformFees: jsonb("platform_fees").$type<Record<string, number>>(),
   saleSuccessAnimation: boolean("sale_success_animation").notNull().default(true),
+  declaredPlatforms: jsonb("declared_platforms").$type<string[]>(),
   dashboardLayout: jsonb("dashboard_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
   statsLayout: jsonb("stats_layout").$type<{ widgets: string[]; sizes?: Record<string, "horizontal" | "square"> }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -100,6 +107,7 @@ export const sales = pgTable("sales", {
   notes: text("notes"),
   buyerUsername: text("buyer_username"),
   paymentStatus: paymentStatusEnum("payment_status").default("paid"),
+  paymentMethod: paymentMethodEnum("payment_method").default("platform_default"),
   paymentCollectedAt: timestamp("payment_collected_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -114,6 +122,19 @@ export const cashbacks = pgTable("cashbacks", {
   status: cashbackStatusEnum("status").notNull().default("requested"),
   requestedAt: timestamp("requested_at").notNull().defaultNow(),
   receivedAt: timestamp("received_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Incomes (monthly recurring + one-time)
+export const incomes = pgTable("incomes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  category: incomeCategoryEnum("category").notNull(),
+  description: text("description").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  date: date("date").notNull(),
+  recurring: boolean("recurring").notNull().default(false),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -274,6 +295,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sales: many(sales),
   cashbacks: many(cashbacks),
   expenses: many(expenses),
+  incomes: many(incomes),
   userSkuImages: many(userSkuImages),
   createdAdvice: many(productAdvice),
   suppliers: many(suppliers),
@@ -304,6 +326,10 @@ export const salesRelations = relations(sales, ({ one }) => ({
 export const cashbacksRelations = relations(cashbacks, ({ one }) => ({
   variant: one(productVariants, { fields: [cashbacks.variantId], references: [productVariants.id] }),
   user: one(users, { fields: [cashbacks.userId], references: [users.id] }),
+}));
+
+export const incomesRelations = relations(incomes, ({ one }) => ({
+  user: one(users, { fields: [incomes.userId], references: [users.id] }),
 }));
 
 export const expensesRelations = relations(expenses, ({ one }) => ({

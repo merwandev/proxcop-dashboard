@@ -11,6 +11,7 @@ export const saleSchema = z.object({
   shippingCost: z.coerce.number().min(0).default(0),
   otherFees: z.coerce.number().min(0).default(0),
   notes: z.string().optional(),
+  paymentMethod: z.enum(["virement", "paypal", "cash", "crypto", "carte", "platform_default", "other"]).optional(),
 });
 
 export type SaleFormData = z.infer<typeof saleSchema>;

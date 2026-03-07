@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -24,8 +24,9 @@ import {
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { CopyableSku } from "@/components/ui/copyable-sku";
 import { PLATFORMS } from "@/lib/utils/constants";
-import { updateSale, deleteSale, markDealAsPaid } from "@/lib/actions/sale-actions";
-import { Search, Package, X, Loader2, Trash2, Clock } from "lucide-react";
+import { updateSale, deleteSale, markDealAsPaid, deleteBulkSales, duplicateBulkSales } from "@/lib/actions/sale-actions";
+import { PAYMENT_METHODS } from "@/lib/utils/constants";
+import { Search, Package, X, Loader2, Trash2, Clock, CheckSquare, Square, Copy, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SaleExport } from "./sale-export";
@@ -41,6 +42,7 @@ interface SaleItem {
     otherFees: string | null;
     buyerUsername: string | null;
     paymentStatus: string | null;
+    paymentMethod: string | null;
   };
   variant: {
     purchasePrice: string;
@@ -59,11 +61,16 @@ interface VentesClientProps {
 }
 
 export function VentesClient({ salesData, userName }: VentesClientProps) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [editingSale, setEditingSale] = useState<SaleItem | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   // Get unique platforms from actual sales data
   const usedPlatforms = useMemo(() => {
@@ -138,6 +145,54 @@ export function VentesClient({ salesData, userName }: VentesClientProps) {
     return sum + profit;
   }, 0);
 
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((s) => s.sale.id)));
+    }
+  }, [filtered, selectedIds.size]);
+
+  const handleBulkDelete = async () => {
+    setBulkLoading(true);
+    try {
+      await deleteBulkSales(Array.from(selectedIds));
+      toast.success(`${selectedIds.size} vente${selectedIds.size > 1 ? "s" : ""} supprimée${selectedIds.size > 1 ? "s" : ""}`);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      setConfirmBulkDelete(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la suppression");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDuplicate = async () => {
+    setBulkLoading(true);
+    try {
+      await duplicateBulkSales(Array.from(selectedIds));
+      toast.success(`${selectedIds.size} vente${selectedIds.size > 1 ? "s" : ""} dupliquée${selectedIds.size > 1 ? "s" : ""}`);
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      router.refresh();
+    } catch {
+      toast.error("Erreur lors de la duplication");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <>
       {/* Summary */}
@@ -158,22 +213,35 @@ export function VentesClient({ salesData, userName }: VentesClientProps) {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Rechercher un produit..."
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="pl-9 bg-card border-border h-9 text-sm"
-        />
-        {search && (
-          <button
-            onClick={() => { setSearch(""); setPage(1); }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      {/* Search + Select toggle */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un produit..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="pl-9 bg-card border-border h-9 text-sm"
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(""); setPage(1); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {salesData.length > 0 && (
+          <Button
+            variant={selectionMode ? "default" : "outline"}
+            size="sm"
+            className="h-9 gap-1.5 shrink-0"
+            onClick={() => { setSelectionMode(!selectionMode); setSelectedIds(new Set()); setConfirmBulkDelete(false); }}
           >
-            <X className="h-4 w-4" />
-          </button>
+            <CheckSquare className="h-3.5 w-3.5" />
+            {selectionMode ? "Annuler" : "Sélectionner"}
+          </Button>
         )}
       </div>
 
@@ -264,6 +332,20 @@ export function VentesClient({ salesData, userName }: VentesClientProps) {
         </p>
       )}
 
+      {/* Select all in selection mode */}
+      {selectionMode && filtered.length > 0 && (
+        <div className="flex items-center gap-2">
+          <button onClick={toggleSelectAll} className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            {selectedIds.size === filtered.length ? (
+              <CheckSquare className="h-4 w-4 text-primary" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            Tout sélectionner ({filtered.length})
+          </button>
+        </div>
+      )}
+
       {/* Sales list */}
       <div className="space-y-2">
         {filtered.length === 0 ? (
@@ -274,14 +356,77 @@ export function VentesClient({ salesData, userName }: VentesClientProps) {
           </p>
         ) : (
           filtered.map((item) => (
-            <SaleCard
-              key={item.sale.id}
-              item={item}
-              onEdit={() => setEditingSale(item)}
-            />
+            <div key={item.sale.id} className="flex items-start gap-2">
+              {selectionMode && (
+                <button
+                  onClick={() => toggleSelection(item.sale.id)}
+                  className="mt-3 shrink-0"
+                >
+                  {selectedIds.has(item.sale.id) ? (
+                    <CheckSquare className="h-5 w-5 text-primary" />
+                  ) : (
+                    <Square className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </button>
+              )}
+              <div className="flex-1 min-w-0">
+                <SaleCard
+                  item={item}
+                  onEdit={() => { if (!selectionMode) setEditingSale(item); else toggleSelection(item.sale.id); }}
+                />
+              </div>
+            </div>
           ))
         )}
       </div>
+
+      {/* Floating action bar for selection mode */}
+      {selectionMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-16 lg:bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-card border border-border rounded-full shadow-lg px-4 py-2">
+          <span className="text-sm font-medium">{selectedIds.size} sélectionnée{selectedIds.size > 1 ? "s" : ""}</span>
+          <div className="h-4 w-px bg-border" />
+          {!confirmBulkDelete ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-primary"
+                onClick={handleBulkDuplicate}
+                disabled={bulkLoading}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Dupliquer
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-danger"
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={bulkLoading}
+              >
+                <Trash className="h-3.5 w-3.5" />
+                Supprimer
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">Confirmer ?</span>
+              <Button variant="outline" size="sm" className="h-7" onClick={() => setConfirmBulkDelete(false)} disabled={bulkLoading}>Non</Button>
+              <Button variant="destructive" size="sm" className="h-7" onClick={handleBulkDelete} disabled={bulkLoading}>
+                {bulkLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Oui"}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8"
+            onClick={() => { setSelectionMode(false); setSelectedIds(new Set()); setConfirmBulkDelete(false); }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
 
       {/* Edit/Delete dialog */}
       {editingSale && (
@@ -379,6 +524,14 @@ function SaleCard({
                       En attente
                     </Badge>
                   )}
+                  {sale.paymentMethod && sale.paymentMethod !== "platform_default" && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] border-border"
+                    >
+                      {PAYMENT_METHODS.find((m) => m.value === sale.paymentMethod)?.label ?? sale.paymentMethod}
+                    </Badge>
+                  )}
                   {sale.buyerUsername && (
                     <span className="text-[10px] text-[#5865F2]">
                       @{sale.buyerUsername}
@@ -437,6 +590,7 @@ function EditSaleDialog({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [editPlatform, setEditPlatform] = useState(sale.platform ?? "");
+  const [editPaymentMethod, setEditPaymentMethod] = useState(sale.paymentMethod ?? "platform_default");
 
   const isPending = sale.paymentStatus === "pending";
 
@@ -454,6 +608,7 @@ function EditSaleDialog({
         otherFees: Number(form.get("otherFees") || 0),
         buyerUsername: (form.get("buyerUsername") as string) || undefined,
         paymentStatus: (form.get("paymentStatus") as string) || undefined,
+        paymentMethod: editPaymentMethod || undefined,
       });
       toast.success("Vente modifiée");
       onOpenChange(false);
@@ -559,6 +714,22 @@ function EditSaleDialog({
               </SelectContent>
             </Select>
             <input type="hidden" name="platform" value={editPlatform} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Moyen de paiement</Label>
+            <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYMENT_METHODS.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Discord-specific fields */}

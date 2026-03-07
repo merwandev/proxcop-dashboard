@@ -1071,7 +1071,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
 
         <div className="space-y-3 pt-2 border-t border-border">
           <Label className="text-sm font-semibold">Infos globales</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 min-w-0 overflow-hidden">
               <Label className="text-[11px] text-muted-foreground">Date d&apos;achat *</Label>
               <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="h-9 text-sm w-full" />
@@ -1090,7 +1090,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
               )}
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 min-w-0">
               <Label className="text-[11px] text-muted-foreground">Stockage</Label>
               <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>
@@ -1280,7 +1280,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5 min-w-0 overflow-hidden">
           <Label>Date d&apos;achat *</Label>
           <Input type="date" value={globalPurchaseDate} onChange={(e) => handlePurchaseDateChange(e.target.value)} className="w-full" />
@@ -1291,7 +1291,7 @@ export function ProductForm({ suppliers = [], recentProducts = [], trendingProdu
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5 min-w-0">
           <Label>Stockage</Label>
           <Select value={globalStorageLocation} onValueChange={setGlobalStorageLocation}>

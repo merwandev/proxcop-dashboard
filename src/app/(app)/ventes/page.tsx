@@ -22,6 +22,7 @@ export default async function VentesPage() {
       otherFees: sale.otherFees,
       buyerUsername: sale.buyerUsername ?? null,
       paymentStatus: sale.paymentStatus ?? null,
+      paymentMethod: sale.paymentMethod ?? null,
     },
     variant: {
       purchasePrice: variant.purchasePrice,

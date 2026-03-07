@@ -17,6 +17,7 @@ interface SaleItem {
     otherFees: string | null;
     buyerUsername: string | null;
     paymentStatus: string | null;
+    paymentMethod: string | null;
   };
   variant: {
     purchasePrice: string;

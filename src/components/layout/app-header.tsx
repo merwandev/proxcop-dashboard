@@ -16,18 +16,17 @@ export async function AppHeader({ unreadMessages = 0 }: AppHeaderProps) {
     <header className="sticky top-0 z-40 glass border-b border-border safe-area-top">
       <div className="flex items-center justify-between h-14 px-4 lg:px-8 max-w-lg lg:max-w-6xl mx-auto">
         {/* Mobile: logo + name / Desktop: empty spacer (logo in sidebar) */}
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
             alt="ProxStock"
             width={32}
             height={32}
-            className="rounded-full"
+            className="rounded-full lg:w-10 lg:h-10"
           />
-          <span className="font-semibold text-sm">ProxStock</span>
+          <span className="font-semibold text-sm lg:text-base">ProxStock</span>
         </div>
-        <div className="hidden lg:block" />
 
         <div className="flex items-center gap-3">
           <Link

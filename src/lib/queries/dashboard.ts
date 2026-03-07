@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { sales, productVariants, products, expenses } from "@/lib/db/schema";
 import { eq, and, gte, desc, sql, ne, lte } from "drizzle-orm";
 import { getTotalExpensesForPeriod, getExpenseSummary } from "./expenses";
+import { getTotalIncomesForPeriod } from "./incomes";
 
 function daysAgoDate(days: number): string {
   const d = new Date();
@@ -169,11 +170,13 @@ export async function getDashboardKPIs(userId: string, period = "30j") {
     .orderBy(productVariants.purchaseDate)
     .limit(5);
 
-  // Expenses for current and previous period
-  const [expensesCurrent, expensesPrev, expenseSummary] = await Promise.all([
+  // Expenses and incomes for current and previous period
+  const [expensesCurrent, expensesPrev, expenseSummary, incomesCurrent, incomesPrev] = await Promise.all([
     getTotalExpensesForPeriod(userId, from, to),
     getTotalExpensesForPeriod(userId, prevFrom, from),
     getExpenseSummary(userId, from, to),
+    getTotalIncomesForPeriod(userId, from, to),
+    getTotalIncomesForPeriod(userId, prevFrom, from),
   ]);
 
   const revenue = Number(revResult[0]?.total ?? 0);
@@ -181,9 +184,9 @@ export async function getDashboardKPIs(userId: string, period = "30j") {
   const rawProfit = Number(profitResult[0]?.total ?? 0);
   const rawProfitPrev = Number(profitPrevResult[0]?.total ?? 0);
 
-  // Net profit = sales profit - expenses
-  const profit = rawProfit - expensesCurrent.total;
-  const profitPrev = rawProfitPrev - expensesPrev.total;
+  // Net profit = sales profit - expenses + incomes
+  const profit = rawProfit - expensesCurrent.total + incomesCurrent.total;
+  const profitPrev = rawProfitPrev - expensesPrev.total + incomesPrev.total;
 
   return {
     revenue,

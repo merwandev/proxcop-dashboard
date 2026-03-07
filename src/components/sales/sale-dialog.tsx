@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PLATFORMS } from "@/lib/utils/constants";
+import { PLATFORMS, PAYMENT_METHODS } from "@/lib/utils/constants";
 import { createSale } from "@/lib/actions/sale-actions";
 import { BadgeCheck, Loader2, EyeOff } from "lucide-react";
 import { type SaleSuccessData } from "./sale-success-animation";
@@ -46,6 +46,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
   const [salePrice, setSalePrice] = useState("");
   const [platformFeeValue, setPlatformFeeValue] = useState("0");
   const [anonymousSale, setAnonymousSale] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("platform_default");
 
   // Auto-calculate commission when platform or sale price changes
   const autoCalculateFee = (platform: string, price: string) => {
@@ -106,6 +107,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
       setSalePrice("");
       setPlatformFeeValue("0");
       setAnonymousSale(false);
+      setPaymentMethod("platform_default");
       return { success: true };
     } catch (e) {
       return { error: (e as Error).message };
@@ -116,7 +118,7 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedPlatform(""); setSalePrice(""); setPlatformFeeValue("0"); setAnonymousSale(false); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setSelectedPlatform(""); setSalePrice(""); setPlatformFeeValue("0"); setAnonymousSale(false); setPaymentMethod("platform_default"); } }}>
         <DialogTrigger asChild>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-success">
             <BadgeCheck className="h-3.5 w-3.5" />
@@ -192,6 +194,23 @@ export function SaleDialog({ variantId, productInfo, platformFees, userName, sho
                 </div>
               </div>
             )}
+
+            <div className="space-y-1.5">
+              <Label>Moyen de paiement</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input type="hidden" name="paymentMethod" value={paymentMethod} />
+            </div>
 
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1.5">

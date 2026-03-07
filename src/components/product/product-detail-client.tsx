@@ -40,6 +40,7 @@ import {
   duplicateProduct,
   bulkUpdateReturnDeadline,
 } from "@/lib/actions/product-actions";
+import { EditImageDialog } from "./edit-image-dialog";
 import {
   Package,
   Plus,
@@ -54,6 +55,7 @@ import {
   TrendingUp,
   Copy,
   ShoppingBag,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -184,21 +186,30 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], pla
       <Card className="p-4 bg-card border-border">
         <div className="flex gap-4">
           {/* Image */}
-          <div className="relative h-20 w-20 rounded-lg overflow-hidden bg-white flex-shrink-0">
-            {product.imageUrl ? (
-              <Image
-                src={product.imageUrl}
-                alt={product.name}
-                fill
-                className="object-contain p-1"
-                sizes="80px"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Package className="h-8 w-8 text-muted-foreground" />
-              </div>
-            )}
-          </div>
+          <EditImageDialog
+            productId={product.id}
+            productName={product.name}
+            trigger={
+              <button type="button" className="relative h-20 w-20 rounded-lg overflow-hidden bg-white flex-shrink-0 group cursor-pointer">
+                {product.imageUrl ? (
+                  <Image
+                    src={product.imageUrl}
+                    alt={product.name}
+                    fill
+                    className="object-contain p-1"
+                    sizes="80px"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <Package className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+              </button>
+            }
+          />
 
           {/* Info */}
           <div className="flex-1 min-w-0">
@@ -227,7 +238,7 @@ export function ProductDetailClient({ product, medianPrices, suppliers = [], pla
           <AddVariantDialog productId={product.id} />
           <DuplicateProductButton productId={product.id} />
           <BulkReturnDeadlineDialog productId={product.id} variantCount={allInStockVariants.length} />
-          <BulkSaleDialog variants={product.variants} />
+          <BulkSaleDialog variants={product.variants} onSaleSuccess={handleSaleSuccess} />
         </div>
       </Card>
 
@@ -906,11 +917,12 @@ function EditVariantDialog({ variant, medianPrice = null, suppliers = [] }: { va
 
 // --- Bulk Sale Dialog ---
 
-function BulkSaleDialog({ variants }: { variants: ProductVariant[] }) {
+function BulkSaleDialog({ variants, onSaleSuccess }: { variants: ProductVariant[]; onSaleSuccess?: (data: SaleSuccessData) => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [platform, setPlatform] = useState("");
+  const [anonymousSale, setAnonymousSale] = useState(false);
   const router = useRouter();
 
   const unsoldVariants = variants.filter((v) => v.status !== "vendu");
@@ -938,18 +950,44 @@ function BulkSaleDialog({ variants }: { variants: ProductVariant[] }) {
     setSaving(true);
     try {
       const form = new FormData(e.currentTarget);
+      const salePrice = Number(form.get("salePrice"));
+      const saleDate = form.get("saleDate") as string;
       await createBulkSales({
         variantIds: Array.from(selectedIds),
-        salePrice: Number(form.get("salePrice")),
-        saleDate: form.get("saleDate") as string,
+        salePrice,
+        saleDate,
         platform: platform || undefined,
         platformFee: Number(form.get("platformFee") || 0),
         shippingCost: Number(form.get("shippingCost") || 0),
         otherFees: Number(form.get("otherFees") || 0),
+        buyerUsername: (form.get("buyerUsername") as string) || undefined,
+        paymentStatus: (form.get("paymentStatus") as string) || undefined,
+        notes: (form.get("notes") as string) || undefined,
+        anonymousSale,
       });
       toast.success(`${selectedIds.size} vente${selectedIds.size > 1 ? "s" : ""} créée${selectedIds.size > 1 ? "s" : ""}`);
+
+      // Trigger success animation if available
+      if (onSaleSuccess) {
+        const firstVariant = unsoldVariants.find((v) => selectedIds.has(v.id));
+        onSaleSuccess({
+          salePrice,
+          purchasePrice: firstVariant ? Number(firstVariant.purchasePrice) : 0,
+          platformFee: Number(form.get("platformFee") || 0),
+          shippingCost: Number(form.get("shippingCost") || 0),
+          otherFees: Number(form.get("otherFees") || 0),
+          platform: platform || null,
+          saleDate,
+          productName: `${selectedIds.size} items vendus`,
+          productImage: null,
+          productSku: null,
+          sizeVariant: null,
+        });
+      }
+
       setOpen(false);
       setSelectedIds(new Set());
+      setAnonymousSale(false);
       router.refresh();
     } catch {
       toast.error("Erreur lors de la création des ventes");
@@ -1041,6 +1079,51 @@ function BulkSaleDialog({ variants }: { variants: ProductVariant[] }) {
               <Input name="otherFees" type="number" step="0.01" min="0" defaultValue="0" />
             </div>
           </div>
+
+          {/* Discord-specific fields */}
+          {platform === "discord" && (
+            <div className="space-y-3 rounded-lg border border-[#5865F2]/30 bg-[#5865F2]/5 p-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Acheteur Discord</Label>
+                <Input name="buyerUsername" placeholder="@username" className="bg-card" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Statut du paiement</Label>
+                <Select name="paymentStatus" defaultValue="paid">
+                  <SelectTrigger className="bg-card">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid">Déjà payé</SelectItem>
+                    <SelectItem value="pending">Paiement à réception</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notes</Label>
+            <Input name="notes" placeholder="Notes optionnelles..." />
+          </div>
+
+          {/* Anonymous sale toggle */}
+          <button
+            type="button"
+            onClick={() => setAnonymousSale(!anonymousSale)}
+            className={`flex items-center gap-2 w-full rounded-lg border p-2.5 text-sm transition-colors ${
+              anonymousSale
+                ? "border-primary/30 bg-primary/5 text-primary"
+                : "border-border bg-secondary/50 text-muted-foreground"
+            }`}
+          >
+            <div className="text-left flex-1">
+              <p className="font-medium text-xs">Vente anonyme</p>
+            </div>
+            <div className={`h-5 w-9 rounded-full transition-colors ${anonymousSale ? "bg-primary" : "bg-muted-foreground/30"}`}>
+              <div className={`h-4 w-4 rounded-full bg-white mt-0.5 transition-transform ${anonymousSale ? "translate-x-4.5" : "translate-x-0.5"}`} />
+            </div>
+          </button>
 
           <Button type="submit" className="w-full" disabled={saving || selectedIds.size === 0}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : `Vendre ${selectedIds.size} variant${selectedIds.size > 1 ? "s" : ""}`}

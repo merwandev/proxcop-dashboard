@@ -106,6 +106,25 @@ export async function saveCommunityOptIn(userId: string, optIn: boolean) {
     .where(eq(users.id, userId));
 }
 
+// ─── Declared Platforms (for AE cotisations) ────────────────────────
+
+export async function getDeclaredPlatforms(userId: string): Promise<string[] | null> {
+  const result = await db
+    .select({ declaredPlatforms: users.declaredPlatforms })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return (result[0]?.declaredPlatforms as string[]) ?? null;
+}
+
+export async function saveDeclaredPlatforms(userId: string, platforms: string[]) {
+  await db
+    .update(users)
+    .set({ declaredPlatforms: platforms, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
 // ─── Platform Fees ──────────────────────────────────────────────────
 
 export async function getPlatformFees(userId: string): Promise<Record<string, number>> {

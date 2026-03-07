@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { saveDashboardLayout, saveStatsLayout, saveTaxSettings, saveCommunityOptIn, saveSaleSuccessAnimation, savePlatformFees, type WidgetSize } from "@/lib/queries/user-preferences";
+import { saveDashboardLayout, saveStatsLayout, saveTaxSettings, saveCommunityOptIn, saveSaleSuccessAnimation, savePlatformFees, saveDeclaredPlatforms, type WidgetSize } from "@/lib/queries/user-preferences";
 import { revalidatePath } from "next/cache";
 
 export async function saveDashboardLayoutAction(widgets: string[], sizes?: Record<string, WidgetSize>) {
@@ -55,4 +55,14 @@ export async function savePlatformFeesAction(fees: Record<string, number>) {
   await savePlatformFees(session.user.id, fees);
   revalidatePath("/settings");
   revalidatePath("/stock");
+}
+
+export async function saveDeclaredPlatformsAction(platforms: string[]) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Non authentifie");
+
+  await saveDeclaredPlatforms(session.user.id, platforms);
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  revalidatePath("/stats");
 }

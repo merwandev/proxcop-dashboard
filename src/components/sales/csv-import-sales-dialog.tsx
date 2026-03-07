@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,12 +19,22 @@ interface CSVImportSalesDialogProps {
   onClose: () => void;
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProps) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<Record<string, string>[]>([]);
   const [totalRows, setTotalRows] = useState(0);
-  const [isPending, startTransition] = useTransition();
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState("");
   const [result, setResult] = useState<{ imported: number; errors: string[] } | null>(null);
 
   const reset = useCallback(() => {
@@ -32,6 +42,8 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
     setPreview([]);
     setTotalRows(0);
     setResult(null);
+    setProgress(0);
+    setProgressText("");
   }, []);
 
   const handleClose = () => {
@@ -69,30 +81,48 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
   const handleImport = () => {
     if (!file) return;
 
-    startTransition(async () => {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results) => {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const res = await importSalesFromCSV(results.data as any[]);
-            setResult(res);
-            if (res.imported > 0) {
-              toast.success(`${res.imported} vente${res.imported > 1 ? "s" : ""} importee${res.imported > 1 ? "s" : ""}`);
-              router.refresh();
-            }
-            if (res.errors.length > 0 && res.imported === 0) {
-              toast.error("Aucune vente importee");
-            }
-          } catch (e) {
-            toast.error((e as Error).message || "Erreur d'import");
+    setImporting(true);
+    setProgress(0);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const allRows = results.data as any[];
+          const batches = chunk(allRows, 15);
+          let totalImported = 0;
+          const allErrors: string[] = [];
+
+          for (let i = 0; i < batches.length; i++) {
+            const res = await importSalesFromCSV(batches[i]);
+            totalImported += res.imported;
+            allErrors.push(...res.errors);
+
+            const pct = Math.round(((i + 1) / batches.length) * 100);
+            setProgress(pct);
+            setProgressText(`${pct}% — ${totalImported}/${allRows.length} importées`);
           }
-        },
-        error: () => {
-          toast.error("Erreur de lecture du fichier");
-        },
-      });
+
+          setResult({ imported: totalImported, errors: allErrors });
+          if (totalImported > 0) {
+            toast.success(`${totalImported} vente${totalImported > 1 ? "s" : ""} importée${totalImported > 1 ? "s" : ""}`);
+            router.refresh();
+          }
+          if (allErrors.length > 0 && totalImported === 0) {
+            toast.error("Aucune vente importée");
+          }
+        } catch (e) {
+          toast.error((e as Error).message || "Erreur d'import");
+        } finally {
+          setImporting(false);
+        }
+      },
+      error: () => {
+        toast.error("Erreur de lecture du fichier");
+        setImporting(false);
+      },
     });
   };
 
@@ -140,7 +170,7 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
           </div>
 
           {/* File input */}
-          {!result && (
+          {!result && !importing && (
             <div className="space-y-2">
               <label
                 htmlFor="csv-sales-input"
@@ -181,7 +211,7 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
           )}
 
           {/* Preview */}
-          {preview.length > 0 && !result && (
+          {preview.length > 0 && !result && !importing && (
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">Apercu ({Math.min(3, totalRows)} / {totalRows})</p>
               <div className="rounded-lg border border-border overflow-x-auto">
@@ -217,6 +247,19 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
             </div>
           )}
 
+          {/* Progress bar */}
+          {importing && (
+            <div className="space-y-2">
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">{progressText || "Import en cours..."}</p>
+            </div>
+          )}
+
           {/* Import result */}
           {result && (
             <div className="space-y-3">
@@ -224,7 +267,7 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
                 <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 p-3">
                   <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
                   <p className="text-sm">
-                    <span className="font-bold">{result.imported}</span> vente{result.imported > 1 ? "s" : ""} importee{result.imported > 1 ? "s" : ""}
+                    <span className="font-bold">{result.imported}</span> vente{result.imported > 1 ? "s" : ""} importée{result.imported > 1 ? "s" : ""}
                   </p>
                 </div>
               )}
@@ -248,23 +291,18 @@ export function CSVImportSalesDialog({ open, onClose }: CSVImportSalesDialogProp
           )}
 
           {/* Import button */}
-          {file && !result && (
+          {file && !result && !importing && (
             <Button
               onClick={handleImport}
-              disabled={isPending}
               className="w-full gap-1.5"
             >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
+              <Upload className="h-4 w-4" />
               Importer {totalRows} ligne{totalRows !== 1 ? "s" : ""}
             </Button>
           )}
 
           {/* Help text */}
-          {!file && !result && (
+          {!file && !result && !importing && (
             <div className="text-[11px] text-muted-foreground space-y-1">
               <p><strong>Colonnes requises :</strong> Produit, Prix Achat, Date Achat, Prix Vente, Date Vente</p>
               <p><strong>Colonnes optionnelles :</strong> SKU, Categorie, Taille, Plateforme, Commission, Frais Envoi, Autres Frais</p>
